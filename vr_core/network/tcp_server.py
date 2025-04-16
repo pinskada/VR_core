@@ -6,7 +6,7 @@ import queue
 import time
 
 class TCPServer:
-    def __init__(self, core, host='0.0.0.0', port=65432):
+    def __init__(self, core, host='0.0.0.0', port=65432, autostart=True):
         self.core = core                      # Reference to Core
         self.host = host
         self.port = port
@@ -27,6 +27,10 @@ class TCPServer:
         self.receiver_thread = None
         self.sender_thread = None
 
+        # Start the server immediately
+        if autostart:
+            self.start()
+
     # Public entry point
     def start(self):
         """Starts the server and launches threads."""
@@ -41,6 +45,26 @@ class TCPServer:
             self.client_conn.close()
         if self.server_socket:
             self.server_socket.close()
+
+    def verify_static_ip(self, expected_prefix="192.168.1."):
+        """Check if the current IP matches the expected static IP prefix."""
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+        except Exception as e:
+            print(f"[TCPServer] ⚠️ Could not determine IP: {e}")
+            return False
+        finally:
+            s.close()
+
+        if ip.startswith(expected_prefix):
+            print(f"[TCPServer] ✅ IP OK: {ip}")
+            return True
+        else:
+            print(f"[TCPServer] ⚠️ Unexpected IP: {ip} — expected prefix {expected_prefix}")
+            print("[TCPServer] Suggestion: Run `set_static_ip.sh` manually with sudo if needed.")
+            return False
 
     # Accept connection from Unity
     def _listen_for_connection(self):
