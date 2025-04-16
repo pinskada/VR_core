@@ -1,3 +1,3 @@
 [submodule "Eye_tracking"]
-	path = Eye_tracking
+	path = eye_tracker/eyeloop_module
 	url = https://github.com/pinskada/EyeTracking.git
