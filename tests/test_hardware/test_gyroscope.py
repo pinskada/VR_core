@@ -28,5 +28,5 @@ def test_gyroscope_basic_readings():
     except Exception as e:
         print(f"Test failed: {e}")
 
-
-test_gyroscope_basic_readings()
+if __name__ == "__main__":
+    test_gyroscope_basic_readings()
