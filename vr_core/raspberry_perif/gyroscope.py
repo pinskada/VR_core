@@ -1,16 +1,26 @@
-
 # VR_core/gyroscope/gyro_handler.py
 import threading
 import time
 from vr_core.config import gyroscope_config
+import os
 
+# Check if I2C is enabled on the Raspberry Pi
+def ensure_i2c_enabled():
 
+    if not os.path.exists("/dev/i2c-1"):
+        print("[Gyroscope] I2C not detected.")
+        print("Run `sudo raspi-config` > Interface Options > I2C > Enable")
+        return
+    
+ensure_i2c_enabled()
+
+# Check if smbus2 is available for I2C communication
 try:
     import smbus2
-    HARDWARE_AVAILABLE = True
+    HARDWARE_AVAILABLE = True # I2C is available
 except ImportError:
     print("[gyro_handler] smbus2 not available - mock mode")
-    HARDWARE_AVAILABLE = False
+    HARDWARE_AVAILABLE = False # I2C not available, use mock mode
 
 class Gyroscope:
     def __init__(self, tcp_sender):
@@ -60,3 +70,11 @@ class Gyroscope:
                 "data": data
             }, priority='high')
             time.sleep(0.01)  # 100 Hz
+
+
+def ensure_i2c_enabled():
+
+    if not os.path.exists("/dev/i2c-1"):
+        print("[Gyroscope] I2C not detected.")
+        print("Run `sudo raspi-config` > Interface Options > I2C > Enable")
+        return
