@@ -9,7 +9,7 @@ import math
 def ensure_i2c_enabled():
 
     if not os.path.exists("/dev/i2c-1"):
-        print("[Gyroscope] I2C not detected.")
+        print("[gyroscope] I2C not detected.")
         print("Run 'sudo raspi-config' > Interface Options > I2C > Enable")
         return
     

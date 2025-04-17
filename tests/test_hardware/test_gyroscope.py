@@ -27,3 +27,6 @@ def test_gyroscope_basic_readings():
         print("Test interrupted.")
     except Exception as e:
         print(f"Test failed: {e}")
+
+
+test_gyroscope_basic_readings()
