@@ -5,22 +5,20 @@ import threading
 import queue
 import time
 
+import vr_core.config as config 
+
 class TCPServer:
-    def __init__(self, core, host='0.0.0.0', port=65432, autostart=True):
-        self.core = core                      # Reference to Core
-        self.host = host
-        self.port = port
+    def __init__(self, autostart=True):
+        self.core = config.core                      # Reference to Core
+        self.host = config.TCP_HOST
+        self.port = config.TCP_HOST
         self.server_socket = None
         self.client_conn = None
         self.client_addr = None
         self.running = False
 
         # Queues for prioritized outbound messages
-        self.priority_queues = {
-            'high': queue.Queue(),    # For gyro data
-            'medium': queue.Queue(),  # For viewing distance
-            'low': queue.Queue()      # For commands, status updates
-        }
+        self.priority_queues = config.MESSAGE_PRIORITIES
 
         # Thread handles
         self.listener_thread = None

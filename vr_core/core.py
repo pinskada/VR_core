@@ -1,13 +1,19 @@
+from network.tcp_server import TCPServer
+from raspberry_perif.esp32 import ESP32
+from raspberry_perif.gyroscope import Gyro
+from eye_tracker.tracker_handler import TrackerHandler
+
+import vr_core.config as config
+
 class Core:
     """
     Core engine for RPI..
     """
 
-    def __init__(self, config: object) -> None:
-        self.config = config
-        self.source = None  # Placeholder for source object
-        self.width = 0
-        self.height = 0
-        self.center = (0, 0)
-
+    def __init__(self) -> None:
         
+        config.TCPServer = TCPServer(self)
+        tcp_server = config.TCPServer
+        
+        self.config = config
+     
