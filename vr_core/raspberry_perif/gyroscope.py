@@ -3,13 +3,14 @@ import threading
 import time
 from vr_core.config import gyroscope_config
 import os
+import math
 
 # Check if I2C is enabled on the Raspberry Pi
 def ensure_i2c_enabled():
 
     if not os.path.exists("/dev/i2c-1"):
         print("[Gyroscope] I2C not detected.")
-        print("Run `sudo raspi-config` > Interface Options > I2C > Enable")
+        print("Run 'sudo raspi-config' > Interface Options > I2C > Enable")
         return
     
 ensure_i2c_enabled()
@@ -19,36 +20,44 @@ try:
     import smbus2
     HARDWARE_AVAILABLE = True # I2C is available
 except ImportError:
-    print("[gyro_handler] smbus2 not available - mock mode")
+    print("[gyroscope] smbus2 not available - mock mode")
     HARDWARE_AVAILABLE = False # I2C not available, use mock mode
 
 class Gyroscope:
-    def __init__(self, tcp_sender):
+    def __init__(self, tcp_sender, force_mock=False):
         self.tcp_sender = tcp_sender
         self.thread = threading.Thread(target=self.run, daemon=True)
 
         self.addr = gyroscope_config.addr
         self.bus = smbus2.SMBus(gyroscope_config.bus_num) if HARDWARE_AVAILABLE else None
-        self.mock_angle = 0.0
 
-        if HARDWARE_AVAILABLE:
-            self.bus.write_byte_data(self.addr, gyroscope_config.reg_ctrl1, gyroscope_config.ctrl1_enable)  # Enable gyro
-            print("[gyro_handler] Gyro initialized")
+        self.mock_angle = 0.0
+        self.mock_mode = force_mock or not HARDWARE_AVAILABLE
+
+        if self.mock_mode:
+            print("[Gyroscope] MOCK MODE ACTIVE — Simulating gyro values")
+        else:
+            self.bus.write_byte_data(self.addr, gyroscope_config.reg_ctrl1, gyroscope_config.ctrl1_enable)
+            print("[Gyroscope] Gyro initialized")
 
         self.running = True
         self.thread.start()
-        print("[gyro_handler] Started")
+        print("[gyroscope] Started")
 
 
     def stop(self):
         self.running = False
-        print("[gyro_handler] Stopped")
+        print("[gyroscope] Stopped")
 
 
     def read_gyro(self):
-        if not HARDWARE_AVAILABLE:
-            self.mock_angle += 1.5
-            return {'x': 0.0, 'y': 0.0, 'z': self.mock_angle}
+        if self.mock_mode:
+            self.mock_angle += 0.1
+            return {
+                'x': round(25.0 * math.sin(self.mock_angle), 2),
+                'y': round(15.0 * math.sin(self.mock_angle / 2), 2),
+                'z': round(10.0 * math.cos(self.mock_angle), 2),
+            }
 
         def read_word(reg):
             low = self.bus.read_byte_data(self.addr, reg)
@@ -70,4 +79,3 @@ class Gyroscope:
                 "data": data
             }, priority='high')
             time.sleep(gyroscope_config.update_rate)  # 100 Hz
-
