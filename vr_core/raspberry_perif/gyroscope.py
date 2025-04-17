@@ -25,7 +25,6 @@ except ImportError:
 class Gyroscope:
     def __init__(self, tcp_sender):
         self.tcp_sender = tcp_sender
-        self.running = False
         self.thread = threading.Thread(target=self.run, daemon=True)
 
         self.addr = gyroscope_config.addr
@@ -36,14 +35,15 @@ class Gyroscope:
             self.bus.write_byte_data(self.addr, gyroscope_config.reg_ctrl1, gyroscope_config.ctrl1_enable)  # Enable gyro
             print("[gyro_handler] Gyro initialized")
 
-    def start(self):
         self.running = True
         self.thread.start()
         print("[gyro_handler] Started")
 
+
     def stop(self):
         self.running = False
         print("[gyro_handler] Stopped")
+
 
     def read_gyro(self):
         if not HARDWARE_AVAILABLE:
@@ -69,12 +69,5 @@ class Gyroscope:
                 "type": "gyro",
                 "data": data
             }, priority='high')
-            time.sleep(0.01)  # 100 Hz
+            time.sleep(gyroscope_config.update_rate)  # 100 Hz
 
-
-def ensure_i2c_enabled():
-
-    if not os.path.exists("/dev/i2c-1"):
-        print("[Gyroscope] I2C not detected.")
-        print("Run `sudo raspi-config` > Interface Options > I2C > Enable")
-        return
