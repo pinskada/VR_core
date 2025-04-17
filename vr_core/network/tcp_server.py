@@ -11,7 +11,7 @@ class TCPServer:
     def __init__(self, autostart=True):
         self.core = config.core                      # Reference to Core
         self.host = config.TCP_HOST
-        self.port = config.TCP_HOST
+        self.port = config.TCP_PORT
         self.server_socket = None
         self.client_conn = None
         self.client_addr = None
@@ -27,6 +27,7 @@ class TCPServer:
 
         # Start the server immediately
         if autostart:
+            self.verify_static_ip()
             self.start_server()
 
     # Public entry point
