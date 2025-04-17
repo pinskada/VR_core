@@ -29,16 +29,16 @@ class TCPServer:
 
         # Start the server immediately
         if autostart:
-            self.start()
+            self.start_server()
 
     # Public entry point
-    def start(self):
+    def start_server(self):
         """Starts the server and launches threads."""
         self.running = True
         self.listener_thread = threading.Thread(target=self._listen_for_connection, daemon=True)
         self.listener_thread.start()
 
-    def stop(self):
+    def stop_server(self):
         """Stops the server and cleans up resources."""
         self.running = False
         if self.client_conn:
@@ -53,16 +53,16 @@ class TCPServer:
             s.connect(("8.8.8.8", 80))
             ip = s.getsockname()[0]
         except Exception as e:
-            print(f"[TCPServer] ⚠️ Could not determine IP: {e}")
+            print(f"[TCPServer] Could not determine IP: {e}")
             return False
         finally:
             s.close()
 
         if ip.startswith(expected_prefix):
-            print(f"[TCPServer] ✅ IP OK: {ip}")
+            print(f"[TCPServer] IP OK: {ip}")
             return True
         else:
-            print(f"[TCPServer] ⚠️ Unexpected IP: {ip} — expected prefix {expected_prefix}")
+            print(f"[TCPServer] Unexpected IP: {ip} — expected prefix {expected_prefix}")
             print("[TCPServer] Suggestion: Run `set_static_ip.sh` manually with sudo if needed.")
             return False
 
