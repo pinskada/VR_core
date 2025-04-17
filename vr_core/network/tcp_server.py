@@ -5,20 +5,22 @@ import threading
 import queue
 import time
 
+from vr_core.config import TCPConfig 
 import vr_core.config as config 
+
 
 class TCPServer:
     def __init__(self, autostart=True):
         self.core = config.core                      # Reference to Core
-        self.host = config.TCP_HOST
-        self.port = config.TCP_PORT
+        self.host = TCPConfig.host
+        self.port = TCPConfig.port
         self.server_socket = None
         self.client_conn = None
         self.client_addr = None
         self.running = False
 
         # Queues for prioritized outbound messages
-        self.priority_queues = config.MESSAGE_PRIORITIES
+        self.priority_queues = TCPConfig.message_priorities
 
         # Thread handles
         self.listener_thread = None
