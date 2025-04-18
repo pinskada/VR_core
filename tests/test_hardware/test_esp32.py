@@ -1,5 +1,3 @@
-# VR_core/tests/test_esp32.py
-
 import argparse
 from vr_core.raspberry_perif.esp32 import ESP32
 
