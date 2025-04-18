@@ -46,6 +46,10 @@ class ESP32:
             print(f"[ESP32] Serial error: {e}.")
 
 
+    def is_online(self):
+        return self.online
+    
+
     def _perform_handshake(self):
         """Perform a handshake with the ESP32 to ensure it's ready."""
 
@@ -92,6 +96,7 @@ class ESP32:
                 if i == esp32_config.send_attempts-1:
                     self.online = False
                 print(f"[ESP32] Error during UART write: {e}")
+
 
     def close(self):
         """Close the serial connection."""

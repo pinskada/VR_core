@@ -1,56 +1,69 @@
-# VR_core/gyroscope/gyro_handler.py
 import threading
 import time
 from vr_core.config import gyroscope_config
 import os
 import math
 
-# Check if I2C is enabled on the Raspberry Pi
-def ensure_i2c_enabled():
-
-    if not os.path.exists("/dev/i2c-1"):
-        print("[gyroscope] I2C not detected.")
-        print("Run 'sudo raspi-config' > Interface Options > I2C > Enable")
-        return
-    
-ensure_i2c_enabled()
-
-# Check if smbus2 is available for I2C communication
-try:
-    import smbus2
-    HARDWARE_AVAILABLE = True # I2C is available
-except ImportError:
-    print("[gyroscope] smbus2 not available - mock mode")
-    HARDWARE_AVAILABLE = False # I2C not available, use mock mode
 
 class Gyroscope:
     def __init__(self, tcp_sender, force_mock=False):
-        self.tcp_sender = tcp_sender
-        self.thread = threading.Thread(target=self.run, daemon=True)
-
-        self.addr = gyroscope_config.addr
-        self.bus = smbus2.SMBus(gyroscope_config.bus_num) if HARDWARE_AVAILABLE else None
-
         self.mock_angle = 0.0
-        self.mock_mode = force_mock or not HARDWARE_AVAILABLE
+        self.mock_mode = force_mock
+        self.online = False
+        self.tcp_sender = tcp_sender
+        self.thread = threading.Thread(target=self.run, daemon=True)      
 
         if self.mock_mode:
+            # If mock mode is enabled, we don't need to check for hardware availability
             print("[Gyroscope] MOCK MODE ACTIVE — Simulating gyro values")
         else:
-            self.bus.write_byte_data(self.addr, gyroscope_config.reg_ctrl1, gyroscope_config.ctrl1_enable)
-            print("[Gyroscope] Gyro initialized")
+            try:
+                if self.ensure_i2c_enabled() is False:
+                    print("[Gyroscope] I2C not enabled. Exiting.")
+                    return
+                
+                import smbus2 # Import the smbus2 library for I2C communication
+                self.addr = gyroscope_config.addr # I2C address of the gyroscope (L3GD20H)
 
-        self.running = True
-        self.thread.start()
-        print("[gyroscope] Started")
+                self.bus = smbus2.SMBus(gyroscope_config.bus_num) # I2C bus number (1 for Raspberry Pi 3 and later)
+                self.bus.write_byte_data(self.addr, gyroscope_config.reg_ctrl1, gyroscope_config.ctrl1_enable)    
+
+                print("[Gyroscope] Gyro initialized")
+            except OSError as e:
+                print(f"[Gyroscope] Error initializing gyro: {e}")
+                return
+            
+        self.online = True  # Set online status to True             
+        self.thread.start() # Start the thread to read gyro data
+        
+        print("[Gyroscope] Started")
 
 
     def stop(self):
-        self.running = False
-        print("[gyroscope] Stopped")
+        """Stop the gyroscope thread."""
 
+        self.online = False
+        print("[Gyroscope] Stopped")
+
+
+    def is_online(self):
+        return self.online
+
+
+    # Check if I2C is enabled on the Raspberry Pi
+    def ensure_i2c_enabled(self):
+        """Check if I2C is enabled on the Raspberry Pi."""
+
+        if not os.path.exists("/dev/i2c-1"):
+            print("[Gyroscope] I2C not detected.")
+            print("Run 'sudo raspi-config' > Interface Options > I2C > Enable")
+            return False
+    
 
     def read_gyro(self):
+        """Read gyroscope data."""
+
+        # Create synthetic data if in mock mode
         if self.mock_mode:
             self.mock_angle += 0.1
             return {
@@ -59,6 +72,7 @@ class Gyroscope:
                 'z': round(10.0 * math.cos(self.mock_angle), 2),
             }
 
+        # Read the gyroscope data from the I2C bus
         def read_word(reg):
             low = self.bus.read_byte_data(self.addr, reg)
             high = self.bus.read_byte_data(self.addr, reg+1)
@@ -71,11 +85,20 @@ class Gyroscope:
             'z': read_word(gyroscope_config.reg_out_z_l),
         }
 
+
     def run(self):
-        while self.running:
-            data = self.read_gyro()
-            self.tcp_sender.send({
-                "type": "gyro",
-                "data": data
-            }, priority='high')
-            time.sleep(gyroscope_config.update_rate)  # 100 Hz
+        """Continuously read gyroscope data and send it over TCP."""
+
+        while self.online:
+            data = self.read_gyro() # Get the gyroscope data
+
+            if self.tcp_sender is not None:
+                self.tcp_sender.send(
+                {
+                    "type": "gyro",
+                    "data": data
+                }, priority='high')
+            else:
+                print("[Gyroscope] No TCP sender available. Skipping data send.")
+
+            time.sleep(gyroscope_config.update_rate)  # Sleep for the specified update rate
