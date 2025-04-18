@@ -3,7 +3,7 @@ import time
 from vr_core.config import esp32_config
 
 try:
-    import serial
+    import serial # type: ignore
     HARDWARE_AVAILABLE = True
 except ImportError:
     print("[ESP32] pyserial not available — mock mode")

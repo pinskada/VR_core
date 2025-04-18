@@ -22,7 +22,7 @@ class Gyroscope:
                     print("[Gyroscope] I2C not enabled. Exiting.")
                     return
                 
-                import smbus2 # Import the smbus2 library for I2C communication
+                import smbus2 # type: ignore # Import the smbus2 library for I2C communication
                 self.addr = gyroscope_config.addr # I2C address of the gyroscope (L3GD20H)
 
                 self.bus = smbus2.SMBus(gyroscope_config.bus_num) # I2C bus number (1 for Raspberry Pi 3 and later)
