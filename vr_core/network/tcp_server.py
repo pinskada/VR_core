@@ -17,7 +17,7 @@ class TCPServer:
         self.server_socket = None   # Server socket
         self.client_conn = None     # Client connection
         self.client_addr = None     # Client address
-        self.running = False        # Server status
+        self.online = False        # Server status
 
         # Queues for prioritized outbound messages
         self.priority_queues = tcp_config.message_priorities
@@ -36,11 +36,11 @@ class TCPServer:
     def is_online(self):
         return self.online
     
-    
+
     def start_server(self):
         """Starts the server and launches threads."""
 
-        self.running = True # Set running flag to True
+        self.online = True # Set online flag to True
 
         self.listener_thread = threading.Thread(target=self._listen_for_connection, daemon=True) # Daemon thread
         self.listener_thread.start() # Start the listener thread
@@ -49,7 +49,7 @@ class TCPServer:
     def stop_server(self):
         """Stops the server and cleans up resources."""
 
-        self.running = False
+        self.online = False
         if self.client_conn:
             self.client_conn.close()
         if self.server_socket:
@@ -106,7 +106,7 @@ class TCPServer:
     def _receive_loop(self):
         """Handle incoming messages from Unity."""
 
-        while self.running:
+        while self.online:
             try:
                 data = self.client_conn.recv(tcp_config.recv_buffer_size) # Receive data from the socket
                 if not data:
@@ -121,7 +121,7 @@ class TCPServer:
     def _send_loop(self):
         """Send outgoing messages based on priority."""
 
-        while self.running:
+        while self.online:
             for priority in ['high', 'medium', 'low']: # Check high to low priority
                 try:
                     msg = self.priority_queues[priority].get_nowait()
