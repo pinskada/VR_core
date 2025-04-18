@@ -20,9 +20,9 @@ class TCPConfig:
 
     # Message priorities for the TCP server
     message_priorities = {
-        'high': queue.Queue(),
-        'medium': queue.Queue(),
-        'low': queue.Queue()
+        'high': queue.Queue(), # Reserved for gyroscope data
+        'medium': queue.Queue(), # Reserved for eye tracker data
+        'low': queue.Queue() # Reserved for other messages
     }
 
 tcp_config = TCPConfig()
