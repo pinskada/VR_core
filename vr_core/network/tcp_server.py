@@ -33,6 +33,10 @@ class TCPServer:
             self.start_server()
 
 
+    def is_online(self):
+        return self.online
+    
+    
     def start_server(self):
         """Starts the server and launches threads."""
 
