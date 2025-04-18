@@ -55,7 +55,13 @@ eye_tracker_config = EyeTrackerConfig()
 
 # ---- ESP32 Configuration ------------------------------------------
 class ESP32Config:
-    # Add values as needed
-    pass
+    port="/dev/serial0" # Serial port for ESP32 (e.g., /dev/serial0 on Raspberry Pi)
+    baudrate=115200 # Baud rate for the serial connection 
+    timeout=1 # Timeout for the serial connection (in seconds)
 
+    handshake_attempts = 3 # Number of attempts to perform the handshake
+    handshake_message = "HELLO" # Handshake message to send to ESP32
+    handshake_response = "READY" # Expected response from ESP32 after handshake
+
+    send_attempts = 3 # Number of attempts to send the focal distance
 esp32_config = ESP32Config()
