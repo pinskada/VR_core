@@ -1,0 +1,18 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Eyeloop (L)",
+        "type": "python",
+        "request": "launch",
+        "program": "${workspaceFolder}/vr_core/eye_tracker/eyeloop_module/eyeloop/run_eyeloop.py",
+        "args": [
+          "--sharedmem", "eye_left_frame",
+          "--side", "L",
+          "--video", "test_eye_video/test_video.mp4"
+        ],
+        "console": "integratedTerminal",
+        "justMyCode": true
+      }
+    ]
+  }
