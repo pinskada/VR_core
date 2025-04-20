@@ -1,5 +1,5 @@
 import sys
-from eyeloop.run_eyeloop import main as eyeloop_main
+from eyeloop_module.eyeloop.run_eyeloop import main as eyeloop_main
 
 def run_eyeloop_process(eye: str, shm_name: str, command_queue):
     """
