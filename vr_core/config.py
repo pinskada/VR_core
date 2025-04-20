@@ -57,36 +57,39 @@ class ESP32Config:
     handshake_response = "READY" # Expected response from ESP32 after handshake
 
     send_attempts = 3 # Number of attempts to send the focal distance
+
 esp32_config = ESP32Config()
 
 
 # ---- Eye Tracker Configuration ------------------------------------
 class EyeTrackerConfig:
-    interval = 0.033  # ~30 FPS
-
-eye_tracker_config = EyeTrackerConfig()
-
-
-
-# ---- Camera Configuration ----------------------------------------
-class CameraConfig:
+    fps = 15
     jpeg_quality = 75  # JPEG encoding quality (0-100)
     sync_timeout = 1.0  # Timeout for EyeLoop response in seconds
     index = 0  # Only used for fallback/testing
-    width = 800
-    height = 600
-    fps = 15
-    autofocus = False
-    focus = 2.5  # Only used if autofocus is False
-    exposure_time = 10000  # In microseconds
-    analogue_gain = 2.0  # Brightness boost
-    af_mode = 0  # 0 = manual, 1 = auto
-
-    crop_left = ((0.0, 0.5), (0.0, 1.0))  # Relative region (x, y, w, h) for the left eye
-    crop_right = ((0.5, 0.5), (0.0, 1.0))  # Relative region (x, y, w, h) for the right eye
+    
+    crop_left = ((0.0, 0.5), (0.0, 1.0))  # Relative region (x1, x2, y1, y2) for the left eye
+    crop_right = ((0.5, 1.0), (0.0, 1.0))  # Relative region (x1, x2, y1, y2) for the right eye
 
     sharedmem_name_left = "eye_left_frame"  # Shared memory buffer name for left eye
     sharedmem_name_right = "eye_right_frame"  # Shared memory buffer name for right eye
 
     use_test_video = False  # Use saved video instead of live camera
     test_video_path = "test_eye_video/test_video.mp4"  # Path to test video
+
+
+eye_tracker_config = EyeTrackerConfig()
+
+
+# ---- Camera Configuration ----------------------------------------
+class CameraConfig:
+
+    width = 1920
+    height = 1080
+
+    focus = 2.5  # Only used if autofocus is False
+    exposure_time = 10000  # In microseconds
+    analogue_gain = 2.0  # Brightness boost
+    af_mode = 0  # 0 = manual, 1 = auto
+
+camera_config = CameraConfig()
