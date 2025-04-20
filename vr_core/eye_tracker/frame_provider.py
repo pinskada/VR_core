@@ -1,19 +1,21 @@
 import numpy as np
 import time
-import config
+from vr_core.config import EyeTrackerConfig
 from multiprocessing import shared_memory, Queue
 
 class FrameProvider:  # Handles video acquisition, cropping, and shared memory distribution
     def __init__(self, sync_queue_L: Queue, sync_queue_R: Queue):
-        self.use_test_video = config.CameraConfig.use_test_video
+        self.use_test_video = EyeTrackerConfig.use_test_video
+
+        self.test_run = False  # Flag to indicate if we are running a test (for testing purposes)
 
         # Choose between test video or live camera
         if self.use_test_video:
             import cv2
             self.cv2 = cv2
-            self.cap = cv2.VideoCapture(config.CameraConfig.test_video_path)
+            self.cap = cv2.VideoCapture(EyeTrackerConfig.test_video_path)
         else:
-            from camera_config import CameraConfigManager
+            from vr_core.eye_tracker.camera_config import CameraConfigManager
             self.cam_manager = CameraConfigManager()
             self.cam_manager.apply_config()
 
@@ -25,15 +27,21 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
         else:
             test_frame = self.cam_manager.capture_frame()
 
+        # Validate crop dimensions
+        for name, region in [("crop_left", EyeTrackerConfig.crop_left), ("crop_right", EyeTrackerConfig.crop_right)]:
+            (x_start, x_end), (y_start, y_end) = region
+            if x_end <= x_start or y_end <= y_start:
+                raise ValueError(f"[CONFIG ERROR] Invalid crop dimensions for {name}: {region}")
+
         frame_height, frame_width = test_frame.shape[:2]
         channels = test_frame.shape[2] if len(test_frame.shape) == 3 else 1
-        x_rel_start, x_rel_end = config.CameraConfig.crop_left[0]
-        y_rel_start, y_rel_end = config.CameraConfig.crop_left[1]
+        x_rel_start, x_rel_end = EyeTrackerConfig.crop_left[0]
+        y_rel_start, y_rel_end = EyeTrackerConfig.crop_left[1]
         w = int((x_rel_end - x_rel_start) * frame_width)
         h = int((y_rel_end - y_rel_start) * frame_height)
 
-        self.shm_L = shared_memory.SharedMemory(name=config.CameraConfig.sharedmem_name_left, create=True, size=h * w * channels)
-        self.shm_R = shared_memory.SharedMemory(name=config.CameraConfig.sharedmem_name_right, create=True, size=h * w * channels)
+        self.shm_L = shared_memory.SharedMemory(name=EyeTrackerConfig.sharedmem_name_left, create=True, size=h * w * channels)
+        self.shm_R = shared_memory.SharedMemory(name=EyeTrackerConfig.sharedmem_name_right, create=True, size=h * w * channels)
 
         self.frame_id = 0  # Incremented with each new frame
         self.sync_queue_L = sync_queue_L  # Queue to track left EyeLoop completion
@@ -41,49 +49,57 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
 
     def run(self):
         try:
-          while True:
-              # Capture next frame from video or camera
-              if self.use_test_video:
-                  ret, full_frame = self.cap.read()
-                  if not ret:
-                      print("End of test video or read error.")
-                      break
-              else:
-                  full_frame = self.cam_manager.capture_frame()
-  
-              ts = time.time()
-  
-              # Crop left and right regions from the full frame
-              l = self._crop(full_frame, config.CameraConfig.crop_left)
-              r = self._crop(full_frame, config.CameraConfig.crop_right)
-  
-              # Write cropped frames to shared memory
-              np.ndarray(l.shape, dtype=l.dtype, buffer=self.shm_L.buf)[:] = l
-              np.ndarray(r.shape, dtype=r.dtype, buffer=self.shm_R.buf)[:] = r
-  
-              # Block until both EyeLoop processes confirm processing of current frame
-              left_done = right_done = False
-              while not (left_done and right_done):
-                  try:
-                      msg_L = self.sync_queue_L.get(timeout=config.CameraConfig.sync_timeout)
-                      if msg_L.get("frame_id") == self.frame_id:
-                          left_done = True
-                  except Exception:
-                      print(f"[WARN] Timeout waiting for left EyeLoop on frame {self.frame_id}")
-                      break
-  
-                  try:
-                      msg_R = self.sync_queue_R.get(timeout=config.CameraConfig.sync_timeout)
-                      if msg_R.get("frame_id") == self.frame_id:
-                          right_done = True
-                  except Exception:
-                      print(f"[WARN] Timeout waiting for right EyeLoop on frame {self.frame_id}")
-                      break
-  
-              self.frame_id += 1
-              time.sleep(1 / config.CameraConfig.fps)  # Maintain target FPS
+            while True:
+                # Capture next frame from video or camera
+                if self.use_test_video:
+                    ret, full_frame = self.cap.read()
+                    if not ret:
+                        print("End of test video or read error.")
+                        break
+                else:
+                    full_frame = self.cam_manager.capture_frame()
+    
+                # Crop left and right regions from the full frame
+                l = self._crop(full_frame, EyeTrackerConfig.crop_left)
+                r = self._crop(full_frame, EyeTrackerConfig.crop_right)
+    
+                # Write cropped frames to shared memory
+                np.ndarray(l.shape, dtype=l.dtype, buffer=self.shm_L.buf)[:] = l
+                np.ndarray(r.shape, dtype=r.dtype, buffer=self.shm_R.buf)[:] = r
+    
+                # Skip sync wait during tests
+                if self.test_run:
+                    left_done = right_done = True
+                else:
+                    # Block until both EyeLoop processes confirm processing of current frame
+                    left_done = right_done = False
+    
+
+                while not (left_done and right_done):
+                    try:
+                        msg_L = self.sync_queue_L.get(timeout=EyeTrackerConfig.sync_timeout)
+                        if msg_L.get("frame_id") == self.frame_id:
+                            left_done = True
+                    except Exception:
+                        print(f"[WARN] Timeout waiting for left EyeLoop on frame {self.frame_id}")
+                        break
+    
+                    try:
+                        msg_R = self.sync_queue_R.get(timeout=EyeTrackerConfig.sync_timeout)
+                        if msg_R.get("frame_id") == self.frame_id:
+                            right_done = True
+                    except Exception:
+                        print(f"[WARN] Timeout waiting for right EyeLoop on frame {self.frame_id}")
+                        break
+    
+                self.frame_id += 1
+                time.sleep(1 / EyeTrackerConfig.fps)  # Maintain target FPS
+
+                if self.test_run:
+                    break # For testing purposes (running from test function), break after one frame
         finally:
-            self.cleanup()
+            if not self.test_run:
+                self.cleanup()
 
     def cleanup(self):
         print("[INFO] Cleaning up FrameProvider resources.")
