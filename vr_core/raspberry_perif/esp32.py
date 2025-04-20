@@ -48,7 +48,7 @@ class ESP32:
 
     def is_online(self):
         return self.online
-    
+
 
     def _perform_handshake(self):
         """Perform a handshake with the ESP32 to ensure it's ready."""
@@ -75,7 +75,7 @@ class ESP32:
                 
             except Exception as e:
                 print(f"[ESP32] Handshake failed: {e}.")
-            
+
 
     def send_focal_distance(self, distance_mm: float):
         """Send the focal distance to the ESP32."""
