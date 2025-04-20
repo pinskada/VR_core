@@ -46,13 +46,6 @@ class GyroscopeConfig:
 gyroscope_config = GyroscopeConfig()
 
 
-# ---- Eye Tracker Configuration ------------------------------------
-class EyeTrackerConfig:
-    interval = 0.033  # ~30 FPS
-
-eye_tracker_config = EyeTrackerConfig()
-
-
 # ---- ESP32 Configuration ------------------------------------------
 class ESP32Config:
     port="/dev/serial0" # Serial port for ESP32 (e.g., /dev/serial0 on Raspberry Pi)
@@ -65,3 +58,35 @@ class ESP32Config:
 
     send_attempts = 3 # Number of attempts to send the focal distance
 esp32_config = ESP32Config()
+
+
+# ---- Eye Tracker Configuration ------------------------------------
+class EyeTrackerConfig:
+    interval = 0.033  # ~30 FPS
+
+eye_tracker_config = EyeTrackerConfig()
+
+
+
+# ---- Camera Configuration ----------------------------------------
+class CameraConfig:
+    jpeg_quality = 75  # JPEG encoding quality (0-100)
+    sync_timeout = 1.0  # Timeout for EyeLoop response in seconds
+    index = 0  # Only used for fallback/testing
+    width = 800
+    height = 600
+    fps = 15
+    autofocus = False
+    focus = 2.5  # Only used if autofocus is False
+    exposure_time = 10000  # In microseconds
+    analogue_gain = 2.0  # Brightness boost
+    af_mode = 0  # 0 = manual, 1 = auto
+
+    crop_left = ((0.0, 0.5), (0.0, 1.0))  # Relative region (x, y, w, h) for the left eye
+    crop_right = ((0.5, 0.5), (0.0, 1.0))  # Relative region (x, y, w, h) for the right eye
+
+    sharedmem_name_left = "eye_left_frame"  # Shared memory buffer name for left eye
+    sharedmem_name_right = "eye_right_frame"  # Shared memory buffer name for right eye
+
+    use_test_video = False  # Use saved video instead of live camera
+    test_video_path = "test_eye_video/test_video.mp4"  # Path to test video
