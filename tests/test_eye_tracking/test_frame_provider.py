@@ -30,9 +30,15 @@ def test_frame_provider(use_test_video=True):
 
         def shape_from_crop(crop_region):
             x_rel = crop_region[0]
-            width = int(config.CameraConfig.width * (x_rel[1] - x_rel[0]))
-            height = config.CameraConfig.height
-            return (height, width, 3)
+            y_rel = crop_region[1]
+            if use_test_video:
+                width = int(config.EyeTrackerConfig.test_video_resolution[0] * (x_rel[1] - x_rel[0]))
+                height = int(config.EyeTrackerConfig.test_video_resolution[1] * (y_rel[1] - y_rel[0]))
+                return (height, width, config.EyeTrackerConfig.test_video_channels)
+            else:
+                width = int(config.CameraConfig.width * (x_rel[1] - x_rel[0]))
+                height = int(config.CameraConfig.height * (y_rel[1] - y_rel[0]))
+                return (height, width, 3)  # Assuming 3 channels for RGB
 
         shape_L = shape_from_crop(config.EyeTrackerConfig.crop_left)
         shape_R = shape_from_crop(config.EyeTrackerConfig.crop_right)

@@ -68,14 +68,16 @@ class EyeTrackerConfig:
     sync_timeout = 1.0  # Timeout for EyeLoop response in seconds
     index = 0  # Only used for fallback/testing
     
-    crop_left = ((0.0, 0.5), (0.0, 1.0))  # Relative region (x1, x2, y1, y2) for the left eye
-    crop_right = ((0.5, 1.0), (0.0, 1.0))  # Relative region (x1, x2, y1, y2) for the right eye
+    crop_left = ((0.0, 0.3), (0.2, 1.0))  # Relative region (x1, x2, y1, y2) for the left eye
+    crop_right = ((0.7, 1.0), (0.3, 1.0))  # Relative region (x1, x2, y1, y2) for the right eye
 
     sharedmem_name_left = "eye_left_frame"  # Shared memory buffer name for left eye
     sharedmem_name_right = "eye_right_frame"  # Shared memory buffer name for right eye
 
     use_test_video = False  # Use saved video instead of live camera
     test_video_path = "test_eye_video/test_video.mp4"  # Path to test video
+    test_video_resolution = (1920, 1080)  # Hardcoded resolution, must be changed in the code if needed
+    test_video_channels = 3  # Number of channels in the test video, must be changed in the code if needed
 
 
 eye_tracker_config = EyeTrackerConfig()
@@ -84,8 +86,8 @@ eye_tracker_config = EyeTrackerConfig()
 # ---- Camera Configuration ----------------------------------------
 class CameraConfig:
 
-    width = 1920
-    height = 1080
+    width = 200
+    height = 100
 
     focus = 2.5  # Only used if autofocus is False
     exposure_time = 10000  # In microseconds
