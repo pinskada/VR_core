@@ -68,8 +68,8 @@ class EyeTrackerConfig:
     sync_timeout = 1.0  # Timeout for EyeLoop response in seconds
     index = 0  # Only used for fallback/testing
     
-    crop_left = ((0.0, 0.3), (0.2, 1.0))  # Relative region (x1, x2, y1, y2) for the left eye
-    crop_right = ((0.7, 1.0), (0.3, 1.0))  # Relative region (x1, x2, y1, y2) for the right eye
+    crop_left = ((0.0, 0.5), (0.0, 1.0))  # Relative region (x1, x2, y1, y2) for the left eye
+    crop_right = ((0.5, 1.0), (0.0, 1.0))  # Relative region (x1, x2, y1, y2) for the right eye
 
     sharedmem_name_left = "eye_left_frame"  # Shared memory buffer name for left eye
     sharedmem_name_right = "eye_right_frame"  # Shared memory buffer name for right eye

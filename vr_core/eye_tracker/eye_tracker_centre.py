@@ -1,11 +1,13 @@
 from multiprocessing import Queue
 from frame_provider import FrameProvider
 from tracker_handler import TrackerHandler
-from network.tcp_server import TCPSender
+from multiprocessing import shared_memory
+from vr_core.config import EyeTrackerConfig
+from vr_core.config import CameraConfig
+
 import threading
 import time, numpy as np, cv2
-from multiprocessing import shared_memory
-import vr_core.config as config
+
 
 class EyeTrackerCenter:
     def __init__(self, tcp_server):  # Initializes all tracking components and command queues
@@ -54,12 +56,12 @@ class EyeTrackerCenter:
 
     def _preview_loop(self):
 
-        shape = (config.CameraConfig.height, config.CameraConfig.width)
+        shape = (CameraConfig.height, CameraConfig.width)
         channels = 3  # default to 3, can be dynamically detected later
 
         try:
-            shm_L = shared_memory.SharedMemory(name=config.CameraConfig.sharedmem_name_left)
-            shm_R = shared_memory.SharedMemory(name=config.CameraConfig.sharedmem_name_right)
+            shm_L = shared_memory.SharedMemory(name=EyeTrackerConfig.sharedmem_name_left)
+            shm_R = shared_memory.SharedMemory(name=EyeTrackerConfig.sharedmem_name_right)
         except FileNotFoundError:
             print("[ERROR] Shared memory not found for preview loop.")
             return
@@ -72,13 +74,13 @@ class EyeTrackerCenter:
                 print(f"[WARN] Shared memory read error: {e}")
                 continue
 
-            _, jpg_L = cv2.imencode(".jpg", img_L, [int(cv2.IMWRITE_JPEG_QUALITY), config.CameraConfig.jpeg_quality])
-            _, jpg_R = cv2.imencode(".jpg", img_R, [int(cv2.IMWRITE_JPEG_QUALITY), config.CameraConfig.jpeg_quality])
+            _, jpg_L = cv2.imencode(".jpg", img_L, [int(cv2.IMWRITE_JPEG_QUALITY), EyeTrackerConfig.jpeg_quality])
+            _, jpg_R = cv2.imencode(".jpg", img_R, [int(cv2.IMWRITE_JPEG_QUALITY), EyeTrackerConfig.jpeg_quality])
 
             self.tcp_server.message_priorities.put_nowait(("eye_preview_L", jpg_L.tobytes(), "medium"))
             self.tcp_server.message_priorities.put_nowait(("eye_preview_R", jpg_R.tobytes(), "medium"))
 
-            time.sleep(1 / config.CameraConfig.fps)
+            time.sleep(1 / EyeTrackerConfig.fps)
 
         print("[INFO] Preview streaming stopped.")
 
