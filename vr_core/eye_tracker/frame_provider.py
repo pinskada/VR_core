@@ -63,6 +63,9 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
                 l = self._crop(full_frame, EyeTrackerConfig.crop_left)
                 r = self._crop(full_frame, EyeTrackerConfig.crop_right)
     
+                # Increment frame ID for synchronization
+                self.frame_id += 1
+
                 # Write cropped frames to shared memory
                 np.ndarray(l.shape, dtype=l.dtype, buffer=self.shm_L.buf)[:] = l
                 np.ndarray(r.shape, dtype=r.dtype, buffer=self.shm_R.buf)[:] = r
@@ -92,7 +95,6 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
                         print(f"[WARN] Timeout waiting for right EyeLoop on frame {self.frame_id}")
                         break
     
-                self.frame_id += 1
                 time.sleep(1 / EyeTrackerConfig.fps)  # Maintain target FPS
 
                 if self.test_run:
