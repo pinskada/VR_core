@@ -12,4 +12,13 @@ def run_eyeloop_process(eye: str, shm_name: str, command_queue, response_queue, 
         "--sharedmem", shm_name,
         "--side", eye
     ]
-    EyeLoop(sys.argv[1:], logger=None, command_queue=command_queue, response_queue=response_queue, sync_queue=sync_queue)
+    try:
+        EyeLoop(sys.argv[1:], logger=None,
+                command_queue=command_queue,
+                response_queue=response_queue,
+                sync_queue=sync_queue)
+        print(f"[EyeLoopProcess] Starting tracker for {eye}, using shared memory: {shm_name}")
+
+    except Exception as e:
+        print(f"[ERROR] EyeLoop process for eye {eye} crashed: {e}")
+        import traceback; traceback.print_exc()

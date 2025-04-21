@@ -1,9 +1,9 @@
-from multiprocessing import Queue
 from frame_provider import FrameProvider
 from tracker_handler import TrackerHandler
 from multiprocessing import shared_memory
 from vr_core.config import EyeTrackerConfig
 from vr_core.config import CameraConfig
+from vr_core.eye_tracker.eyeloop_queue_handler import EyeLoopQueueHandler
 
 import threading
 import time, numpy as np, cv2
@@ -14,35 +14,40 @@ class EyeTrackerCenter:
         self.tcp_server = tcp_server
         self.setup_mode = False
         self.ready_to_track = False
-        self.sync_queue_L = Queue()
-        self.sync_queue_R = Queue()
         self.frame_provider = None
         self.tracker_handler = None
-        self.command_queue_L = Queue()
-        self.command_queue_R = Queue()
+
+        self.eyeloop_queue_handler = EyeLoopQueueHandler()  # Initialize the queue handler
+
+        self.command_queue_L, self.command_queue_R = self.eyeloop_queue_handler.get_command_queues()
+        self.response_queue_L, self.response_queue_R = self.eyeloop_queue_handler.get_response_queues()
+        self.sync_queue_L, self.sync_queue_R = self.eyeloop_queue_handler.get_sync_queues()
 
     def handle_command(self, command: str):
         if command == "setup_tracker_1":
             self.setup_mode = True
             self.stop_preview()  # In case a previous preview was running
-            self.frame_provider = FrameProvider(self.sync_queue_L, self.sync_queue_R)
             self.start_preview()
             print("[INFO] Setup phase 1: Preview started.")
 
         elif command == "setup_tracker_2":
             self.setup_mode = True
             self.stop_preview()
-            self.tracker_handler = TrackerHandler(self.command_queue_L, self.command_queue_R)
-            self.frame_provider = FrameProvider(self.sync_queue_L, self.sync_queue_R)
-            self.frame_provider.run()
+            self.frame_provider = FrameProvider(self.sync_queue_L, self.sync_queue_R) # Initialize frame provider
+            self.tracker_handler = TrackerHandler(self.tcp_server, self.frame_provider, self.command_queue_L, # Initialize tracker handler
+                        self.command_queue_R, self.response_queue_L, self.response_queue_R, self.sync_queue_L, self.sync_queue_R)
+            
+            self.frame_provider.run() # Start the frame provider
             print("[INFO] Setup phase 2: Tracker started after preview configuration.")
 
         elif command == "launch_tracker":
             self.setup_mode = False
             self.ready_to_track = True
-            self.tracker_handler = TrackerHandler(self.command_queue_L, self.command_queue_R)
-            self.frame_provider = FrameProvider(self.sync_queue_L, self.sync_queue_R)
-            self.frame_provider.run()
+            self.frame_provider = FrameProvider(self.sync_queue_L, self.sync_queue_R) # Initialize frame provider
+            self.tracker_handler = TrackerHandler(self.tcp_server, self.frame_provider, self.command_queue_L, # Initialize tracker handler
+                        self.command_queue_R, self.response_queue_L, self.response_queue_R, self.sync_queue_L, self.sync_queue_R)
+            
+            self.frame_provider.run() # Start the frame provider
             print("[INFO] Tracker launched directly from config.")
 
     def start_preview(self):  
@@ -95,7 +100,7 @@ class EyeTrackerCenter:
             self.frame_provider.cleanup()
 
     def start_tracker(self):
-        self.tracker_handler = TrackerHandler(self.command_queue_L, self.command_queue_R)
+        self.tracker_handler = TrackerHandler(self.tcp_server, self.command_queue_L, self.command_queue_R)
         self.frame_provider.run()
 
     def stop_tracker(self):
