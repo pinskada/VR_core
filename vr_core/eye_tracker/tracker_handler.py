@@ -5,13 +5,15 @@ import time
 import threading
 
 class TrackerHandler:
-    def __init__(self, tcp_server, frame_provider, command_queue_L, command_queue_R, response_queue_L, response_queue_R, sync_queue_L, sync_queue_R):
+    def __init__(self, tcp_server, frame_provider, command_queue_L, command_queue_R, response_queue_L, response_queue_R, sync_queue_L, sync_queue_R, test_mode=False):
+
+        self.test_mode = test_mode
 
         self.tcp_server = tcp_server
         self.frame_provider = frame_provider  # Frame provider instance for video acquisition
 
-        self.proc_left = Process(target=run_eyeloop_process, args=("L", EyeTrackerConfig.sharedmem_name_left, command_queue_L, response_queue_L, sync_queue_L))
-        self.proc_right = Process(target=run_eyeloop_process, args=("R", EyeTrackerConfig.sharedmem_name_right, command_queue_R, response_queue_R, sync_queue_R))
+        self.proc_left = Process(target=run_eyeloop_process, args=("L", EyeTrackerConfig.sharedmem_name_left, command_queue_L, response_queue_L, sync_queue_L, test_mode))
+        self.proc_right = Process(target=run_eyeloop_process, args=("R", EyeTrackerConfig.sharedmem_name_right, command_queue_R, response_queue_R, sync_queue_R, test_mode))
 
         self.left_alive = True
         self.right_alive = True
