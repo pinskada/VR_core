@@ -6,11 +6,11 @@ import math
 
 
 class Gyroscope:
-    def __init__(self, tcp_sender, force_mock=False):
+    def __init__(self, tcp_server, force_mock=False):
         self.mock_angle = 0.0
         self.mock_mode = force_mock
         self.online = False
-        self.tcp_sender = tcp_sender
+        self.tcp_server = tcp_server
         self.thread = threading.Thread(target=self.run, daemon=True)      
 
         if self.mock_mode:
@@ -92,8 +92,8 @@ class Gyroscope:
         while self.online:
             data = self.read_gyro() # Get the gyroscope data
 
-            if self.tcp_sender is not None:
-                self.tcp_sender.send(
+            if self.tcp_server is not None:
+                self.tcp_server.send(
                 {
                     "type": "gyro",
                     "data": data

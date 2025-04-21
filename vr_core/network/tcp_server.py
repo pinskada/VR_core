@@ -5,22 +5,22 @@ import threading
 import queue
 import time
 
-from vr_core.config import tcp_config 
+from vr_core.config import TCPConfig 
 import vr_core.config as config 
 
 
 class TCPServer:
     def __init__(self, autostart=True):
         self.core = config.core     # Reference to the Core instance
-        self.host = tcp_config.host # Host IP address
-        self.port = tcp_config.port # Port number
+        self.host = TCPConfig.host # Host IP address
+        self.port = TCPConfig.port # Port number
         self.server_socket = None   # Server socket
         self.client_conn = None     # Client connection
         self.client_addr = None     # Client address
         self.online = False        # Server status
 
         # Queues for prioritized outbound messages
-        self.priority_queues = tcp_config.message_priorities
+        self.priority_queues = TCPConfig.message_priorities
 
         # Thread handles
         self.listener_thread = None
@@ -56,12 +56,12 @@ class TCPServer:
             self.server_socket.close()
 
 
-    def verify_static_ip(self, expected_prefix=tcp_config.static_ip_prefix):
+    def verify_static_ip(self, expected_prefix=TCPConfig.static_ip_prefix):
         """Check if the current IP matches the expected static IP prefix."""
 
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)      # UDP socket for IP check
-            s.connect((tcp_config.google_dns, tcp_config.http_port))  # Use Google DNS for connectivity check
+            s.connect((TCPConfig.google_dns, TCPConfig.http_port))  # Use Google DNS for connectivity check
             ip = s.getsockname()[0] # Get the local IP address
         except Exception as e:
             print(f"[TCPServer] Could not determine IP: {e}")
@@ -108,7 +108,7 @@ class TCPServer:
 
         while self.online:
             try:
-                data = self.client_conn.recv(tcp_config.recv_buffer_size) # Receive data from the socket
+                data = self.client_conn.recv(TCPConfig.recv_buffer_size) # Receive data from the socket
                 if not data:
                     break
                 message = data.decode().strip() # Decode the message
@@ -129,7 +129,7 @@ class TCPServer:
                     break  # Send one message per cycle
                 except queue.Empty:
                     continue
-            time.sleep(tcp_config.send_loop_interval) # Sets the send interval
+            time.sleep(TCPConfig.send_loop_interval) # Sets the send interval
 
 
     def _send_direct(self, message: str):
