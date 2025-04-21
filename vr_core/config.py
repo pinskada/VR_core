@@ -74,11 +74,15 @@ class EyeTrackerConfig:
     sharedmem_name_left = "eye_left_frame"  # Shared memory buffer name for left eye
     sharedmem_name_right = "eye_right_frame"  # Shared memory buffer name for right eye
 
+    sync_timeout = 0.2  # Timeout for EyeLoop response in seconds
+    queue_timeout = 0.01  # Timeout for queue operations in seconds
+
     use_test_video = False  # Use saved video instead of live camera
     test_video_path = "test_eye_video/test_video.mp4"  # Path to test video
     test_video_resolution = (1920, 1080)  # Hardcoded resolution, must be changed in the code if needed
     test_video_channels = 3  # Number of channels in the test video, must be changed in the code if needed
 
+        
 
 eye_tracker_config = EyeTrackerConfig()
 

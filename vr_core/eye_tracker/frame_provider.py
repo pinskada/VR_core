@@ -101,7 +101,7 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
 
             try:
                 if not left_done:
-                    msg_L = self.sync_queue_L.get(timeout=0.01)
+                    msg_L = self.sync_queue_L.get(timeout=EyeTrackerConfig.queue_timeout)
                     if msg_L.get("frame_id") == self._frame_id:
                         left_done = True
             except Empty:
@@ -109,7 +109,7 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
 
             try:
                 if not right_done:
-                    msg_R = self.sync_queue_R.get(timeout=0.01)
+                    msg_R = self.sync_queue_R.get(timeout=EyeTrackerConfig.queue_timeout)
                     if msg_R.get("frame_id") == self._frame_id:
                         right_done = True
             except Empty:
