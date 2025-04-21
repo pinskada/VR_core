@@ -1,5 +1,6 @@
 import numpy as np
 import time
+from queue import Empty
 from vr_core.config import EyeTrackerConfig
 from multiprocessing import shared_memory, Queue
 
@@ -70,30 +71,7 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
                 np.ndarray(l.shape, dtype=l.dtype, buffer=self.shm_L.buf)[:] = l
                 np.ndarray(r.shape, dtype=r.dtype, buffer=self.shm_R.buf)[:] = r
     
-                # Skip sync wait during tests
-                if self.test_run:
-                    left_done = right_done = True
-                else:
-                    # Block until both EyeLoop processes confirm processing of current frame
-                    left_done = right_done = False
-    
-
-                while not (left_done and right_done):
-                    try:
-                        msg_L = self.sync_queue_L.get(timeout=EyeTrackerConfig.sync_timeout)
-                        if msg_L.get("frame_id") == self._frame_id:
-                            left_done = True
-                    except Exception:
-                        print(f"[WARN] Timeout waiting for left EyeLoop on frame {self._frame_id}")
-                        break
-    
-                    try:
-                        msg_R = self.sync_queue_R.get(timeout=EyeTrackerConfig.sync_timeout)
-                        if msg_R.get("frame_id") == self._frame_id:
-                            right_done = True
-                    except Exception:
-                        print(f"[WARN] Timeout waiting for right EyeLoop on frame {self._frame_id}")
-                        break
+                self._wait_for_sync()
     
                 time.sleep(1 / EyeTrackerConfig.fps)  # Maintain target FPS
 
@@ -102,6 +80,46 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
         finally:
             if not self.test_run:
                 self.cleanup()
+
+
+
+    def _wait_for_sync(self):
+
+        # Skip sync wait during tests
+        if self.test_run:
+            return
+
+        # Block until both EyeLoop processes confirm processing of current frame
+        left_done = right_done = False
+        start_time = time.time()
+
+        while not (left_done and right_done):
+            now = time.time()
+            if now - start_time > EyeTrackerConfig.sync_timeout:
+                print(f"[WARN] Timeout: total sync wait exceeded {EyeTrackerConfig.sync_timeout} sec for frame {self._frame_id}")
+                break
+
+            try:
+                if not left_done:
+                    msg_L = self.sync_queue_L.get(timeout=0.01)
+                    if msg_L.get("frame_id") == self._frame_id:
+                        left_done = True
+            except Empty:
+                pass
+
+            try:
+                if not right_done:
+                    msg_R = self.sync_queue_R.get(timeout=0.01)
+                    if msg_R.get("frame_id") == self._frame_id:
+                        right_done = True
+            except Empty:
+                pass
+
+        if not left_done:
+            print(f"[WARN] Left EyeLoop did not acknowledge frame {self._frame_id} in time.")
+        if not right_done:
+            print(f"[WARN] Right EyeLoop did not acknowledge frame {self._frame_id} in time.")
+
 
     @property
     def current_frame_id(self):
