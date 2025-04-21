@@ -43,7 +43,7 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
         self.shm_L = shared_memory.SharedMemory(name=EyeTrackerConfig.sharedmem_name_left, create=True, size=h * w * channels)
         self.shm_R = shared_memory.SharedMemory(name=EyeTrackerConfig.sharedmem_name_right, create=True, size=h * w * channels)
 
-        self.frame_id = 0  # Incremented with each new frame
+        self._frame_id = 0  # Incremented with each new frame
         self.sync_queue_L = sync_queue_L  # Queue to track left EyeLoop completion
         self.sync_queue_R = sync_queue_R  # Queue to track right EyeLoop completion
 
@@ -64,7 +64,7 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
                 r = self._crop(full_frame, EyeTrackerConfig.crop_right)
     
                 # Increment frame ID for synchronization
-                self.frame_id += 1
+                self._frame_id += 1
 
                 # Write cropped frames to shared memory
                 np.ndarray(l.shape, dtype=l.dtype, buffer=self.shm_L.buf)[:] = l
@@ -81,18 +81,18 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
                 while not (left_done and right_done):
                     try:
                         msg_L = self.sync_queue_L.get(timeout=EyeTrackerConfig.sync_timeout)
-                        if msg_L.get("frame_id") == self.frame_id:
+                        if msg_L.get("frame_id") == self._frame_id:
                             left_done = True
                     except Exception:
-                        print(f"[WARN] Timeout waiting for left EyeLoop on frame {self.frame_id}")
+                        print(f"[WARN] Timeout waiting for left EyeLoop on frame {self._frame_id}")
                         break
     
                     try:
                         msg_R = self.sync_queue_R.get(timeout=EyeTrackerConfig.sync_timeout)
-                        if msg_R.get("frame_id") == self.frame_id:
+                        if msg_R.get("frame_id") == self._frame_id:
                             right_done = True
                     except Exception:
-                        print(f"[WARN] Timeout waiting for right EyeLoop on frame {self.frame_id}")
+                        print(f"[WARN] Timeout waiting for right EyeLoop on frame {self._frame_id}")
                         break
     
                 time.sleep(1 / EyeTrackerConfig.fps)  # Maintain target FPS
@@ -102,6 +102,10 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
         finally:
             if not self.test_run:
                 self.cleanup()
+
+    @property
+    def current_frame_id(self):
+        return self._frame_id
 
     def cleanup(self):
         print("[INFO] Cleaning up FrameProvider resources.")
