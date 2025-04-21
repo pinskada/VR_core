@@ -9,6 +9,9 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
         self.use_test_video = EyeTrackerConfig.use_test_video
 
         self.test_run = False  # Flag to indicate if we are running a test (for testing purposes)
+        self._frame_id = 0  # Incremented with each new frame
+        self.sync_queue_L = sync_queue_L  # Queue to track left EyeLoop completion
+        self.sync_queue_R = sync_queue_R  # Queue to track right EyeLoop completion
 
         # Choose between test video or live camera
         if self.use_test_video:
@@ -28,29 +31,12 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
         else:
             test_frame = self.cam_manager.capture_frame()
 
-        # Validate crop dimensions
-        for name, region in [("crop_left", EyeTrackerConfig.crop_left), ("crop_right", EyeTrackerConfig.crop_right)]:
-            (x_start, x_end), (y_start, y_end) = region
-            if x_end <= x_start or y_end <= y_start:
-                raise ValueError(f"[CONFIG ERROR] Invalid crop dimensions for {name}: {region}")
-
-        frame_height, frame_width = test_frame.shape[:2]
-        channels = test_frame.shape[2] if len(test_frame.shape) == 3 else 1
-        x_rel_start, x_rel_end = EyeTrackerConfig.crop_left[0]
-        y_rel_start, y_rel_end = EyeTrackerConfig.crop_left[1]
-        w = int((x_rel_end - x_rel_start) * frame_width)
-        h = int((y_rel_end - y_rel_start) * frame_height)
-
-        self.shm_L = shared_memory.SharedMemory(name=EyeTrackerConfig.sharedmem_name_left, create=True, size=h * w * channels)
-        self.shm_R = shared_memory.SharedMemory(name=EyeTrackerConfig.sharedmem_name_right, create=True, size=h * w * channels)
-
-        self._frame_id = 0  # Incremented with each new frame
-        self.sync_queue_L = sync_queue_L  # Queue to track left EyeLoop completion
-        self.sync_queue_R = sync_queue_R  # Queue to track right EyeLoop completion
+        self._allocate_memory(test_frame) # Allocate shared memory for left and right eye frames
 
     def run(self):
         try:
             while True:
+
                 # Capture next frame from video or camera
                 if self.use_test_video:
                     ret, full_frame = self.cap.read()
@@ -59,7 +45,18 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
                         break
                 else:
                     full_frame = self.cam_manager.capture_frame()
-    
+
+
+                # Conditions to check if crop dimensions or resolution have changed
+                crop_L_bool = (self.x_rel_start, self.x_rel_end) != EyeTrackerConfig.crop_left[0] 
+                crop_R_bool =  (self.y_rel_start, self.y_rel_end) != EyeTrackerConfig.crop_left[1]
+                res_bool = self.shape != full_frame.shape
+
+                # If crop dimensions or resolution have changed, reallocate memory
+                if crop_L_bool or crop_R_bool or res_bool:                   
+                    self.clean_memory()
+                    self._allocate_memory(full_frame)
+
                 # Crop left and right regions from the full frame
                 l = self._crop(full_frame, EyeTrackerConfig.crop_left)
                 r = self._crop(full_frame, EyeTrackerConfig.crop_right)
@@ -77,7 +74,7 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
     
                 self._wait_for_sync()
     
-                time.sleep(1 / EyeTrackerConfig.fps)  # Maintain target FPS
+                time.sleep(1 / EyeTrackerConfig.frame_provider_max_fps)  # Maintain target FPS
 
                 if self.test_run:
                     break # For testing purposes (running from test function), break after one frame
@@ -129,7 +126,35 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
     def current_frame_id(self):
         return self._frame_id
 
-    def cleanup(self):
+
+    def _allocate_memory(self, frame):
+
+        self.validate_crop()  # Validate crop dimensions
+
+        self.x_rel_start, self.x_rel_end = EyeTrackerConfig.crop_left[0]
+        self.y_rel_start, self.y_rel_end = EyeTrackerConfig.crop_left[1]
+
+        self.shape = frame.shape  # Shape of the full frame
+
+        frame_height, frame_width = frame.shape[:2]
+        channels = frame.shape[2] if len(frame.shape) == 3 else 1
+        w = int((self.x_rel_end - self.x_rel_start) * frame_width)
+        h = int((self.y_rel_end - self.y_rel_start) * frame_height)
+
+        self.shm_L = shared_memory.SharedMemory(name=EyeTrackerConfig.sharedmem_name_left, create=True, size=h * w * channels)
+        self.shm_R = shared_memory.SharedMemory(name=EyeTrackerConfig.sharedmem_name_right, create=True, size=h * w * channels)
+
+        print(f"[FrameProvider] Reallocated SHM.")
+
+    def validate_crop(self):    
+
+        # Validate crop dimensions
+        for name, region in [("crop_left", EyeTrackerConfig.crop_left), ("crop_right", EyeTrackerConfig.crop_right)]:
+            (x_start, x_end), (y_start, y_end) = region
+            if x_end <= x_start or y_end <= y_start:
+                raise ValueError(f"[CONFIG ERROR] Invalid crop dimensions for {name}: {region}")
+
+    def clean_memory(self):
         print("[INFO] Cleaning up FrameProvider resources.")
         try:
             self.shm_L.close()
@@ -141,6 +166,11 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
             self.shm_R.unlink()
         except FileNotFoundError:
             pass
+
+
+    def close_frame_provider(self):
+
+        self.clean_memory()
 
         if self.use_test_video:
             self.cap.release()
