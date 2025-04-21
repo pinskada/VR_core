@@ -67,6 +67,10 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
                 # Increment frame ID for synchronization
                 self._frame_id += 1
 
+                # Put frame ID in sync queues for both EyeLoop processes
+                self.sync_queue_L.put({"frame_id": self._frame_id, "type": "frame_id"})
+                self.sync_queue_R.put({"frame_id": self._frame_id, "type": "frame_id"})
+
                 # Write cropped frames to shared memory
                 np.ndarray(l.shape, dtype=l.dtype, buffer=self.shm_L.buf)[:] = l
                 np.ndarray(r.shape, dtype=r.dtype, buffer=self.shm_R.buf)[:] = r
@@ -102,7 +106,7 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
             try:
                 if not left_done:
                     msg_L = self.sync_queue_L.get(timeout=EyeTrackerConfig.queue_timeout)
-                    if msg_L.get("frame_id") == self._frame_id:
+                    if msg_L.get("type") == "ack" and msg_L.get("frame_id") == self._frame_id:
                         left_done = True
             except Empty:
                 pass
@@ -110,7 +114,7 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
             try:
                 if not right_done:
                     msg_R = self.sync_queue_R.get(timeout=EyeTrackerConfig.queue_timeout)
-                    if msg_R.get("frame_id") == self._frame_id:
+                    if msg_R.get("type") == "ack" and msg_R.get("frame_id") == self._frame_id:
                         right_done = True
             except Empty:
                 pass
