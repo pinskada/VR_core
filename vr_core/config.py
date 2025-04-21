@@ -63,11 +63,12 @@ esp32_config = ESP32Config()
 
 # ---- Eye Tracker Configuration ------------------------------------
 class EyeTrackerConfig:
-    fps = 15
+    frame_provider_max_fps = 15 # Maximum FPS for the frame provider
     jpeg_quality = 75  # JPEG encoding quality (0-100)
     sync_timeout = 1.0  # Timeout for EyeLoop response in seconds
-    index = 0  # Only used for fallback/testing
-    
+    #index = 0  # Only used for fallback/testing
+    preview_fps = 5  # FPS for preview stream
+
     crop_left = ((0.0, 0.5), (0.0, 1.0))  # Relative region (x1, x2, y1, y2) for the left eye
     crop_right = ((0.5, 1.0), (0.0, 1.0))  # Relative region (x1, x2, y1, y2) for the right eye
 
@@ -75,9 +76,9 @@ class EyeTrackerConfig:
     sharedmem_name_right = "eye_right_frame"  # Shared memory buffer name for right eye
 
     sync_timeout = 0.2  # Timeout for EyeLoop response in seconds
-    queue_timeout = 0.01  # Timeout for queue operations in seconds
+    queue_timeout = 0.005  # Timeout for queue operations in seconds
 
-    health_check_interval = 3  # Interval for health check of the eyeloop processes in seconds
+    eyeloop_health_check_interval = 3  # Interval for health check of the eyeloop processes in seconds
 
     use_test_video = False  # Use saved video instead of live camera
     test_video_path = "test_eye_video/test_video.mp4"  # Path to test video

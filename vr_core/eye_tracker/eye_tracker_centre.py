@@ -85,13 +85,14 @@ class EyeTrackerCenter:
             self.tcp_server.message_priorities.put_nowait(("eye_preview_L", jpg_L.tobytes(), "medium"))
             self.tcp_server.message_priorities.put_nowait(("eye_preview_R", jpg_R.tobytes(), "medium"))
 
-            time.sleep(1 / EyeTrackerConfig.fps)
+            time.sleep(1 / EyeTrackerConfig.preview_fps)
 
         print("[INFO] Preview streaming stopped.")
 
 
     def stop_preview(self):
         self.setup_mode = False
+        
         if hasattr(self, 'preview_thread'):
             self.preview_thread.join()
         print("[INFO] Preview streaming stopped.")

@@ -44,7 +44,7 @@ class TrackerHandler:
                 print("[HealthMonitor] Right EyeLoop process is not responding.")
                 self.right_alive = False
 
-            time.sleep(EyeTrackerConfig.health_check_interval)
+            time.sleep(EyeTrackerConfig.eyeloop_health_check_interval)
 
         
     def wait(self):
