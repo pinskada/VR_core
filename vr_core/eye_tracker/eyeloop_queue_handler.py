@@ -9,10 +9,11 @@ class EyeLoopQueueHandler:
     This class is used to manage the communication between the EyeLoop processes and the main process.
     """
     
-    def __init__(self, tcp_server, command_dispatcher):
+    def __init__(self, eye_tracker_centre, tcp_server, command_dispatcher):
 
         self.command_dispatcher = command_dispatcher  # Command dispatcher for handling commands
         self.tcp_server = tcp_server  # Reference to the TCP server for communication
+        self.eye_tracker_centre = eye_tracker_centre  # Reference to the EyeTrackerCentre instance
 
         self.command_dispatcher.eyeloop_queue_handler = self  # Set the command dispatcher to this instance
 
@@ -57,15 +58,35 @@ class EyeLoopQueueHandler:
             try:
                 if not self.response_queue_L.empty():
                     msg_L = self.response_queue_L.get(timeout=EyeTrackerConfig.queue_timeout)
-                    self.tcp_server.send({"type": "eye_data", "eye": "L", "payload": msg_L}, priority="high")
+
+                    self.dispatch_message(msg_L, "Left")
+
 
                 if not self.response_queue_R.empty():
                     msg_R = self.response_queue_R.get(timeout=EyeTrackerConfig.queue_timeout)
-                    self.tcp_server.send({"type": "eye_data", "eye": "R", "payload": msg_R}, priority="high")
+                    
+                    self.dispatch_message(msg_R, "Right")
+
 
             except Exception as e:
                 # Silently skip if queues are empty or error occurs
                 time.sleep(EyeTrackerConfig.queue_timeout)
+
+
+    def dispatch_message(self, message: str, eye: str):
+        """
+        Dispatches a message to the appropriate queue based on its content.
+        """
+        category = message.get("category")
+        if category == "Data":
+            if self.eye_tracker_centre.setup_mode:
+                self.tcp_server.send({"type": "EyeloopData", "eye": eye, "payload": message["payload"]}, priority="medium")
+            else:
+                ### Send data to the main process for processing
+                pass
+
+        elif category == "BinImage":
+            self.tcp_server.send({"type": "BinPreview", "eye": eye, "payload": message["payload"]}, priority="medium")
 
 
 

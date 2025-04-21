@@ -4,6 +4,7 @@ import socket
 import threading
 import queue
 import time
+import json
 
 from vr_core.config import TCPConfig 
 import vr_core.config as config 
@@ -154,7 +155,11 @@ class TCPServer:
         """Dispatch incoming messages to CommandDispatcher."""
 
         print(f"[TCPServer] Received: {message}")
-        self.command_dispatcher.handle(message)
+        try:
+            parsed = json.loads(message)
+            self.command_dispatcher.handle(parsed)
+        except json.JSONDecodeError:
+            print(f"[TCPServer] Invalid JSON received: {message}")
 
 
     def send(self, message: str, priority='low'):

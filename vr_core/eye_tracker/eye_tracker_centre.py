@@ -21,7 +21,7 @@ class EyeTrackerCenter:
         self.frame_provider = None
         self.tracker_handler = None
 
-        self.eyeloop_queue_handler = EyeLoopQueueHandler(self.tcp_server, self.command_dispatcher)  # Initialize the queue handler
+        self.eyeloop_queue_handler = EyeLoopQueueHandler(self, self.tcp_server, self.command_dispatcher)  # Initialize the queue handler
 
         self.command_queue_L, self.command_queue_R = self.eyeloop_queue_handler.get_command_queues()
         self.response_queue_L, self.response_queue_R = self.eyeloop_queue_handler.get_response_queues()
@@ -43,7 +43,8 @@ class EyeTrackerCenter:
             self.setup_mode = True
             self.stop_preview()
 
-            ### Zavolat eyeloop queue handler a tady to nastavit
+            self.eyeloop_queue_handler.send_command("track = 0", "L")
+            self.eyeloop_queue_handler.send_command("track = 0", "R")
 
             self.frame_provider = FrameProvider(self.command_dispatcher, self.sync_queue_L, self.sync_queue_R) # Initialize frame provider
             self.tracker_handler = TrackerHandler(self.command_dispatcher, self.tcp_server, self.frame_provider, self.command_queue_L, # Initialize tracker handler
@@ -56,11 +57,12 @@ class EyeTrackerCenter:
             self.stop_preview()
             self.ready_to_track = True
 
-            ### Zavolat eyeloop queue handler a tady to nastavit
+            self.eyeloop_queue_handler.send_command("track = 1", "L")
+            self.eyeloop_queue_handler.send_command("track = 1", "R")
 
             self.frame_provider = FrameProvider(self.command_dispatcher, self.sync_queue_L, self.sync_queue_R) # Initialize frame provider
             self.tracker_handler = TrackerHandler(self.command_dispatcher, self.tcp_server, self.frame_provider, self.command_queue_L, # Initialize tracker handler
-                        self.command_queue_R, self.response_queue_L, self.response_queue_R, self.sync_queue_L, self.sync_queue_R)
+            self.command_queue_R, self.response_queue_L, self.response_queue_R, self.sync_queue_L, self.sync_queue_R)
             
             self.frame_provider.run() # Start the frame provider
             print("[INFO] Tracker launched directly from config.")
@@ -97,8 +99,8 @@ class EyeTrackerCenter:
             _, jpg_L = cv2.imencode(".jpg", img_L, [int(cv2.IMWRITE_JPEG_QUALITY), EyeTrackerConfig.jpeg_quality])
             _, jpg_R = cv2.imencode(".jpg", img_R, [int(cv2.IMWRITE_JPEG_QUALITY), EyeTrackerConfig.jpeg_quality])
 
-            self.tcp_server.message_priorities.put_nowait(("eye_preview_L", jpg_L.tobytes(), "medium"))
-            self.tcp_server.message_priorities.put_nowait(("eye_preview_R", jpg_R.tobytes(), "medium"))
+            self.tcp_server.send(("eye_preview_L", jpg_L.tobytes(), "medium"))
+            self.tcp_server.send(("eye_preview_R", jpg_R.tobytes(), "medium"))
 
             time.sleep(1 / EyeTrackerConfig.preview_fps)
 
