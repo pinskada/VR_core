@@ -16,7 +16,7 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
             self.cv2 = cv2
             self.cap = cv2.VideoCapture(EyeTrackerConfig.test_video_path)
         else:
-            from vr_core.eye_tracker.camera_config import CameraConfigManager
+            from vr_core.raspberry_perif.camera_config import CameraConfigManager
             self.cam_manager = CameraConfigManager()
             self.cam_manager.apply_config()
 
