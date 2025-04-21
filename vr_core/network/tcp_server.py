@@ -19,6 +19,8 @@ class TCPServer:
         self.client_addr = None     # Client address
         self.online = False        # Server status
 
+        self.command_dispatcher = None
+
         # Queues for prioritized outbound messages
         self.priority_queues = TCPConfig.message_priorities
 
@@ -32,6 +34,11 @@ class TCPServer:
             self.verify_static_ip()
             self.start_server()
 
+
+    def set_command_dispatcher(self, command_dispatcher):
+        """Set the command dispatcher for handling incoming messages."""
+
+        self.command_dispatcher = command_dispatcher
 
     def is_online(self):
         return self.online
@@ -144,10 +151,10 @@ class TCPServer:
 
 
     def _handle_incoming(self, message: str):
-        """Dispatch incoming messages to Core."""
+        """Dispatch incoming messages to CommandDispatcher."""
 
         print(f"[TCPServer] Received: {message}")
-        self.core.dispatch_command(message)
+        self.command_dispatcher.handle(message)
 
 
     def send(self, message: str, priority='low'):

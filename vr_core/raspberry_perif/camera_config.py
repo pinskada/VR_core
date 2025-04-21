@@ -6,9 +6,12 @@ except ImportError:
     raise ImportError("Picamera2 library is not installed. Please install it to use this module.")
 
 class CameraConfigManager:
-    def __init__(self):
+    def __init__(self, command_dispatcher):
         self.picam2 = Picamera2()  # Initialize camera object
-    
+        self.command_dispatcher = command_dispatcher
+
+        self.command_dispatcher.camera_config_manager = self  # Set the command dispatcher to this instance
+
     def apply_config(self):
         cam = CameraConfig()
 

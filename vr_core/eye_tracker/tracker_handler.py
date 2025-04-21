@@ -5,7 +5,10 @@ import time
 import threading
 
 class TrackerHandler:
-    def __init__(self, tcp_server, frame_provider, command_queue_L, command_queue_R, response_queue_L, response_queue_R, sync_queue_L, sync_queue_R, test_mode=False):
+    def __init__(self, command_dispatcher, tcp_server, frame_provider, command_queue_L, command_queue_R, response_queue_L, response_queue_R, sync_queue_L, sync_queue_R, test_mode=False):
+        self.command_dispatcher = command_dispatcher  # Command dispatcher for handling commands
+        
+        self.command_dispatcher.tracker_handler = self  # Set the command dispatcher to this instance
 
         self.test_mode = test_mode
 

@@ -1,20 +1,34 @@
 from multiprocessing import Queue
-
+import threading
+import time
+from vr_core.config import EyeTrackerConfig
 
 class EyeLoopQueueHandler:
-    def __init__(self):
-        """
-        Contains the command and response queues for the EyeLoop processes.
-        This class is used to manage the communication between the EyeLoop processes and the main process.
-        """
+    """
+    Contains the command and response queues for the EyeLoop processes.
+    This class is used to manage the communication between the EyeLoop processes and the main process.
+    """
+    
+    def __init__(self, tcp_server, command_dispatcher):
 
+        self.command_dispatcher = command_dispatcher  # Command dispatcher for handling commands
+        self.tcp_server = tcp_server  # Reference to the TCP server for communication
+
+        self.command_dispatcher.eyeloop_queue_handler = self  # Set the command dispatcher to this instance
+
+        # Initialize queues for both left and right EyeLoop processes
         self.command_queue_L = Queue()
         self.command_queue_R = Queue()
         self.response_queue_L = Queue()
         self.response_queue_R = Queue()
         self.sync_queue_L = Queue()
         self.sync_queue_R = Queue()
-    
+
+        self.online = True
+        self.response_thread = threading.Thread(target=self._response_loop, daemon=True)
+        self.response_thread.start()
+ 
+        
 
     def get_command_queues(self) -> tuple[Queue, Queue]:
         return self.command_queue_L, self.command_queue_R
@@ -38,13 +52,21 @@ class EyeLoopQueueHandler:
         else:
             raise ValueError("Invalid eye specified. Use 'L' or 'R'.")
     
-    def get_response(self, eye: str):
-        """
-        Retrieves a response from the specified EyeLoop process.
-        """
-        if eye == "L":
-            return self.response_queue_L.get()
-        elif eye == "R":
-            return self.response_queue_R.get()
-        else:
-            raise ValueError("Invalid eye specified. Use 'L' or 'R'.")
+    def _response_loop(self):
+        while self.online:
+            try:
+                if not self.response_queue_L.empty():
+                    msg_L = self.response_queue_L.get(timeout=EyeTrackerConfig.queue_timeout)
+                    self.tcp_server.send({"type": "eye_data", "eye": "L", "payload": msg_L}, priority="high")
+
+                if not self.response_queue_R.empty():
+                    msg_R = self.response_queue_R.get(timeout=EyeTrackerConfig.queue_timeout)
+                    self.tcp_server.send({"type": "eye_data", "eye": "R", "payload": msg_R}, priority="high")
+
+            except Exception as e:
+                # Silently skip if queues are empty or error occurs
+                time.sleep(EyeTrackerConfig.queue_timeout)
+
+
+
+

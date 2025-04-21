@@ -10,14 +10,18 @@ import time, numpy as np, cv2
 
 
 class EyeTrackerCenter:
-    def __init__(self, tcp_server):  # Initializes all tracking components and command queues
+    def __init__(self, tcp_server, command_dispatcher):  # Initializes all tracking components and command queues
         self.tcp_server = tcp_server
+        self.command_dispatcher = command_dispatcher
+
+        self.command_dispatcher.eye_tracker_centre = self  # Set the command dispatcher to this instance
+
         self.setup_mode = False
         self.ready_to_track = False
         self.frame_provider = None
         self.tracker_handler = None
 
-        self.eyeloop_queue_handler = EyeLoopQueueHandler()  # Initialize the queue handler
+        self.eyeloop_queue_handler = EyeLoopQueueHandler(self.tcp_server, self.command_dispatcher)  # Initialize the queue handler
 
         self.command_queue_L, self.command_queue_R = self.eyeloop_queue_handler.get_command_queues()
         self.response_queue_L, self.response_queue_R = self.eyeloop_queue_handler.get_response_queues()
@@ -26,6 +30,11 @@ class EyeTrackerCenter:
     def handle_command(self, command: str):
         if command == "setup_tracker_1":
             self.setup_mode = True
+            try:
+                self.tracker_handler.stop()
+            except:
+                pass  # Ignore if tracker handler is not initialized
+
             self.stop_preview()  # In case a previous preview was running
             self.start_preview()
             print("[INFO] Setup phase 1: Preview started.")
@@ -33,18 +42,24 @@ class EyeTrackerCenter:
         elif command == "setup_tracker_2":
             self.setup_mode = True
             self.stop_preview()
-            self.frame_provider = FrameProvider(self.sync_queue_L, self.sync_queue_R) # Initialize frame provider
-            self.tracker_handler = TrackerHandler(self.tcp_server, self.frame_provider, self.command_queue_L, # Initialize tracker handler
-                        self.command_queue_R, self.response_queue_L, self.response_queue_R, self.sync_queue_L, self.sync_queue_R)
+
+            ### Zavolat eyeloop queue handler a tady to nastavit
+
+            self.frame_provider = FrameProvider(self.command_dispatcher, self.sync_queue_L, self.sync_queue_R) # Initialize frame provider
+            self.tracker_handler = TrackerHandler(self.command_dispatcher, self.tcp_server, self.frame_provider, self.command_queue_L, # Initialize tracker handler
+            self.command_queue_R, self.response_queue_L, self.response_queue_R, self.sync_queue_L, self.sync_queue_R)
             
             self.frame_provider.run() # Start the frame provider
             print("[INFO] Setup phase 2: Tracker started after preview configuration.")
 
         elif command == "launch_tracker":
-            self.setup_mode = False
+            self.stop_preview()
             self.ready_to_track = True
-            self.frame_provider = FrameProvider(self.sync_queue_L, self.sync_queue_R) # Initialize frame provider
-            self.tracker_handler = TrackerHandler(self.tcp_server, self.frame_provider, self.command_queue_L, # Initialize tracker handler
+
+            ### Zavolat eyeloop queue handler a tady to nastavit
+
+            self.frame_provider = FrameProvider(self.command_dispatcher, self.sync_queue_L, self.sync_queue_R) # Initialize frame provider
+            self.tracker_handler = TrackerHandler(self.command_dispatcher, self.tcp_server, self.frame_provider, self.command_queue_L, # Initialize tracker handler
                         self.command_queue_R, self.response_queue_L, self.response_queue_R, self.sync_queue_L, self.sync_queue_R)
             
             self.frame_provider.run() # Start the frame provider
@@ -52,7 +67,7 @@ class EyeTrackerCenter:
 
     def start_preview(self):  
 
-        self.frame_provider = FrameProvider(self.sync_queue_L, self.sync_queue_R)
+        self.frame_provider = FrameProvider(self.command_dispatcher, self.sync_queue_L, self.sync_queue_R)
         self.setup_mode = True
         self.preview_thread = threading.Thread(target=self._preview_loop, daemon=True)
         self.preview_thread.start()
@@ -60,7 +75,7 @@ class EyeTrackerCenter:
         # Start preview loop externally or in separate thread/process
 
     def _preview_loop(self):
-
+        self.frame_provider.run()  # Start the frame provider for preview
         shape = (CameraConfig.height, CameraConfig.width)
         channels = 3  # default to 3, can be dynamically detected later
 
@@ -99,11 +114,3 @@ class EyeTrackerCenter:
 
         if self.frame_provider:
             self.frame_provider.cleanup()
-
-    def start_tracker(self):
-        self.tracker_handler = TrackerHandler(self.tcp_server, self.command_queue_L, self.command_queue_R)
-        self.frame_provider.run()
-
-    def stop_tracker(self):
-        if self.tracker_handler:
-            self.tracker_handler.stop()
