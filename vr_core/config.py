@@ -1,11 +1,5 @@
 import queue
 
-# ---- Component Instances ------------------------------------------
-core = None
-tcp_server = None
-gyroscope = None
-
-
 # ---- TCP Configuration --------------------------------------------
 class TCPConfig:
     host = '0.0.0.0' # Listen on all interfaces
@@ -33,6 +27,7 @@ class GyroscopeConfig:
     bus_num = 1         # I2C bus number (1 for Raspberry Pi 3 and later)
     addr = 0x6b         # I2C address of the gyroscope (L3GD20H)
     update_rate = 0.01  # in seconds (100 Hz)
+    retry_attempts = 10  # Number of attempts to read data from the gyroscope
 
     # Register map
     reg_ctrl1 = 0x20
@@ -53,8 +48,10 @@ class ESP32Config:
     timeout=1 # Timeout for the serial connection (in seconds)
 
     handshake_attempts = 3 # Number of attempts to perform the handshake
-    handshake_message = "HELLO" # Handshake message to send to ESP32
-    handshake_response = "READY" # Expected response from ESP32 after handshake
+    handashake_interval_inner = 1 # Interval between handshake attempts (in seconds)
+    handeshake_interval_outer = 5 # Interval between outer handshake attempts (in seconds)
+    handshake_message = "STATUS" # Handshake message to send to ESP32
+    handshake_response = "ONLINE" # Expected response from ESP32 after handshake
 
     send_attempts = 3 # Number of attempts to send the focal distance
 
@@ -101,4 +98,5 @@ class CameraConfig:
     analogue_gain = 2.0  # Brightness boost
     af_mode = 0  # 0 = manual, 1 = auto
 
+    capture_retries = 3  # Number of attempts to capture a frame
 camera_config = CameraConfig()

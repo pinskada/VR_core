@@ -1,6 +1,8 @@
 import os
 import time
-from vr_core.config import esp32_config
+from vr_core.config import ESP32Config
+import vr_core.module_list as module_list
+import threading
 
 try:
     import serial # type: ignore
@@ -12,11 +14,13 @@ except ImportError:
 
 class ESP32:
     def __init__(self, force_mock=False):
+        module_list.esp32 = self  # Register the ESP32 in the module list
+        self.health_monitor = module_list.health_monitor  # Reference to the health monitor
 
         # Import the ESP32 configuration
-        self.port = esp32_config.port
-        self.baudrate = esp32_config.baudrate
-        self.timeout = esp32_config.timeout
+        self.port = ESP32Config.port
+        self.baudrate = ESP32Config.baudrate
+        self.timeout = ESP32Config.timeout
         self.mock_mode = force_mock
         self.serial_conn = None
         self.online = False
@@ -24,9 +28,11 @@ class ESP32:
         # Check for mock mode
         if self.mock_mode:
             self.online = True
+            self.health_monitor.status("ESP32", "Mock mode active")
             print("[ESP32] MOCK MODE ACTIVE — Serial writes will be simulated.")
             return
-        elif not os.path.exists(self.port): # Check if the serial port exists          
+        elif not os.path.exists(self.port): # Check if the serial port exists
+            self.health_monitor.failure("ESP32", "Serial port not found")        
             print("[ESP32] Serial port not found.")
             return
 
@@ -40,10 +46,12 @@ class ESP32:
 
             time.sleep(2)  # Let ESP32 boot/reset
             print(f"[ESP32] Serial connection established on {self.port} @ {self.baudrate} baud.")
-            self._perform_handshake() # Perform handshake with ESP32
+            self.thread = threading.Thread(target=self._perform_handshake, daemon=True)      
 
-        except serial.SerialException as e:            
+        except serial.SerialException as e:
+            self.health_monitor.failure("ESP32", "Serial connection error")
             print(f"[ESP32] Serial error: {e}.")
+            
 
 
     def is_online(self):
@@ -53,29 +61,41 @@ class ESP32:
     def _perform_handshake(self):
         """Perform a handshake with the ESP32 to ensure it's ready."""
 
-        for i in range(esp32_config.handshake_attempts):
-            print(f"[ESP32] Handshake attempt {i + 1}/{esp32_config.handshake_attempts}")
+        while True:
+            error = None
 
-            try:
-                # Send the handshake message in a byte format
-                self.serial_conn.write((esp32_config.handshake_message + "\n").encode("utf-8"))
-                print(f"[ESP32] Sent handshake: {esp32_config.handshake_message}")
-
-                # Wait for a response from the ESP32
-                response = self.serial_conn.readline().decode("utf-8").strip()
-                print(f"[ESP32] Handshake response: {response}")
-
-                # Check if the response matches the expected response
-                if response != esp32_config.handshake_response: 
-                    print(f"[ESP32] Handshake failed. Expected: {esp32_config.handshake_response}, Received: {response}.")
-                else:
-                    self.online = True
-                    print("[ESP32] Handshake successful. ESP32 is ready.")
-                    return
+            for i in range(ESP32Config.handshake_attempts):
                 
-            except Exception as e:
-                print(f"[ESP32] Handshake failed: {e}.")
+                try:
+                    # Send the handshake message in a byte format
+                    self.serial_conn.write((ESP32Config.handshake_message + "\n").encode("utf-8"))
+                    print(f"[ESP32] Sent handshake: {ESP32Config.handshake_message}")
 
+                    # Wait for a response from the ESP32
+                    response = self.serial_conn.readline().decode("utf-8").strip()
+                    print(f"[ESP32] Handshake response: {response}")
+
+                    # Check if the response matches the expected response
+                    if response == ESP32Config.handshake_response: 
+                        self.online = True
+                        error = None
+                        print("[ESP32] Handshake successful. ESP32 is ready.")
+                        break
+                    else:
+                        print(f"[ESP32] Handshake failed. Expected: {ESP32Config.handshake_response}, Received: {response}.")
+                        error = f"Expected: {ESP32Config.handshake_response}, Received: {response}"
+                except Exception as e:
+                    error = e
+                    
+                time.sleep(ESP32Config.handashake_interval_inner)  # Wait before retrying the handshake
+
+            if error != None:
+                self.health_monitor.failure("ESP32", f"Handshake error: {error}")
+                self.online = False
+                print(f"[ESP32] Handshake failed: {error}.")
+                break
+
+            time.sleep(ESP32Config.handeshake_interval_outer)  # Wait before retrying the handshake
 
     def send_focal_distance(self, distance_mm: float):
         """Send the focal distance to the ESP32."""
@@ -88,15 +108,11 @@ class ESP32:
             print(f"[ESP32][MOCK] Would send focal distance: {message.strip()}")
             return
 
-        for i in range(esp32_config.send_attempts):  # Retry sending the message 3 times
-            try:
-                self.serial_conn.write(message.encode('utf-8'))
-                print(f"[ESP32] Sent focal distance: {message.strip()}")
-            except Exception as e:
-                if i == esp32_config.send_attempts-1:
-                    self.online = False
-                print(f"[ESP32] Error during UART write: {e}")
-
+        try:
+            self.serial_conn.write(message.encode('utf-8'))
+            print(f"[ESP32] Sent focal distance: {message.strip()}")
+        except Exception as e:
+            print(f"[ESP32] Error during UART write: {e}")
 
     def close(self):
         """Close the serial connection."""

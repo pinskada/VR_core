@@ -1,4 +1,6 @@
 from vr_core.config import CameraConfig
+import vr_core.module_list as module_list 
+import vr_core.health_monitor as health_monitor
 
 try:
     from picamera2 import Picamera2 # type: ignore
@@ -6,11 +8,10 @@ except ImportError:
     raise ImportError("Picamera2 library is not installed. Please install it to use this module.")
 
 class CameraConfigManager:
-    def __init__(self, command_dispatcher):
+    def __init__(self):
         self.picam2 = Picamera2()  # Initialize camera object
-        self.command_dispatcher = command_dispatcher
-
-        self.command_dispatcher.camera_config_manager = self  # Set the command dispatcher to this instance
+        self.command_dispatcher = module_list.command_dispatcher
+        self.health_monitor = module_list.health_monitor
 
     def apply_config(self):
         cam = CameraConfig()
@@ -32,4 +33,18 @@ class CameraConfigManager:
         self.picam2.start()  # Start the camera stream
 
     def capture_frame(self):
-        return self.picam2.capture_array()  # Capture a frame as numpy array
+        error = None
+        for i in range(CameraConfig.capture_retries):
+            try:
+                frame = self.picam2.capture()
+                error = None
+                break
+            except Exception as e:
+                error = e
+
+        if error != None:
+            self.health_monitor.failure("Camera", f"Capture error: {error}")
+            print(f"[Camera] Capture error: {error}")
+            return
+
+        return frame
