@@ -3,13 +3,12 @@ import time
 from queue import Empty
 from vr_core.config import EyeTrackerConfig
 from multiprocessing import shared_memory, Queue
+import vr_core.module_list as module_list 
 
 class FrameProvider:  # Handles video acquisition, cropping, and shared memory distribution
-    def __init__(self, command_dispatcher, sync_queue_L: Queue, sync_queue_R: Queue):
-        self.command_dispatcher = command_dispatcher
+    def __init__(self, sync_queue_L: Queue, sync_queue_R: Queue):
+        module_list.frame_provider = self  # Register the frame provider in the module list       
         
-        self.command_dispatcher.frame_provider = self
-
         self.use_test_video = EyeTrackerConfig.use_test_video
 
         self.test_run = False  # Flag to indicate if we are running a test (for testing purposes)
@@ -24,7 +23,7 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
             self.cap = cv2.VideoCapture(EyeTrackerConfig.test_video_path)
         else:
             from vr_core.raspberry_perif.camera_config import CameraConfigManager
-            self.cam_manager = CameraConfigManager(self.command_dispatcher)
+            self.cam_manager = CameraConfigManager()
             self.cam_manager.apply_config()
 
         # Capture a test frame to determine actual crop size

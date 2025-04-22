@@ -1,6 +1,7 @@
 from multiprocessing import Queue
 import threading
 import time
+import vr_core.module_list as module_list 
 from vr_core.config import EyeTrackerConfig
 
 class EyeLoopQueueHandler:
@@ -9,13 +10,10 @@ class EyeLoopQueueHandler:
     This class is used to manage the communication between the EyeLoop processes and the main process.
     """
     
-    def __init__(self, eye_tracker_centre, tcp_server, command_dispatcher):
-
-        self.command_dispatcher = command_dispatcher  # Command dispatcher for handling commands
-        self.tcp_server = tcp_server  # Reference to the TCP server for communication
-        self.eye_tracker_centre = eye_tracker_centre  # Reference to the EyeTrackerCentre instance
-
-        self.command_dispatcher.eyeloop_queue_handler = self  # Set the command dispatcher to this instance
+    def __init__(self):
+        module_list.eyeloop_queue_handler = self  # Register the queue handler in the module list
+        self.eye_tracker_centre = module_list.eye_tracker_centre  # Reference to the EyeTrackerCentre instance
+        self.tcp_server = module_list.tcp_server  # Reference to the TCP server
 
         # Initialize queues for both left and right EyeLoop processes
         self.command_queue_L = Queue()
@@ -29,7 +27,6 @@ class EyeLoopQueueHandler:
         self.response_thread = threading.Thread(target=self._response_loop, daemon=True)
         self.response_thread.start()
  
-        
 
     def get_command_queues(self) -> tuple[Queue, Queue]:
         return self.command_queue_L, self.command_queue_R
@@ -80,19 +77,25 @@ class EyeLoopQueueHandler:
 
         if isinstance(message, dict) and message.get("category") == "Data":
             if self.eye_tracker_centre.setup_mode:
-                self.tcp_server.send(
-                {
-                    "type": "EyeloopData", 
-                    "eye": eye, 
-                    "payload": message["payload"]
-                }, data_type='JSON', priority="medium")
+                
+                payload = message.get("payload")
+                if payload is not None:
+                    self.tcp_server.send(
+                    {
+                        "type": "EyeloopData", 
+                        "eye": eye, 
+                        "payload": payload
+                    }, data_type='JSON', priority="medium")
+                else:
+                    print("[EyeloopQueueHandler] Warning: Missing 'payload' in message.")
             else:
                 ### Send data to the main process for processing
                 pass
         elif isinstance(message, bytes):
             self.tcp_server.send(message, data_type="PNG", priority="medium")
         else:
-            print(f"[EyeloopQueueHandler] Unexpected message format: {type(message)}")
+            print(f"[EyeloopQueueHandler] Unexpected message format: {type(message)}, content: {str(message)[:100]}")
+
 
 
 

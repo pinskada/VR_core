@@ -7,12 +7,13 @@ import time
 import json
 
 from vr_core.config import TCPConfig 
-import vr_core.config as config 
+import vr_core.module_list as module_list 
 
 
 class TCPServer:
     def __init__(self, autostart=True):
-        self.core = config.core     # Reference to the Core instance
+        module_list.tcp_server = self # Register the TCP server in the module list
+        
         self.host = TCPConfig.host # Host IP address
         self.port = TCPConfig.port # Port number
         self.server_socket = None   # Server socket
@@ -35,11 +36,6 @@ class TCPServer:
             self.verify_static_ip()
             self.start_server()
 
-
-    def set_command_dispatcher(self, command_dispatcher):
-        """Set the command dispatcher for handling incoming messages."""
-
-        self.command_dispatcher = command_dispatcher
 
     def is_online(self):
         return self.online
@@ -157,7 +153,7 @@ class TCPServer:
         print(f"[TCPServer] Received: {message}")
         try:
             parsed = json.loads(message)
-            self.command_dispatcher.handle(parsed)
+            self.command_dispatcher.handle_message(parsed)
         except json.JSONDecodeError:
             print(f"[TCPServer] Invalid JSON received: {message}")
 
