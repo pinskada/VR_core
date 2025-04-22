@@ -11,22 +11,38 @@ class EyeLoopQueueHandler:
     """
     
     def __init__(self):
+        self.online = True
+
         module_list.eyeloop_queue_handler = self  # Register the queue handler in the module list
         self.eye_tracker_centre = module_list.eye_tracker_centre  # Reference to the EyeTrackerCentre instance
         self.tcp_server = module_list.tcp_server  # Reference to the TCP server
+        self.health_monitor = module_list.health_monitor  # Reference to the health check module
 
-        # Initialize queues for both left and right EyeLoop processes
-        self.command_queue_L = Queue()
-        self.command_queue_R = Queue()
-        self.response_queue_L = Queue()
-        self.response_queue_R = Queue()
-        self.sync_queue_L = Queue()
-        self.sync_queue_R = Queue()
+        try:
+            # Initialize queues for both left and right EyeLoop processes
+            self.command_queue_L = Queue()
+            self.command_queue_R = Queue()
+            self.response_queue_L = Queue()
+            self.response_queue_R = Queue()
+            self.sync_queue_L = Queue()
+            self.sync_queue_R = Queue()
+        except Exception as e:
+            self.health_monitor.failure("EyeloopQueueHandler", f"Error initializing queues: {e}")
+            print(f"[EyeloopQueueHandler] Error initializing queues: {e}")
+            self.online = False
+            raise
 
-        self.online = True
-        self.response_thread = threading.Thread(target=self._response_loop, daemon=True)
-        self.response_thread.start()
- 
+        try:
+            self.response_thread = threading.Thread(target=self._response_loop, daemon=True)
+            self.response_thread.start()
+        except Exception as e:
+            self.health_monitor.failure("EyeloopQueueHandler", f"Error starting _response_loop thread: {e}")
+            print(f"[EyeloopQueueHandler] Error starting _response_loop thread: {e}")
+            self.online = False
+            raise
+
+    def is_online(self):
+        return self.online 
 
     def get_command_queues(self) -> tuple[Queue, Queue]:
         return self.command_queue_L, self.command_queue_R
@@ -41,15 +57,21 @@ class EyeLoopQueueHandler:
         """
         Sends a command to the specified EyeLoop process.
         """
-      
-        print(f"[QueueHandler] Sending command to {eye}: {command}")
-        if eye == "L":
-            self.command_queue_L.put(command)
-        elif eye == "R":
-            self.command_queue_R.put(command)
-        else:
-            raise ValueError("Invalid eye specified. Use 'L' or 'R'.")
-    
+
+        try:
+            print(f"[QueueHandler] Sending command to {eye}: {command}")
+            if eye == "L":
+                self.command_queue_L.put(command)
+            elif eye == "R":
+                self.command_queue_R.put(command)
+            else:
+                raise ValueError("Invalid eye specified. Use 'L' or 'R'.")
+        except Exception as e:
+            self.health_monitor.failure("EyeloopQueueHandler", f"Error sending command to {eye}: {e}")
+            print(f"[EyeloopQueueHandler] Error sending command to {eye}: {e}")
+            self.online = False
+
+
     def _response_loop(self):
         while self.online:
             try:
@@ -87,6 +109,7 @@ class EyeLoopQueueHandler:
                         "payload": payload
                     }, data_type='JSON', priority="medium")
                 else:
+                    self.health_monitor.failure("EyeloopQueueHandler", f"Missing 'payload' in message from response loop.from eye: {eye}")
                     print("[EyeloopQueueHandler] Warning: Missing 'payload' in message.")
             else:
                 ### Send data to the main process for processing
@@ -94,6 +117,7 @@ class EyeLoopQueueHandler:
         elif isinstance(message, bytes):
             self.tcp_server.send(message, data_type="PNG", priority="medium")
         else:
+            self.health_monitor.failure("EyeloopQueueHandler", f"Unexpected message format: {type(message)}, content: {str(message)[:100]}")
             print(f"[EyeloopQueueHandler] Unexpected message format: {type(message)}, content: {str(message)[:100]}")
 
 

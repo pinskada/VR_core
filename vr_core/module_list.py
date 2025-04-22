@@ -5,6 +5,7 @@ health_monitor = None
 tcp_server = None
 command_dispatcher = None
 
+tracker_handler = None
 eye_tracker_centre = None
 eyeloop_queue_handler = None
 frame_provider = None

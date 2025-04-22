@@ -20,8 +20,8 @@ def test_frame_provider(use_test_video=True):
     sync_queue_L = Queue()
     sync_queue_R = Queue()
 
-    provider = FrameProvider(sync_queue_L, sync_queue_R)
-    provider.test_run = True  # Run only one frame
+    test_run = True  # Run only one frame
+    provider = FrameProvider(sync_queue_L, sync_queue_R, test_run)
     provider.run()
 
     try:

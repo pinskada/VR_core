@@ -100,3 +100,9 @@ class CameraConfig:
 
     capture_retries = 3  # Number of attempts to capture a frame
 camera_config = CameraConfig()
+
+# ---- Health Monitor Configuration --------------------------------
+class HealthMonitorConfig:
+
+    interval = 2  # Interval for health check in seconds
+

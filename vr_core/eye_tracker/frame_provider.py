@@ -6,12 +6,14 @@ from multiprocessing import shared_memory, Queue
 import vr_core.module_list as module_list 
 
 class FrameProvider:  # Handles video acquisition, cropping, and shared memory distribution
-    def __init__(self, sync_queue_L: Queue, sync_queue_R: Queue):
-        module_list.frame_provider = self  # Register the frame provider in the module list       
-        
+    def __init__(self, sync_queue_L: Queue, sync_queue_R: Queue, test_run: bool = False):
+        self.online = True
+
+        module_list.frame_provider = self  # Register the frame provider in the module list
+        self.health_monitor = module_list.health_monitor  # Health monitor instance
         self.use_test_video = EyeTrackerConfig.use_test_video
 
-        self.test_run = False  # Flag to indicate if we are running a test (for testing purposes)
+        self.test_run = test_run  # Flag to indicate if we are running a test (for testing purposes)
         self._frame_id = 0  # Incremented with each new frame
         self.sync_queue_L = sync_queue_L  # Queue to track left EyeLoop completion
         self.sync_queue_R = sync_queue_R  # Queue to track right EyeLoop completion
@@ -21,6 +23,7 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
             import cv2
             self.cv2 = cv2
             self.cap = cv2.VideoCapture(EyeTrackerConfig.test_video_path)
+            self.health_monitor.status("FrameProvider", "Using test video for frame capture.")
         else:
             from vr_core.raspberry_perif.camera_config import CameraConfigManager
             self.cam_manager = CameraConfigManager()
@@ -30,6 +33,8 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
         if self.use_test_video:
             ret, test_frame = self.cap.read()
             if not ret:
+                self.health_monitor.failure("FrameProvider", "Failed to read test frame from video.")
+                self.online = False
                 raise RuntimeError("Failed to read test frame from video.")
         else:
             test_frame = self.cam_manager.capture_frame()
@@ -44,7 +49,9 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
                 if self.use_test_video:
                     ret, full_frame = self.cap.read()
                     if not ret:
+                        self.health_monitor.failure("FrameProvider", "Failed to read test frame from video or end of video.")
                         print("End of test video or read error.")
+                        self.online = False
                         break
                 else:
                     full_frame = self.cam_manager.capture_frame()
@@ -67,14 +74,26 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
                 # Increment frame ID for synchronization
                 self._frame_id += 1
 
-                # Put frame ID in sync queues for both EyeLoop processes
-                self.sync_queue_L.put({"frame_id": self._frame_id, "type": "frame_id"})
-                self.sync_queue_R.put({"frame_id": self._frame_id, "type": "frame_id"})
+                try:
+                    # Put frame ID in sync queues for both EyeLoop processes
+                    self.sync_queue_L.put({"frame_id": self._frame_id, "type": "frame_id"})
+                    self.sync_queue_R.put({"frame_id": self._frame_id, "type": "frame_id"})
+                except Exception as e:
+                    self.health_monitor.failure("FrameProvider", f"Failed to put frame ID in sync queue: {e}")
+                    print(f"[ERROR] Failed to put frame ID in sync queue: {e}")
+                    self.online = False
+                    break
 
-                # Write cropped frames to shared memory
-                np.ndarray(l.shape, dtype=l.dtype, buffer=self.shm_L.buf)[:] = l
-                np.ndarray(r.shape, dtype=r.dtype, buffer=self.shm_R.buf)[:] = r
-    
+                try:
+                    # Write cropped frames to shared memory
+                    np.ndarray(l.shape, dtype=l.dtype, buffer=self.shm_L.buf)[:] = l
+                    np.ndarray(r.shape, dtype=r.dtype, buffer=self.shm_R.buf)[:] = r
+                except Exception as e:
+                    self.health_monitor.failure("FrameProvider", f"Failed to write to shared memory: {e}")
+                    print(f"[ERROR] Failed to write to shared memory: {e}")
+                    self.online = False
+                    break
+
                 self._wait_for_sync()
     
                 time.sleep(1 / EyeTrackerConfig.frame_provider_max_fps)  # Maintain target FPS
@@ -84,7 +103,6 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
         finally:
             if not self.test_run:
                 self.cleanup()
-
 
 
     def _wait_for_sync(self):
@@ -125,6 +143,9 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
             print(f"[WARN] Right EyeLoop did not acknowledge frame {self._frame_id} in time.")
 
 
+    def is_online(self):
+        return self.online
+
     @property
     def current_frame_id(self):
         return self._frame_id
@@ -144,9 +165,15 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
         w = int((self.x_rel_end - self.x_rel_start) * frame_width)
         h = int((self.y_rel_end - self.y_rel_start) * frame_height)
 
-        self.shm_L = shared_memory.SharedMemory(name=EyeTrackerConfig.sharedmem_name_left, create=True, size=h * w * channels)
-        self.shm_R = shared_memory.SharedMemory(name=EyeTrackerConfig.sharedmem_name_right, create=True, size=h * w * channels)
-
+        try:
+            self.shm_L = shared_memory.SharedMemory(name=EyeTrackerConfig.sharedmem_name_left, create=True, size=h * w * channels)
+            self.shm_R = shared_memory.SharedMemory(name=EyeTrackerConfig.sharedmem_name_right, create=True, size=h * w * channels)
+        except Exception as e:
+            self.health_monitor.failure("FrameProvider", f"Failed to allocate shared memory: {e}")
+            print(f"[ERROR] Failed to allocate shared memory: {e}")
+            self.online = False
+            raise RuntimeError(f"[ERROR] Failed to allocate shared memory: {e}")
+        
         print(f"[FrameProvider] Reallocated SHM.")
 
     def validate_crop(self):    
@@ -155,7 +182,10 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
         for name, region in [("crop_left", EyeTrackerConfig.crop_left), ("crop_right", EyeTrackerConfig.crop_right)]:
             (x_start, x_end), (y_start, y_end) = region
             if x_end <= x_start or y_end <= y_start:
-                raise ValueError(f"[CONFIG ERROR] Invalid crop dimensions for {name}: {region}")
+                EyeTrackerConfig.crop_left = ((0, 0.5), (0, 1))
+                EyeTrackerConfig.crop_right = ((0.5, 1), (0, 1))
+                self.health_monitor.failure("FrameProvider", f"Invalid crop dimensions for {name}: {region}, resetting to default.")
+                raise ValueError(f"[CONFIG ERROR] Invalid crop dimensions for {name}: {region}, resetting to default.")
 
     def clean_memory(self):
         print("[INFO] Cleaning up FrameProvider resources.")

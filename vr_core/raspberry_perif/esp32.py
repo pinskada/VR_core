@@ -7,6 +7,8 @@ import threading
 
 class ESP32:
     def __init__(self, force_mock=False):
+        self.online = True
+
         module_list.esp32 = self  # Register the ESP32 in the module list
         self.health_monitor = module_list.health_monitor  # Reference to the health monitor
 
@@ -16,13 +18,13 @@ class ESP32:
         self.timeout = ESP32Config.timeout
         self.mock_mode = force_mock
         self.serial_conn = None
-        self.online = False
 
         try:
             import serial # type: ignore
         except ImportError as e:
             self.health_monitor.failure("ESP32", f"pyserial not available {e}")
             print(f"[ESP32] pyserial not available: {e}")
+            self.online = False
 
         # Check for mock mode
         if self.mock_mode:
@@ -33,6 +35,7 @@ class ESP32:
         elif not os.path.exists(self.port): # Check if the serial port exists
             self.health_monitor.failure("ESP32", "Serial port not found")        
             print("[ESP32] Serial port not found.")
+            self.online = False
             return
 
         try:
@@ -45,17 +48,16 @@ class ESP32:
 
             time.sleep(2)  # Let ESP32 boot/reset
             print(f"[ESP32] Serial connection established on {self.port} @ {self.baudrate} baud.")
-            self.thread = threading.Thread(target=self._perform_handshake, daemon=True)      
+            self.thread = threading.Thread(target=self._perform_handshake, daemon=True)
+            self.thread.start()  # Start the handshake thread
 
         except serial.SerialException as e:
             self.health_monitor.failure("ESP32", "Serial connection error")
             print(f"[ESP32] Serial error: {e}.")
+            self.online = False
             
-
-
     def is_online(self):
         return self.online
-
 
     def _perform_handshake(self):
         """Perform a handshake with the ESP32 to ensure it's ready."""

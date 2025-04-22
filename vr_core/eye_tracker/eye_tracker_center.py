@@ -16,6 +16,7 @@ class EyeTrackerCenter:
     def __init__(self):  # Initializes all tracking components and command queues
         module_list.eye_tracker_centre = self  # Register the eye tracker centre in the module list
         self.tcp_server = module_list.tcp_server
+        self.health_monitor = module_list.health_monitor
 
         self.setup_mode = False
         self.ready_to_track = False
@@ -86,6 +87,7 @@ class EyeTrackerCenter:
             shm_L = shared_memory.SharedMemory(name=EyeTrackerConfig.sharedmem_name_left)
             shm_R = shared_memory.SharedMemory(name=EyeTrackerConfig.sharedmem_name_right)
         except FileNotFoundError:
+            self.health_monitor.failure("EyeTracker", "Shared memory not found for preview loop.")
             print("[ERROR] Shared memory not found for preview loop.")
             return
 
@@ -94,12 +96,18 @@ class EyeTrackerCenter:
                 img_L = np.ndarray(shape + (channels,), dtype=np.uint8, buffer=shm_L.buf).copy()
                 img_R = np.ndarray(shape + (channels,), dtype=np.uint8, buffer=shm_R.buf).copy()
             except Exception as e:
+                self.health_monitor.failure("EyeTracker", f"Shared memory read error: {e}")
                 print(f"[WARN] Shared memory read error: {e}")
                 continue
-
-            _, jpg_L = cv2.imencode(".jpg", img_L, [int(cv2.IMWRITE_JPEG_QUALITY), EyeTrackerConfig.jpeg_quality])
-            _, jpg_R = cv2.imencode(".jpg", img_R, [int(cv2.IMWRITE_JPEG_QUALITY), EyeTrackerConfig.jpeg_quality])
-
+            
+            try:
+                _, jpg_L = cv2.imencode(".jpg", img_L, [int(cv2.IMWRITE_JPEG_QUALITY), EyeTrackerConfig.jpeg_quality])
+                _, jpg_R = cv2.imencode(".jpg", img_R, [int(cv2.IMWRITE_JPEG_QUALITY), EyeTrackerConfig.jpeg_quality])
+            except Exception as e:
+                self.health_monitor.failure("EyeTracker", f"JPEG encoding error: {e}")
+                print(f"[WARN] JPEG encoding error: {e}")
+                break
+            
             self.tcp_server.send("left_JPEG", data_type='JSON', priority="medium")
             self.tcp_server.send(jpg_L.tobytes(), data_type='JPEG', priority="medium")
 

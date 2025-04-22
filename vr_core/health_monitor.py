@@ -1,4 +1,5 @@
 import vr_core.module_list as module_list
+from vr_core.config import HealthMonitorConfig
 import threading
 import time
 
@@ -8,12 +9,40 @@ class HealthMonitor:
         self.tcp_server = module_list.tcp_server
         threading.Thread(target=self.check_health, daemon=True).start()
 
-    def check_health(self):
-        """Periodically checks the health status of all components."""
-        while True:
-            time.sleep(5)
-            
+    def check_for_health(self):
+        """
+        Periodically checks the online status of all known components except EyeTrackerCenter.
+        Sends updates to Unity if any component changes status.
+        """
+        monitored_components = {
+            "Gyroscope": module_list.gyroscope,
+            "ESP32": module_list.esp32,
+            "CameraConfig": module_list.camera_config_manager,
+            "QueueHandler": module_list.eyeloop_queue_handler,
+            "FrameProvider": module_list.frame_provider,
+            "TrackerHandler": module_list.tracker_handler
+        }
 
+        while True:
+            for name, component in monitored_components.items():
+                if component is None:
+                    continue
+
+                is_online = component.is_online()
+                previous = self.component_status.get(name)
+
+                if previous is None or previous != is_online:
+                    status_str = "went offline" if not is_online else "came online"
+                    print(f"[HealthMonitor] {name} {status_str}.")
+
+                    self.tcp_server.send({
+                        "type": "STATUS",
+                        "data": f"{name} {status_str}"
+                    }, data_type="JSON", priority="low")
+
+                    self.component_status[name] = is_online
+
+            time.sleep(HealthMonitorConfig.check_interval)
 
     def status(self, component_name: str, status: str):
         """Handles status updates of a component."""

@@ -8,13 +8,14 @@ import vr_core.module_list as module_list
 
 class Gyroscope:
     def __init__(self, force_mock=False):
+        self.online = True
+
         module_list.gyroscope = self  # Register the gyroscope in the module list
         self.tcp_server = module_list.tcp_server  # Reference to the TCP server
         self.health_monitor = module_list.health_monitor
 
         self.mock_angle = 0.0
         self.mock_mode = force_mock
-        self.online = False
         self.thread = threading.Thread(target=self.run, daemon=True)      
 
         if self.mock_mode:
@@ -26,6 +27,7 @@ class Gyroscope:
                 if self.ensure_i2c_enabled() is False:
                     print("[Gyroscope] I2C not enabled. Exiting.")
                     self.health_monitor.failure("Gyroscope", "I2C not enabled")
+                    self.online = False
                     return
                 
                 import smbus2 # type: ignore # Import the smbus2 library for I2C communication
@@ -40,6 +42,7 @@ class Gyroscope:
             except OSError as e:
                 self.health_monitor.failure("Gyroscope", "Initialisation error")
                 print(f"[Gyroscope] Error initializing: {e}")
+                self.online = False
                 return
 
 
@@ -62,6 +65,8 @@ class Gyroscope:
             print("[Gyroscope] I2C not detected.")
             print("Run 'sudo raspi-config' > Interface Options > I2C > Enable")
             return False
+        else:
+            return True
     
 
     def read_gyro(self):

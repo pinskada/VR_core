@@ -3,6 +3,8 @@ import vr_core.module_list as module_list
 
 class CameraConfigManager:
     def __init__(self):
+        self.online = True  # Flag to indicate if the camera is online
+
         module_list.camera_config_manager = self # Register the camera config manager in the module list
         self.command_dispatcher = module_list.command_dispatcher
         self.health_monitor = module_list.health_monitor
@@ -10,10 +12,15 @@ class CameraConfigManager:
         try:
             from picamera2 import Picamera2 # type: ignore
             self.picam2 = Picamera2()  # Initialize camera object
-        except ImportError:
+        except ImportError as e:
             self.health_monitor.failure("Camera", f"Picamera2 not available: {e}")
             print("[Camera] Picamera2 not available")
+            self.online = False
             return
+        
+    def is_online(self):
+        return self.online
+
     def apply_config(self):
         cam = CameraConfig()
 
@@ -46,6 +53,7 @@ class CameraConfigManager:
         if error != None:
             self.health_monitor.failure("Camera", f"Capture error: {error}")
             print(f"[Camera] Capture error: {error}")
+            self.online = False
             return
 
         return frame
