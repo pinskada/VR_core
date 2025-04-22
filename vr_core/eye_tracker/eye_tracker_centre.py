@@ -99,8 +99,11 @@ class EyeTrackerCenter:
             _, jpg_L = cv2.imencode(".jpg", img_L, [int(cv2.IMWRITE_JPEG_QUALITY), EyeTrackerConfig.jpeg_quality])
             _, jpg_R = cv2.imencode(".jpg", img_R, [int(cv2.IMWRITE_JPEG_QUALITY), EyeTrackerConfig.jpeg_quality])
 
-            self.tcp_server.send(("eye_preview_L", jpg_L.tobytes(), "medium"))
-            self.tcp_server.send(("eye_preview_R", jpg_R.tobytes(), "medium"))
+            self.tcp_server.send("left_JPEG", data_type='JSON', priority="medium")
+            self.tcp_server.send(jpg_L.tobytes(), data_type='JPEG', priority="medium")
+
+            self.tcp_server.send(message="right_JPEG", data_type='JSON', priority="medium")
+            self.tcp_server.send(jpg_R.tobytes(), data_type='JPEG', priority="medium")
 
             time.sleep(1 / EyeTrackerConfig.preview_fps)
 

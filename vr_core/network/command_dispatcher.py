@@ -34,11 +34,11 @@ class CommandDispatcher:
 
     def _handle_eye_tracker_action(self, action, params):
         if action == "setup_tracker_1":
-            self.eye_tracker_centre.handle_command("setup_tracker_1")
+            self.eye_tracker_centre.handle_command(action)
         elif action == "setup_tracker_2":
-            self.eye_tracker_centre.handle_command("setup_tracker_2")
+            self.eye_tracker_centre.handle_command(action)
         elif action == "launch_tracker":
-            self.eye_tracker_centre.handle_command("launch_tracker")
+            self.eye_tracker_centre.handle_command(action)
         else:
             print(f"[CommandDispatcher] Unknown tracker_mode mode: {action}")
 

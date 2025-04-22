@@ -162,9 +162,40 @@ class TCPServer:
             print(f"[TCPServer] Invalid JSON received: {message}")
 
 
-    def send(self, message: str, priority='low'):
+    def send(self, message, data_type: str = 'JSON',  priority='low'):
         """Place a message in the appropriate priority queue."""
+
+        encoded_message = self.encode_message(message, data_type) # Encode the message
 
         if priority not in self.priority_queues:
             priority = 'low'
-        self.priority_queues[priority].put(message)
+        self.priority_queues[priority].put(encoded_message)
+
+    
+
+    def encode_message(self, message, data_type: str) -> bytes:
+
+        type_map = {
+            "JSON": b'J',
+            "JPEG": b'G',
+            "PNG":  b'P'
+        }
+
+        if data_type not in type_map:
+            raise ValueError(f"Unsupported data type: {data_type}")
+
+        type_byte = type_map[data_type]
+
+        if isinstance(message, dict):
+            message = json.dumps(message).encode('utf-8')
+        elif isinstance(message, str):
+            message = message.encode('utf-8')
+
+        if not isinstance(message, bytes):
+            raise ValueError("Message must be bytes, str, or dict.")
+
+        if len(message) > 16777215:
+            raise ValueError("Payload too large for 3-byte header.")
+
+        length_bytes = len(message).to_bytes(3, byteorder='big')
+        return type_byte + length_bytes + message

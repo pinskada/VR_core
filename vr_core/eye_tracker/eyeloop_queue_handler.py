@@ -73,20 +73,26 @@ class EyeLoopQueueHandler:
                 time.sleep(EyeTrackerConfig.queue_timeout)
 
 
-    def dispatch_message(self, message: str, eye: str):
+    def dispatch_message(self, message, eye: str):
         """
         Dispatches a message to the appropriate queue based on its content.
         """
-        category = message.get("category")
-        if category == "Data":
+
+        if isinstance(message, dict) and message.get("category") == "Data":
             if self.eye_tracker_centre.setup_mode:
-                self.tcp_server.send({"type": "EyeloopData", "eye": eye, "payload": message["payload"]}, priority="medium")
+                self.tcp_server.send(
+                {
+                    "type": "EyeloopData", 
+                    "eye": eye, 
+                    "payload": message["payload"]
+                }, data_type='JSON', priority="medium")
             else:
                 ### Send data to the main process for processing
                 pass
-
-        elif category == "BinImage":
-            self.tcp_server.send({"type": "BinPreview", "eye": eye, "payload": message["payload"]}, priority="medium")
+        elif isinstance(message, bytes):
+            self.tcp_server.send(message, data_type="PNG", priority="medium")
+        else:
+            print(f"[EyeloopQueueHandler] Unexpected message format: {type(message)}")
 
 
 
