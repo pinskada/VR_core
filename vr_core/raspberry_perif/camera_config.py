@@ -1,18 +1,19 @@
 from vr_core.config import CameraConfig
 import vr_core.module_list as module_list 
-import vr_core.health_monitor as health_monitor
-
-try:
-    from picamera2 import Picamera2 # type: ignore
-except ImportError:
-    raise ImportError("Picamera2 library is not installed. Please install it to use this module.")
 
 class CameraConfigManager:
     def __init__(self):
-        self.picam2 = Picamera2()  # Initialize camera object
+        module_list.camera_config_manager = self # Register the camera config manager in the module list
         self.command_dispatcher = module_list.command_dispatcher
         self.health_monitor = module_list.health_monitor
 
+        try:
+            from picamera2 import Picamera2 # type: ignore
+            self.picam2 = Picamera2()  # Initialize camera object
+        except ImportError:
+            self.health_monitor.failure("Camera", f"Picamera2 not available: {e}")
+            print("[Camera] Picamera2 not available")
+            return
     def apply_config(self):
         cam = CameraConfig()
 

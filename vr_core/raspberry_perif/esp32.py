@@ -4,13 +4,6 @@ from vr_core.config import ESP32Config
 import vr_core.module_list as module_list
 import threading
 
-try:
-    import serial # type: ignore
-    HARDWARE_AVAILABLE = True
-except ImportError:
-    print("[ESP32] pyserial not available — mock mode")
-    HARDWARE_AVAILABLE = False
-
 
 class ESP32:
     def __init__(self, force_mock=False):
@@ -24,6 +17,12 @@ class ESP32:
         self.mock_mode = force_mock
         self.serial_conn = None
         self.online = False
+
+        try:
+            import serial # type: ignore
+        except ImportError as e:
+            self.health_monitor.failure("ESP32", f"pyserial not available {e}")
+            print(f"[ESP32] pyserial not available: {e}")
 
         # Check for mock mode
         if self.mock_mode:

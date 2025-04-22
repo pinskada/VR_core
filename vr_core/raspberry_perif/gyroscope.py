@@ -106,7 +106,6 @@ class Gyroscope:
                         "data": data
                     }, data_type='JSON', priority='high')
                     error = None
-                    break
                 else:
                     print("[Gyroscope] No TCP sender available. Skipping data send.")
                 

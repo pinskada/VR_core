@@ -1,6 +1,6 @@
 import vr_core.module_list as module_list
 import threading
-
+import time
 
 class HealthMonitor:
     def __init__(self):
@@ -11,11 +11,20 @@ class HealthMonitor:
     def check_health(self):
         """Periodically checks the health status of all components."""
         while True:
-            pass
+            time.sleep(5)
+            
 
 
-    def failure(self, component_name=str, status=str):
-        """Handles failure of a component."""
+    def status(self, component_name: str, status: str):
+        """Handles status updates of a component."""
+        self.tcp_server.send(
+            {
+                "type": "STATUS",
+                "data": f"{component_name}: {status}",
+            }, data_type="JSON", priority="low")
+
+    def failure(self, component_name: str, status: str):
+        """Handles failure update of a component."""
         self.tcp_server.send(
             {
                 "type": "FAILURE",
