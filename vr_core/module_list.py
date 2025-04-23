@@ -1,5 +1,3 @@
-core = None
-
 health_monitor = None
 
 tcp_server = None

@@ -7,7 +7,23 @@ class HealthMonitor:
     def __init__(self):
         module_list.health_monitor = self
         self.tcp_server = module_list.tcp_server
-        self.component_status = {}
+
+        self._stop_event = threading.Event()
+        self._last_status = {}
+
+         # Map of component names to instances
+        self._monitored = {
+            'Gyroscope': module_list.gyroscope,
+            'ESP32': module_list.esp32,
+            'CameraManager': module_list.camera_manager,
+            'TrackerCenter': module_list.tracker_center,
+            'QueueHandler': module_list.queue_handler,
+            'FrameProvider': module_list.frame_provider,
+            'TrackerLauncher': module_list.tracker_launcher,
+            'TCPServer': module_list.tcp_server,
+            'CommandDispatcher': module_list.command_dispatcher,
+        }
+
         print("[INFO] HealthMonitor: Health monitoring thread started.")
         self.tcp_server.send( 
             {
@@ -21,33 +37,52 @@ class HealthMonitor:
         Periodically checks the online status of all known components except EyeTrackerCenter.
         Sends updates to Unity if any component changes status.
         """
-        monitored_components = {
-            "Gyroscope": module_list.gyroscope,
-            "ESP32": module_list.esp32,
-            "CameraConfig": module_list.camera_manager,
-            "QueueHandler": module_list.queue_handler,
-            "FrameProvider": module_list.frame_provider,
-            "TrackerHandler": module_list.tracker_launcher
-        }
 
         while True:
-            for name, component in monitored_components.items():
-                if component is None:
+            for name, comp in self._monitored.items():
+                # Determine current online status
+                current = False
+                if comp is not None and hasattr(comp, 'is_online'):
+                    try:
+                        current = bool(comp.is_online())
+                    except Exception:
+                        current = False
+
+                previous = self._last_status.get(name)
+
+                # First time seeing this component: record and move on
+                if previous is None:
+                    self._last_status[name] = current
                     continue
 
-                is_online = component.is_online()
-                previous = self.component_status.get(name)
+                # Detect transitions
+                if not previous and current:
+                    # Went from offline to online
+                    status_str = 'ONLINE'
+                elif previous and not current:
+                    # Went from online to offline
+                    status_str = 'OFFLINE'
+                else:
+                    # No change since last check
+                    continue
 
-                if previous is None or previous != is_online:
-                    status_str = "went offline" if not is_online else "came online"
-                    print(f"[HealthMonitor] {name} {status_str}.")
+                # Log the transition
+                print(f"[HealthMonitor] {name} went {status_str}")
 
-                    self.tcp_server.send({
-                        "type": "STATUS",
-                        "data": f"{name} {status_str}"
-                    }, data_type="JSON", priority="low")
+                # Notify over TCP if server provided
+                if self.tcp_server:
+                    self.tcp_server.send(
+                        {
+                            'type': 'STATUS',
+                            'component': name,
+                            'online': current
+                        },
+                        data_type='JSON',
+                        priority='low'
+                    )
 
-                    self.component_status[name] = is_online
+                # Update stored state
+                self._last_status[name] = current
 
             time.sleep(HealthMonitorConfig.check_interval)
 

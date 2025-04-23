@@ -14,6 +14,8 @@ import vr_core.module_list as module_list
 
 class TrackerCenter:
     def __init__(self, test_mode=False):  # Initializes all tracking components and command queues
+        self.online = True  # Flag to indicate if the tracker is online
+        
         module_list.tracker_center = self  # Register the eye tracker centre in the module list
         self.tcp_server = module_list.tcp_server
         self.health_monitor = module_list.health_monitor
@@ -24,11 +26,20 @@ class TrackerCenter:
         self.frame_provider = None
         self.tracker_launcher = None
 
-        self.queue_handler = QueueHandler()  # Initialize the queue handler
+        try:
+            self.queue_handler = QueueHandler()  # Initialize the queue handler
 
-        self.command_queue_L, self.command_queue_R = self.queue_handler.get_command_queues()
-        self.response_queue_L, self.response_queue_R = self.queue_handler.get_response_queues()
-        self.sync_queue_L, self.sync_queue_R = self.queue_handler.get_sync_queues()
+            self.command_queue_L, self.command_queue_R = self.queue_handler.get_command_queues()
+            self.response_queue_L, self.response_queue_R = self.queue_handler.get_response_queues()
+            self.sync_queue_L, self.sync_queue_R = self.queue_handler.get_sync_queues()
+        except Exception as e:
+            self.online = False  # Set online status to False if initialization fails
+            self.health_monitor.failure("EyeTracker", f"QueueHandler initialization error: {e}")
+            print(f"[ERROR] TrackerCenter: QueueHandler initialization error: {e}")
+
+    def is_online(self):
+        """Check if the tracker is online."""
+        return self.online
 
     def handle_command(self, command: str):
         if command == "setup_tracker_1":

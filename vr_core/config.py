@@ -108,4 +108,4 @@ camera_manager_config = CameraManagerConfig()
 class HealthMonitorConfig:
 
     check_interval = 2  # Interval for health check in seconds
-
+    monitored_components = []
