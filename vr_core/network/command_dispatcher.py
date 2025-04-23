@@ -1,24 +1,10 @@
 import vr_core.config as Config
 import vr_core.module_list as module_list 
-import time
-import threading
 
 class CommandDispatcher:
     def __init__(self):
 
         module_list.command_dispatcher = self  # Register the command dispatcher in the module list
-
-        self.camera_manager = None
-        self.esp32 = None  # Initialize ESP32 instance
-        self.gyroscope = None  # Initialize gyroscope instance
-
-        self.tcp_server = None  # Initialize TCP server instance
-        
-        self.tracker_center = None  # Initialize eye tracker centre instance
-        self.queue_handler = None
-        self.frame_provider = None  # Initialize frame provider instance
-        self.tracker_launcher = None  # Initialize tracker launcher instance
-
 
     def handle_message(self, command_msg: dict):
         category = command_msg.get("category")
@@ -36,7 +22,7 @@ class CommandDispatcher:
 
 
     def _handle_eyeloop_action(self, action, params):
-        if self.queue_handler is not None:
+        if module_list.queue_handler is not None:
             self.queue_handler.send_command(action, params, action)
         else:    
             self.tcp_server.send(
@@ -50,7 +36,7 @@ class CommandDispatcher:
 
 
     def _handle_eye_tracker_action(self, action, params):
-        if self.tracker_center is not None:
+        if module_list.tracker_center is not None:
             if action == "setup_tracker_1":
                 self.tracker_center.handle_command(action)
             elif action == "setup_tracker_2":
@@ -81,7 +67,7 @@ class CommandDispatcher:
             if hasattr(config_class, attr_name):
                 setattr(config_class, attr_name, params)
                 if class_name == "CameraManagerConfig":
-                    if self.camera_manager is not None:
+                    if module_list.camera_managerr is not None:
                         self.camera_manager.apply_config()
                     else:
                         self.tcp_server.send(
