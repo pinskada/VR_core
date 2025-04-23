@@ -80,7 +80,7 @@ class TrackerConfig:
     eyeloop_health_check_interval = 3  # Interval for health check of the eyeloop processes in seconds
 
     use_test_video = False  # Use saved video instead of live camera
-    test_video_path = "test_eye_video/test_video.mp4"  # Path to test video
+    test_video_path = "test_video/test_video.mp4"  # Path to test video
     test_video_resolution = (1920, 1080)  # Hardcoded resolution, must be changed in the code if needed
     test_video_channels = 3  # Number of channels in the test video, must be changed in the code if needed
 
