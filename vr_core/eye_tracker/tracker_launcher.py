@@ -22,8 +22,8 @@ class TrackerLauncher:
         self.test_mode = test_mode
 
         try:
-            self.proc_left = Process(target=run_eyeloop, args=("L", TrackerConfig.sharedmem_name_left, self.command_queue_L, self.response_queue_L, self.sync_queue_L, test_mode))
-            self.proc_right = Process(target=run_eyeloop, args=("R", TrackerConfig.sharedmem_name_right, self.command_queue_R, self.response_queue_R, self.sync_queue_R, test_mode))
+            self.proc_left = Process(target=run_eyeloop, args=("L", TrackerConfig.importer_name, TrackerConfig.sharedmem_name_left, self.command_queue_L, self.response_queue_L, self.sync_queue_L, test_mode))
+            self.proc_right = Process(target=run_eyeloop, args=("R", TrackerConfig.importer_name, TrackerConfig.sharedmem_name_right, self.command_queue_R, self.response_queue_R, self.sync_queue_R, test_mode))
         except Exception as e:
             self.health_monitor.failure("TrackerLauncher", f"Failed to initialize Eyeloop processes: {e}")
             print("[ERROR] TrackerLauncher: Failed to initialize processes.")

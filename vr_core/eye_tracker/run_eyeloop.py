@@ -1,7 +1,7 @@
 import sys
 import time
 
-def run_eyeloop(eye: str, shm_name: str, command_queue, response_queue, sync_queue, test_mode):
+def run_eyeloop(eye: str, importer_name: str, shm_name: str, command_queue, response_queue, sync_queue, test_mode):
     """
     Launches the EyeLoop process from within a multiprocessing.Process context.
     Sets up sys.argv so EyeLoop's main() can parse CLI-style arguments,
@@ -11,7 +11,8 @@ def run_eyeloop(eye: str, shm_name: str, command_queue, response_queue, sync_que
     sys.argv = [
         "eyeloop",
         "--sharedmem", shm_name,
-        "--side", eye
+        "--side", eye,
+        "--importer", importer_name
     ]
 
     if not test_mode:

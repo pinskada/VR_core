@@ -65,7 +65,7 @@ class TrackerConfig:
     sync_timeout = 1.0  # Timeout for EyeLoop response in seconds
     #index = 0  # Only used for fallback/testing
     preview_fps = 5  # FPS for preview stream
-
+    
     crop_left = ((0.0, 0.5), (0.0, 1.0))  # Relative region (x1, x2, y1, y2) for the left eye
     crop_right = ((0.5, 1.0), (0.0, 1.0))  # Relative region (x1, x2, y1, y2) for the right eye
 
@@ -73,7 +73,9 @@ class TrackerConfig:
 
     sharedmem_name_left = "eye_left_frame"  # Shared memory buffer name for left eye
     sharedmem_name_right = "eye_right_frame"  # Shared memory buffer name for right eye
-
+    
+    importer_name = "shared_memory_importer"  # Importer name for the EyeLoop process
+    
     sync_timeout = 0.2  # Timeout for EyeLoop response in seconds
     queue_timeout = 0.005  # Timeout for queue operations in seconds
 
@@ -83,8 +85,7 @@ class TrackerConfig:
     test_video_path = "test_video/test_video.mp4"  # Path to test video
     test_video_resolution = (1920, 1080)  # Hardcoded resolution, must be changed in the code if needed
     test_video_channels = 3  # Number of channels in the test video, must be changed in the code if needed
-
-        
+    
 
 tracker_config = TrackerConfig()
 
