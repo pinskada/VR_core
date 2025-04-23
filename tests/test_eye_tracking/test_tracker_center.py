@@ -1,7 +1,6 @@
 # test_tracker_center.py
 import unittest
 from unittest.mock import patch, MagicMock
-
 from vr_core.eye_tracker.tracker_center import TrackerCenter
 
 
@@ -28,42 +27,41 @@ class TestTrackerCenter(unittest.TestCase):
              patch('vr_core.eye_tracker.tracker_center.TrackerLauncher', MockTrackerLauncher), \
              patch('vr_core.eye_tracker.tracker_center.QueueHandler', MockQueueHandler):
 
-            # Instantiate TrackerCenter
+            # Instantiate TrackerCenter in test mode
             etc = TrackerCenter(test_mode=True)
 
-            # Check attribute setup
+            # Basic attribute checks
             self.assertEqual(etc.command_queue_L, "cmd_L")
             self.assertTrue(etc.frame_provider is None)
             self.assertTrue(etc.tracker_launcher is None)
             self.assertEqual(etc.queue_handler, mock_queue_handler_instance)
 
-
-            # Simulate 'setup_tracker_1' command
-            print("\n\n=== Simulating setup_tracker_1 command ===")
+            # Simulate 'setup_tracker_1'
+            print("\n=== Simulating setup_tracker_1 ===")
             etc.handle_command("setup_tracker_1")
             self.assertTrue(etc.setup_mode)
             MockFrameProvider.assert_called()
             self.assertTrue(etc.preview_thread.is_alive())
-            etc.stop_preview()  # Stop the preview after setup
+            etc.stop_preview()
 
-            # Simulate 'setup_tracker_2' command
-            print("\n\n=== Simulating setup_tracker_2 command ===")
+            # Simulate 'setup_tracker_2'
+            print("\n=== Simulating setup_tracker_2 ===")
             etc.handle_command("setup_tracker_2")
             MockFrameProvider.assert_called()
             MockTrackerLauncher.assert_called()
 
-            # Simulate 'launch_tracker' command
-            print("\n\n=== Simulating launch_tracker command ===")
+            # Simulate 'launch_tracker'
+            print("\n=== Simulating launch_tracker ===")
             etc.handle_command("launch_tracker")
             MockFrameProvider.assert_called()
             MockTrackerLauncher.assert_called()
 
-            # Stop preview safely
             etc.stop_preview()
             self.assertFalse(etc.setup_mode)
 
-        print("\n\n=== test_tracker_center PASSED ===")
+        print("\n=== test_tracker_center PASSED ===")
 
 
 if __name__ == "__main__":
     unittest.main()
+    # To run the test, use the command: python -m unittest tests/test_eye_tracking/test_tracker_center.py
