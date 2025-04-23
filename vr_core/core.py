@@ -1,7 +1,7 @@
 from network.tcp_server import TCPServer
 from raspberry_perif.esp32 import ESP32
 from raspberry_perif.gyroscope import Gyroscope
-from eye_tracker.tracker_handler import TrackerHandler
+from vr_core.eye_tracker.tracker_launcher import TrackerHandler
 
 import vr_core.config as config
 

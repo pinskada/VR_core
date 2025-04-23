@@ -48,8 +48,8 @@ class ESP32Config:
     timeout=1 # Timeout for the serial connection (in seconds)
 
     handshake_attempts = 3 # Number of attempts to perform the handshake
-    handashake_interval_inner = 1 # Interval between handshake attempts (in seconds)
-    handeshake_interval_outer = 5 # Interval between outer handshake attempts (in seconds)
+    handshake_interval_inner = 1 # Interval between handshake attempts (in seconds)
+    handshake_interval_outer = 5 # Interval between outer handshake attempts (in seconds)
     handshake_message = "STATUS" # Handshake message to send to ESP32
     handshake_response = "ONLINE" # Expected response from ESP32 after handshake
 
@@ -58,8 +58,8 @@ class ESP32Config:
 esp32_config = ESP32Config()
 
 
-# ---- Eye Tracker Configuration ------------------------------------
-class EyeTrackerConfig:
+# ---- Tracker Configuration ------------------------------------
+class TrackerConfig:
     frame_provider_max_fps = 15 # Maximum FPS for the frame provider
     jpeg_quality = 75  # JPEG encoding quality (0-100)
     sync_timeout = 1.0  # Timeout for EyeLoop response in seconds
@@ -68,6 +68,8 @@ class EyeTrackerConfig:
 
     crop_left = ((0.0, 0.5), (0.0, 1.0))  # Relative region (x1, x2, y1, y2) for the left eye
     crop_right = ((0.5, 1.0), (0.0, 1.0))  # Relative region (x1, x2, y1, y2) for the right eye
+
+    process_launch_time = 0.4  # Time to wait for the EyeLoop process to stabilize (in seconds)
 
     sharedmem_name_left = "eye_left_frame"  # Shared memory buffer name for left eye
     sharedmem_name_right = "eye_right_frame"  # Shared memory buffer name for right eye
@@ -84,11 +86,11 @@ class EyeTrackerConfig:
 
         
 
-eye_tracker_config = EyeTrackerConfig()
+tracker_config = TrackerConfig()
 
 
 # ---- Camera Configuration ----------------------------------------
-class CameraConfig:
+class CameraManagerConfig:
 
     width = 200
     height = 100
@@ -99,10 +101,11 @@ class CameraConfig:
     af_mode = 0  # 0 = manual, 1 = auto
 
     capture_retries = 3  # Number of attempts to capture a frame
-camera_config = CameraConfig()
+
+camera_manager_config = CameraManagerConfig()
 
 # ---- Health Monitor Configuration --------------------------------
 class HealthMonitorConfig:
 
-    interval = 2  # Interval for health check in seconds
+    check_interval = 2  # Interval for health check in seconds
 

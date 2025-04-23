@@ -21,11 +21,11 @@ class Gyroscope:
         if self.mock_mode:
             # If mock mode is enabled, we don't need to check for hardware availability
             self.health_monitor.status("Gyroscope", "Mock mode active")
-            print("[Gyroscope] MOCK MODE ACTIVE — Simulating gyro values")
+            print("[INFO] Gyroscope: Mock mode active — simulating gyro values")
         else:
             try:
                 if self.ensure_i2c_enabled() is False:
-                    print("[Gyroscope] I2C not enabled. Exiting.")
+                    print("[ERROR] Gyroscope: I2C not enabled. Exiting.")
                     self.health_monitor.failure("Gyroscope", "I2C not enabled")
                     self.online = False
                     return
@@ -38,10 +38,10 @@ class Gyroscope:
                 self.online = True  # Set online status to True             
                 self.thread.start() # Start the thread to read gyro data
 
-                print("[Gyroscope] Gyro initialized")
+                print("[INFO] Gyroscope: Gyro initialized")
             except OSError as e:
                 self.health_monitor.failure("Gyroscope", "Initialisation error")
-                print(f"[Gyroscope] Error initializing: {e}")
+                print(f"[ERROR] Gyroscope: Error initializing: {e}")
                 self.online = False
                 return
 
@@ -50,7 +50,7 @@ class Gyroscope:
         """Stop the gyroscope thread."""
 
         self.online = False
-        print("[Gyroscope] Stopped")
+        print("[INFO] Gyroscope: Stopped")
 
 
     def is_online(self):
@@ -62,8 +62,8 @@ class Gyroscope:
         """Check if I2C is enabled on the Raspberry Pi."""
 
         if not os.path.exists("/dev/i2c-1"):
-            print("[Gyroscope] I2C not detected.")
-            print("Run 'sudo raspi-config' > Interface Options > I2C > Enable")
+            print("[ERROR] Gyroscope: I2C not detected.")
+            print("[INFO] Gyroscope: Run 'sudo raspi-config' > Interface Options > I2C > Enable")
             return False
         else:
             return True
@@ -112,7 +112,7 @@ class Gyroscope:
                     }, data_type='JSON', priority='high')
                     error = None
                 else:
-                    print("[Gyroscope] No TCP sender available. Skipping data send.")
+                    print("[WARN] Gyroscope: No TCP sender available. Skipping data send.")
                 
             except Exception as e:
                 failure_count += 1
@@ -121,7 +121,7 @@ class Gyroscope:
             if error is not None and failure_count >= GyroscopeConfig.retry_attempts:
                 self.health_monitor.failure("Gyroscope", "Error reading gyro data")
                 self.online = False
-                print("[Gyroscope] Error reading gyro data. Retrying...")
+                print("[ERROR] Gyroscope:] Error reading gyro data.")
                 break
 
             time.sleep(GyroscopeConfig.update_rate)  # Sleep for the specified update rate

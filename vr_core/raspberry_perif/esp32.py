@@ -23,18 +23,18 @@ class ESP32:
             import serial # type: ignore
         except ImportError as e:
             self.health_monitor.failure("ESP32", f"pyserial not available {e}")
-            print(f"[ESP32] pyserial not available: {e}")
+            print(f"[ERROR] ESP32: pyserial not available: {e}")
             self.online = False
 
         # Check for mock mode
         if self.mock_mode:
             self.online = True
             self.health_monitor.status("ESP32", "Mock mode active")
-            print("[ESP32] MOCK MODE ACTIVE — Serial writes will be simulated.")
+            print("[INFO] ESP32: MOCK MODE ACTIVE — Serial writes will be simulated.")
             return
         elif not os.path.exists(self.port): # Check if the serial port exists
             self.health_monitor.failure("ESP32", "Serial port not found")        
-            print("[ESP32] Serial port not found.")
+            print("[ERROR] ESP32: Serial port not found.")
             self.online = False
             return
 
@@ -47,13 +47,13 @@ class ESP32:
             )
 
             time.sleep(2)  # Let ESP32 boot/reset
-            print(f"[ESP32] Serial connection established on {self.port} @ {self.baudrate} baud.")
+            print(f"[INFO] ESP32: Serial connection established on {self.port} @ {self.baudrate} baud.")
             self.thread = threading.Thread(target=self._perform_handshake, daemon=True)
             self.thread.start()  # Start the handshake thread
 
         except serial.SerialException as e:
             self.health_monitor.failure("ESP32", "Serial connection error")
-            print(f"[ESP32] Serial error: {e}.")
+            print(f"[ERROR] ESP32: Serial error: {e}.")
             self.online = False
             
     def is_online(self):
@@ -70,33 +70,33 @@ class ESP32:
                 try:
                     # Send the handshake message in a byte format
                     self.serial_conn.write((ESP32Config.handshake_message + "\n").encode("utf-8"))
-                    print(f"[ESP32] Sent handshake: {ESP32Config.handshake_message}")
+                    print(f"[INFO] ESP32: Sent handshake: {ESP32Config.handshake_message}")
 
                     # Wait for a response from the ESP32
                     response = self.serial_conn.readline().decode("utf-8").strip()
-                    print(f"[ESP32] Handshake response: {response}")
+                    print(f"[INFO] ESP32: Handshake response: {response}")
 
                     # Check if the response matches the expected response
                     if response == ESP32Config.handshake_response: 
                         self.online = True
                         error = None
-                        print("[ESP32] Handshake successful. ESP32 is ready.")
+                        print("[INFO] ESP32: andshake successful. ESP32 is ready.")
                         break
                     else:
-                        print(f"[ESP32] Handshake failed. Expected: {ESP32Config.handshake_response}, Received: {response}.")
+                        print(f"[WARN] ESP32: Handshake failed. Expected: {ESP32Config.handshake_response}, Received: {response}.")
                         error = f"Expected: {ESP32Config.handshake_response}, Received: {response}"
                 except Exception as e:
                     error = e
                     
-                time.sleep(ESP32Config.handashake_interval_inner)  # Wait before retrying the handshake
+                time.sleep(ESP32Config.handshake_interval_inner)  # Wait before retrying the handshake
 
             if error != None:
                 self.health_monitor.failure("ESP32", f"Handshake error: {error}")
                 self.online = False
-                print(f"[ESP32] Handshake failed: {error}.")
+                print(f"[ERROR] ESP32: Handshake failed: {error}.")
                 break
 
-            time.sleep(ESP32Config.handeshake_interval_outer)  # Wait before retrying the handshake
+            time.sleep(ESP32Config.handshake_interval_outer)  # Wait before retrying the handshake
 
     def send_focal_distance(self, distance_mm: float):
         """Send the focal distance to the ESP32."""
@@ -106,23 +106,23 @@ class ESP32:
 
         # Fake the message for mock mode
         if self.mock_mode:
-            print(f"[ESP32][MOCK] Would send focal distance: {message.strip()}")
+            print(f"[INFO] ESP32: Would send focal distance: {message.strip()}")
             return
 
         try:
             self.serial_conn.write(message.encode('utf-8'))
-            print(f"[ESP32] Sent focal distance: {message.strip()}")
+            print(f"[INFO] ESP32: Sent focal distance: {message.strip()}")
         except Exception as e:
-            print(f"[ESP32] Error during UART write: {e}")
+            print(f"[WARN] ESP32: Error during UART write: {e}")
 
     def close(self):
         """Close the serial connection."""
 
         if self.mock_mode:
-            print("[ESP32] Mock mode — no connection to close.")
+            print("[INFO] ESP32: Mock mode — no connection to close.")
             return
 
         if self.serial_conn and self.serial_conn.is_open:
             self.serial_conn.close()
             self.online = False
-            print("[ESP32] Serial connection closed.")
+            print("[INFO] ESP32: Serial connection closed.")

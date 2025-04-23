@@ -7,7 +7,14 @@ class HealthMonitor:
     def __init__(self):
         module_list.health_monitor = self
         self.tcp_server = module_list.tcp_server
-        threading.Thread(target=self.check_health, daemon=True).start()
+        self.component_status = {}
+        print("[INFO] HealthMonitor: Health monitoring thread started.")
+        self.tcp_server.send( 
+            {
+                "type": "STATUS",
+                "data": "HealthMonitor: Health monitoring thread started.",
+            }, data_type="JSON", priority="low")
+        threading.Thread(target=self.check_for_health, daemon=True).start()
 
     def check_for_health(self):
         """
@@ -17,10 +24,10 @@ class HealthMonitor:
         monitored_components = {
             "Gyroscope": module_list.gyroscope,
             "ESP32": module_list.esp32,
-            "CameraConfig": module_list.camera_config_manager,
-            "QueueHandler": module_list.eyeloop_queue_handler,
+            "CameraConfig": module_list.camera_manager,
+            "QueueHandler": module_list.queue_handler,
             "FrameProvider": module_list.frame_provider,
-            "TrackerHandler": module_list.tracker_handler
+            "TrackerHandler": module_list.tracker_launcher
         }
 
         while True:

@@ -1,11 +1,11 @@
-from vr_core.config import CameraConfig
+from vr_core.config import CameraManagerConfig
 import vr_core.module_list as module_list 
 
-class CameraConfigManager:
+class CameraManager:
     def __init__(self):
         self.online = True  # Flag to indicate if the camera is online
 
-        module_list.camera_config_manager = self # Register the camera config manager in the module list
+        module_list.camera_manager = self # Register the camera manager in the module list
         self.command_dispatcher = module_list.command_dispatcher
         self.health_monitor = module_list.health_monitor
 
@@ -13,8 +13,8 @@ class CameraConfigManager:
             from picamera2 import Picamera2 # type: ignore
             self.picam2 = Picamera2()  # Initialize camera object
         except ImportError as e:
-            self.health_monitor.failure("Camera", f"Picamera2 not available: {e}")
-            print("[Camera] Picamera2 not available")
+            self.health_monitor.failure("CameraManager", f"Picamera2 not available: {e}")
+            print("[ERROR] CameraManager: Picamera2 not available")
             self.online = False
             return
         
@@ -22,7 +22,7 @@ class CameraConfigManager:
         return self.online
 
     def apply_config(self):
-        cam = CameraConfig()
+        cam = CameraManagerConfig()
 
         # Apply image resolution and buffer settings
         cfg = self.picam2.create_still_configuration(
@@ -42,7 +42,7 @@ class CameraConfigManager:
 
     def capture_frame(self):
         error = None
-        for i in range(CameraConfig.capture_retries):
+        for i in range(CameraManagerConfig.capture_retries):
             try:
                 frame = self.picam2.capture()
                 error = None
@@ -51,8 +51,8 @@ class CameraConfigManager:
                 error = e
 
         if error != None:
-            self.health_monitor.failure("Camera", f"Capture error: {error}")
-            print(f"[Camera] Capture error: {error}")
+            self.health_monitor.failure("CameraManager", f"Capture error: {error}")
+            print(f"[ERROR] CameraManager: Capture error: {error}")
             self.online = False
             return
 

@@ -68,17 +68,17 @@ class TCPServer:
             s.connect((TCPConfig.google_dns, TCPConfig.http_port))  # Use Google DNS for connectivity check
             ip = s.getsockname()[0] # Get the local IP address
         except Exception as e:
-            print(f"[TCPServer] Could not determine IP: {e}")
+            print(f"[WARN] TCPServer: Could not determine IP: {e}")
             return False
         finally:
             s.close()
 
         if ip.startswith(expected_prefix): # Check if the IP starts with the expected prefix
-            print(f"[TCPServer] IP OK: {ip}")
+            print(f"[INFO] TCPServer: IP OK: {ip}")
             return True
         else:
-            print(f"[TCPServer] Unexpected IP: {ip} — expected prefix {expected_prefix}")
-            print("[TCPServer] Suggestion: Run `set_static_ip.sh` manually with sudo if needed.")
+            print(f"[WARN] TCPServer: Unexpected IP: {ip} — expected prefix {expected_prefix}")
+            print("[INFO] TCPServer: Suggestion - run 'set_static_ip.sh' manually with sudo if needed.")
             return False
 
 
@@ -91,13 +91,13 @@ class TCPServer:
         self.server_socket.bind((self.host, self.port))
         self.server_socket.listen(1)
 
-        print(f"[TCPServer] Waiting for Unity to connect on {self.host}:{self.port}...")
+        print(f"[INFO] TCPServer: Waiting for Unity to connect on {self.host}:{self.port}...")
         self.client_conn, self.client_addr = self.server_socket.accept() # Accept a connection
 
         # Disable Nagle's algorithm for low latency
         self.client_conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
-        print(f"[TCPServer] Connected to Unity at {self.client_addr}")
+        print(f"[INFO] TCPServer: Connected to Unity at {self.client_addr}")
         self._send_direct("CONNECTED\n")
 
         # Launch communication threads
@@ -118,7 +118,7 @@ class TCPServer:
                 message = data.decode().strip() # Decode the message
                 self._handle_incoming(message)  # Process the message
             except Exception as e:
-                print(f"[TCPServer] Receive error: {e}")
+                print(f"[WARN] TCPServer: Receive error: {e}")
                 break
 
 
@@ -144,18 +144,18 @@ class TCPServer:
                 # Encode the message with a newline and send it over the socket
                 self.client_conn.sendall((message + '\n').encode())
         except Exception as e:
-            print(f"[TCPServer] Send error: {e}")
+            print(f"[WARN] TCPServer: Send error: {e}")
 
 
     def _handle_incoming(self, message: str):
         """Dispatch incoming messages to CommandDispatcher."""
 
-        print(f"[TCPServer] Received: {message}")
+        print(f"[INFO] TCPServer: Received: {message}")
         try:
             parsed = json.loads(message)
             self.command_dispatcher.handle_message(parsed)
         except json.JSONDecodeError:
-            print(f"[TCPServer] Invalid JSON received: {message}")
+            print(f"[WARN] TCPServer: Invalid JSON received: {message}")
 
 
     def send(self, message, data_type: str = 'JSON',  priority='low'):
@@ -178,7 +178,7 @@ class TCPServer:
         }
 
         if data_type not in type_map:
-            raise ValueError(f"Unsupported data type: {data_type}")
+            raise ValueError(f"[WARN] TCPServer: Unsupported data type: {data_type}")
 
         type_byte = type_map[data_type]
 
@@ -188,10 +188,10 @@ class TCPServer:
             message = message.encode('utf-8')
 
         if not isinstance(message, bytes):
-            raise ValueError("Message must be bytes, str, or dict.")
+            raise ValueError("[WARN] TCPServer: Message must be bytes, str, or dict.")
 
         if len(message) > 16777215:
-            raise ValueError("Payload too large for 3-byte header.")
+            raise ValueError("[WARN] TCPServer: Payload too large for 3-byte header.")
 
         length_bytes = len(message).to_bytes(3, byteorder='big')
         return type_byte + length_bytes + message
