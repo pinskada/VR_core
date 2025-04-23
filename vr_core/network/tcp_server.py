@@ -1,197 +1,205 @@
-# File: vr_core/network/tcp_server.py
-
 import socket
 import threading
 import queue
 import time
 import json
 
-from vr_core.config import TCPConfig 
-import vr_core.module_list as module_list 
+from vr_core.config import TCPConfig
+import vr_core.module_list as module_list
 
 
 class TCPServer:
+    """
+    Cross-platform TCP server for Unity (Windows 10 & Raspberry Pi 5).
+    - On init: verifies static IP (optional) and optionally autostarts.
+    - start_server(): spawns listener thread.
+    - Listener thread: blocks on accept(), then starts receiver and sender threads and terminates.
+    - Receiver thread: loops on incoming messages, dispatching JSON commands.
+    - Sender thread: loops on internal priority queues, sending any enqueued messages.
+    - stop_server(): signals threads to exit, closes sockets, and joins threads.
+
+    Message format: [1-byte type][3-byte length][payload bytes]
+    Types: JSON='J', JPEG='G', PNG='P'
+    """
+
     def __init__(self, autostart=True):
-        module_list.tcp_server = self # Register the TCP server in the module list
-        
-        self.host = TCPConfig.host # Host IP address
-        self.port = TCPConfig.port # Port number
-        self.server_socket = None   # Server socket
-        self.client_conn = None     # Client connection
-        self.client_addr = None     # Client address
-        self.online = False        # Server status
+        # Register server
+        module_list.tcp_server = self
 
-        self.command_dispatcher = None
-
-        # Queues for prioritized outbound messages
+        # Configuration
+        self.host = TCPConfig.host
+        self.port = TCPConfig.port
         self.priority_queues = TCPConfig.message_priorities
 
-        # Thread handles
+        # Internal state
+        self.server_socket = None
+        self.client_conn = None
+        self.client_addr = None
+        self.online = False
+        self._stop_event = threading.Event()
+
+        # Threads
         self.listener_thread = None
         self.receiver_thread = None
         self.sender_thread = None
 
-        # Start the server immediately
+        # Dispatcher
+        self.command_dispatcher = None
+
         if autostart:
             self.verify_static_ip()
             self.start_server()
 
-
-    def is_online(self):
-        return self.online
-    
-
-    def start_server(self):
-        """Starts the server and launches threads."""
-
-        self.online = True # Set online flag to True
-
-        self.listener_thread = threading.Thread(target=self._listen_for_connection, daemon=True) # Daemon thread
-        self.listener_thread.start() # Start the listener thread
-
-
-    def stop_server(self):
-        """Stops the server and cleans up resources."""
-
-        self.online = False
-        if self.client_conn:
-            self.client_conn.close()
-        if self.server_socket:
-            self.server_socket.close()
-
-
     def verify_static_ip(self, expected_prefix=TCPConfig.static_ip_prefix):
-        """Check if the current IP matches the expected static IP prefix."""
-
+        """Optional check: does our local IP match the expected static prefix?"""
         try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)      # UDP socket for IP check
-            s.connect((TCPConfig.google_dns, TCPConfig.http_port))  # Use Google DNS for connectivity check
-            ip = s.getsockname()[0] # Get the local IP address
+            test_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            test_sock.connect((TCPConfig.google_dns, TCPConfig.http_port))
+            ip = test_sock.getsockname()[0]
         except Exception as e:
-            print(f"[WARN] TCPServer: Could not determine IP: {e}")
+            print(f"[WARN] TCPServer: IP check failed: {e}")
             return False
         finally:
-            s.close()
+            test_sock.close()
 
-        if ip.startswith(expected_prefix): # Check if the IP starts with the expected prefix
+        if ip.startswith(expected_prefix):
             print(f"[INFO] TCPServer: IP OK: {ip}")
             return True
-        else:
-            print(f"[WARN] TCPServer: Unexpected IP: {ip} — expected prefix {expected_prefix}")
-            print("[INFO] TCPServer: Suggestion - run 'set_static_ip.sh' manually with sudo if needed.")
-            return False
+        print(f"[WARN] TCPServer: Unexpected IP {ip}, expected prefix {expected_prefix}")
+        return False
 
+    def start_server(self):
+        """Begin listening for a single client connection."""
+        if self.online:
+            return
+        self.online = True
+        self._stop_event.clear()
+        self.listener_thread = threading.Thread(target=self._listen_for_connection)
+        self.listener_thread.start()
 
     def _listen_for_connection(self):
-        """Accept a single Unity client and start communication threads."""
-
-        # Create a TCP socket
-        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  
-        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) 
+        # Create, bind, and listen
+        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server_socket.bind((self.host, self.port))
         self.server_socket.listen(1)
+        print(f"[INFO] TCPServer: Waiting for Unity on {self.host}:{self.port}...")
 
-        print(f"[INFO] TCPServer: Waiting for Unity to connect on {self.host}:{self.port}...")
-        self.client_conn, self.client_addr = self.server_socket.accept() # Accept a connection
+        try:
+            conn, addr = self.server_socket.accept()
+        except Exception as e:
+            print(f"[WARN] TCPServer: Accept failed: {e}")
+            return
 
-        # Disable Nagle's algorithm for low latency
+        self.client_conn, self.client_addr = conn, addr
         self.client_conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        print(f"[INFO] TCPServer: Connected to {addr}")
 
-        print(f"[INFO] TCPServer: Connected to Unity at {self.client_addr}")
-        self._send_direct("CONNECTED\n")
+        # Send initial handshake
+        try:
+            self.client_conn.sendall(b"CONNECTED\n")
+        except Exception as e:
+            print(f"[WARN] TCPServer: Handshake send failed: {e}")
 
-        # Launch communication threads
-        self.receiver_thread = threading.Thread(target=self._receive_loop, daemon=True)
-        self.sender_thread = threading.Thread(target=self._send_loop, daemon=True)
+        # Spawn communication threads
+        self.receiver_thread = threading.Thread(target=self._receive_loop)
+        self.sender_thread = threading.Thread(target=self._send_loop)
         self.receiver_thread.start()
         self.sender_thread.start()
-
+        # Listener thread exits here
 
     def _receive_loop(self):
-        """Handle incoming messages from Unity."""
-
-        while self.online:
+        """Continuously receive data and dispatch JSON messages."""
+        while self.online and not self._stop_event.is_set():
             try:
-                data = self.client_conn.recv(TCPConfig.recv_buffer_size) # Receive data from the socket
+                data = self.client_conn.recv(TCPConfig.recv_buffer_size)
                 if not data:
                     break
-                message = data.decode().strip() # Decode the message
-                self._handle_incoming(message)  # Process the message
+                text = data.decode('utf-8').strip()
+                print(f"[INFO] TCPServer: Received: {text}")
+                if self.command_dispatcher:
+                    try:
+                        msg = json.loads(text)
+                        self.command_dispatcher.handle_message(msg)
+                    except json.JSONDecodeError:
+                        print(f"[WARN] TCPServer: Bad JSON: {text}")
             except Exception as e:
                 print(f"[WARN] TCPServer: Receive error: {e}")
                 break
 
-
     def _send_loop(self):
-        """Send outgoing messages based on priority."""
-
-        while self.online:
-            for priority in ['high', 'medium', 'low']: # Check high to low priority
+        """Continuously check priority queues and send waiting messages."""
+        while self.online and not self._stop_event.is_set():
+            for level in ('high', 'medium', 'low'):
                 try:
-                    msg = self.priority_queues[priority].get_nowait()
-                    self._send_direct(msg) # Send the message
-                    break  # Send one message per cycle
+                    msg = self.priority_queues[level].get_nowait()
                 except queue.Empty:
                     continue
-            time.sleep(TCPConfig.send_loop_interval) # Sets the send interval
 
+                if isinstance(msg, bytes):
+                    self._send_direct(msg)
+                else:
+                    print(f"[WARN] TCPServer: Skipping non-bytes: {type(msg)}")
+                break
 
-    def _send_direct(self, message: str):
-        """Send data to Unity immediately."""
+            time.sleep(TCPConfig.send_loop_interval)
 
+    def _send_direct(self, packet: bytes):
+        """Immediately send a fully-formed packet to Unity."""
         try:
             if self.client_conn:
-                # Encode the message with a newline and send it over the socket
-                self.client_conn.sendall((message + '\n').encode())
+                self.client_conn.sendall(packet)
         except Exception as e:
             print(f"[WARN] TCPServer: Send error: {e}")
 
+    def send(self, payload, data_type='JSON', priority='low'):
+        """Encode a payload and enqueue it by priority."""
+        packet = self.encode_message(payload, data_type)
+        queue_ref = self.priority_queues.get(priority, self.priority_queues['low'])
+        queue_ref.put(packet)
 
-    def _handle_incoming(self, message: str):
-        """Dispatch incoming messages to CommandDispatcher."""
-
-        print(f"[INFO] TCPServer: Received: {message}")
-        try:
-            parsed = json.loads(message)
-            self.command_dispatcher.handle_message(parsed)
-        except json.JSONDecodeError:
-            print(f"[WARN] TCPServer: Invalid JSON received: {message}")
-
-
-    def send(self, message, data_type: str = 'JSON',  priority='low'):
-        """Place a message in the appropriate priority queue."""
-
-        encoded_message = self.encode_message(message, data_type) # Encode the message
-
-        if priority not in self.priority_queues:
-            priority = 'low'
-        self.priority_queues[priority].put(encoded_message)
-
-    
-
-    def encode_message(self, message, data_type: str) -> bytes:
-
-        type_map = {
-            "JSON": b'J',
-            "JPEG": b'G',
-            "PNG":  b'P'
-        }
-
+    def encode_message(self, payload, data_type: str) -> bytes:
+        type_map = {'JSON': b'J', 'JPEG': b'G', 'PNG': b'P'}
         if data_type not in type_map:
-            raise ValueError(f"[WARN] TCPServer: Unsupported data type: {data_type}")
+            raise ValueError(f"Unsupported data type: {data_type}")
 
-        type_byte = type_map[data_type]
+        if isinstance(payload, dict):
+            body = json.dumps(payload).encode('utf-8')
+        elif isinstance(payload, str):
+            body = payload.encode('utf-8')
+        elif isinstance(payload, bytes):
+            body = payload
+        else:
+            raise ValueError("Payload must be dict, str, or bytes.")
 
-        if isinstance(message, dict):
-            message = json.dumps(message).encode('utf-8')
-        elif isinstance(message, str):
-            message = message.encode('utf-8')
+        length = len(body)
+        if length > 0xFFFFFF:
+            raise ValueError("Payload too large.")
 
-        if not isinstance(message, bytes):
-            raise ValueError("[WARN] TCPServer: Message must be bytes, str, or dict.")
+        header = type_map[data_type] + length.to_bytes(3, 'big')
+        return header + body
 
-        if len(message) > 16777215:
-            raise ValueError("[WARN] TCPServer: Payload too large for 3-byte header.")
+    def stop_server(self):
+        """Signal threads to stop, close sockets, and join threads."""
+        self.online = False
+        self._stop_event.set()
 
-        length_bytes = len(message).to_bytes(3, byteorder='big')
-        return type_byte + length_bytes + message
+        # Close sockets to unblock accept/recv
+        if self.client_conn:
+            try:
+                self.client_conn.shutdown(socket.SHUT_RDWR)
+            except Exception:
+                pass
+            self.client_conn.close()
+
+        if self.server_socket:
+            try:
+                self.server_socket.shutdown(socket.SHUT_RDWR)
+            except Exception:
+                pass
+            self.server_socket.close()
+
+        # Join threads
+        for thr in (self.listener_thread, self.receiver_thread, self.sender_thread):
+            if thr and thr.is_alive():
+                thr.join()

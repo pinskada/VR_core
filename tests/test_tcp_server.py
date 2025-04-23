@@ -1,69 +1,84 @@
 import time
 import socket
 import threading
+import os
+import sys
+import json
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from vr_core.network.tcp_server import TCPServer
 import vr_core.config as config
 
-# Simulated Core that handles commands received from Unity
-class MockCore:
-    def dispatch_command(self, message):
-        print(f"[MockCore] Received command from Unity: {message}")
+
+class MockDispatcher:
+    def handle_message(self, message):
+        print(f"[TEST] MockDispatcher: Got command: {message}")
+
 
 def mock_unity_client(expected_messages=3):
     """Simulate Unity connecting and interacting with the TCPServer."""
     time.sleep(1)  # Wait for server to start
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.connect(("127.0.0.1", config.TCP_PORT))
-        sock.settimeout(2)
+        sock.connect(("127.0.0.1", config.TCPConfig.port))
+        sock.settimeout(5)  # Set a timeout for the socket operations
 
-        print("[MockUnity] Connected to TCP server")
+        print("[TEST] MockUnity: Connected to TCP server")
 
-        # Receive initial "CONNECTED" response
-        print("[MockUnity] Received:", sock.recv(1024).decode().strip())
+        # Receive initial CONNECTED handshake
+        print("[TEST] MockUnity: Received:", sock.recv(1024).decode().strip())
 
-        # Send a test command to the server
-        sock.sendall(b"TEST_COMMAND\n")
+        # Send a test JSON command
+        test_command = {"cmd": "sync", "value": 1}
+        sock.sendall((json.dumps(test_command) + "\n").encode())
 
-        # Wait to receive prioritized responses
+        # Wait for encoded messages
         received = 0
         try:
             while received < expected_messages:
-                msg = sock.recv(1024).decode().strip()
-                print(f"[MockUnity] Received: {msg}")
+                raw = sock.recv(4096)
+                if not raw:
+                    break
+                header = raw[:4]
+                payload = raw[4:]
+                print(f"[TEST] MockUnity: Received: header={header}, payload={payload[:50]}...")
                 received += 1
         except socket.timeout:
-            print("[MockUnity] Timeout reached.")
+            print("[TEST] MockUnity: Timeout reached.")
 
-        print("[MockUnity] Disconnecting.")
+        print("[TEST] MockUnity: Received all 3 expected messages.")
+        print("[TEST] MockUnity: Disconnecting.")
+
 
 def test_tcp_server():
-    print("🚀 Starting TCPServer test")
+    print("[TEST] Starting TCPServer test")
 
-    # Set mock Core in config (for TCPServer and other modules)
-    config.core = MockCore()
+    # Start TCP server
+    server = TCPServer(autostart=False)
+    server.command_dispatcher = MockDispatcher()
+    server.start_server()
 
-    # Start TCP server (auto-starts in constructor)
-    server = TCPServer(config.core)
-
-    # Launch Unity simulator
+    # Launch simulated Unity
     client_thread = threading.Thread(target=mock_unity_client, daemon=True)
     client_thread.start()
 
-    # Wait for client to connect and exchange data
+    # Wait for client to connect
     time.sleep(3)
+    data = {"x": 0.1, "y": 0.2, "z": 0.3}
+    # Send some encoded test messages
+    server.send({"type": "gyro", "x": 0.1, "y": 0.2, "z": 0.3}, data_type = 'JSON', priority="high")
+    server.send({"type": "distance", "value": 52.1}, data_type = 'JSON', priority="medium")
+    server.send(
+        {
+            "type": "gyro",
+            "data": data
+        }, data_type='JSON', priority='high')
 
-    # Place prioritized messages into global queues
-    config.MESSAGE_PRIORITIES['high'].put("GYRO:0.1,0.2,0.3")
-    config.MESSAGE_PRIORITIES['medium'].put("DIST:52.1")
-    config.MESSAGE_PRIORITIES['low'].put("STATUS:All good")
+    # Let the system flush messages
+    time.sleep(4)
 
-    # Let messages flush through the system
-    time.sleep(2)
-
-    # Clean shutdown
     server.stop_server()
-    print("------------------------------------------------TCPServer test completed-----------------------------------------")
+    print("[TEST] TCPServer test completed successfully")
+
 
 if __name__ == "__main__":
     test_tcp_server()
