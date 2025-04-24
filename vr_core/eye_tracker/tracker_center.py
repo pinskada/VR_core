@@ -1,6 +1,6 @@
 from vr_core.eye_tracker.frame_provider import FrameProvider
 from vr_core.eye_tracker.tracker_launcher import TrackerLauncher
-from multiprocessing import shared_memory
+from multiprocessing.shared_memory import SharedMemory
 from vr_core.config import TrackerConfig
 from vr_core.config import CameraManagerConfig
 from vr_core.eye_tracker.queue_handler import QueueHandler
@@ -63,10 +63,12 @@ class TrackerCenter:
             self.queue_handler.send_command("track = 0", "L")
             self.queue_handler.send_command("track = 0", "R")
 
+
             self.frame_provider = FrameProvider(self.sync_queue_L, self.sync_queue_R) # Initialize frame provider
             self.tracker_launcher = TrackerLauncher()
             
-            self.frame_provider.run() # Start the frame provider
+            self.frame_provider_thread = threading.Thread(target=self.frame_provider.run(), daemon=True)
+            self.frame_provider_thread.run() # Start the frame provider
 
         elif command == "launch_tracker":
             print("[INFO] TrackerCenter: Tracker launched directly from config.")
@@ -80,11 +82,14 @@ class TrackerCenter:
             self.frame_provider = FrameProvider(self.sync_queue_L, self.sync_queue_R) # Initialize frame provider
             self.tracker_launcher = TrackerLauncher()
             
-            self.frame_provider.run() # Start the frame provider
+            self.frame_provider_thread = threading.Thread(target=self.frame_provider.run(), daemon=True)
+            self.frame_provider_thread.run() # Start the frame provider
 
     def start_preview(self):  
 
         self.frame_provider = FrameProvider(self.sync_queue_L, self.sync_queue_R)
+        self.frame_provider_thread = threading.Thread(target=self.frame_provider.run(), daemon=True)
+        self.frame_provider_thread.run() # Start the frame provider
         self.setup_mode = True
         self.preview_thread = threading.Thread(target=self._preview_loop, daemon=True)
         self.preview_thread.start()
@@ -94,12 +99,12 @@ class TrackerCenter:
     def _preview_loop(self):
         self.frame_provider.run()  # Start the frame provider for preview
         shape = (CameraManagerConfig.height, CameraManagerConfig.width)
-        channels = 3  # default to 3, can be dynamically detected later
+        channels = 1
 
         if not self.test_mode:
             try:
-                shm_L = shared_memory.SharedMemory(name=TrackerConfig.sharedmem_name_left)
-                shm_R = shared_memory.SharedMemory(name=TrackerConfig.sharedmem_name_right)
+                shm_L = SharedMemory(name=TrackerConfig.sharedmem_name_left)
+                shm_R = SharedMemory(name=TrackerConfig.sharedmem_name_right)
             except FileNotFoundError:
                 self.health_monitor.failure("EyeTracker", "Shared memory not found for preview loop.")
                 print("[ERROR] TrackerCenter: Shared memory not found for preview loop.")
@@ -133,6 +138,15 @@ class TrackerCenter:
             while self.setup_mode:
                 time.sleep(1 / TrackerConfig.preview_fps)
                 print("[INFO] TrackerCenter: In test mode; pretending to write to a SharedMemory.")
+
+
+    def send_memory_data(self):
+        self.queue_handler.send_command(
+        {
+            "type": "init",
+            "frame_shape": CameraManagerConfig.memory_shape,
+            "frame_dtype": TrackerConfig.memory_dtype
+        })
 
 
     def stop_preview(self):
