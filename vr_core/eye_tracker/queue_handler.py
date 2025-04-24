@@ -56,7 +56,7 @@ class QueueHandler:
     def get_sync_queues(self) -> tuple[Queue, Queue]:
         return self.sync_queue_L, self.sync_queue_R
     
-    def send_command(self, command: str, eye: str):
+    def send_command(self, command: dict, eye: str):
         """
         Sends a command to the specified EyeLoop process.
         """
@@ -169,5 +169,51 @@ class QueueHandler:
                 self.message_left = None
                 self.message_right = None
 
+    def update_eyeloop_memory(self, eye: str):
+        """
+        Updates the EyeLoop process with the new memory configuration.
+        """
+        if eye == "L":
+            self.send_command(
+            {
+                "type": "memory",
+                "frame_shape": TrackerConfig.memory_shape_L,
+                "frame_dtype": TrackerConfig.memory_dtype
+            }, eye=eye)
 
+        elif eye == "R":
+            self.send_command(
+            {
+                "type": "memory",
+                "frame_shape": TrackerConfig.memory_shape_R,
+                "frame_dtype": TrackerConfig.memory_dtype
+            }, eye=eye)
+        else:
+            self.health_monitor.failure("QueueHandler", f"Invalid eye specified: {eye}")
+            print(f"[WARN] QueueHandler: Invalid eye specified: {eye}")
 
+    def update_eyeloop_autosearch(self, autosearch):
+        """
+        Updates the EyeLoop process with the new autosearch configuration.
+        """
+
+        self.send_command(
+        {
+            "type": "config",
+            "param": "auto_search",
+            "value": autosearch
+        }, eye="L")
+        self.send_command(
+        {
+            "type": "config",
+            "param": "auto_search",
+            "value": autosearch
+        }, eye="R")
+        
+    def close_eyeloop(self):
+        """
+        Closes the EyeLoop process and cleans up resources.
+        """
+        self.send_command({"type": "close"}, eye="L")
+        self.send_command({"type": "close"}, eye="R")
+        

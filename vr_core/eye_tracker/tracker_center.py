@@ -22,7 +22,6 @@ class TrackerCenter:
 
         self.test_mode = test_mode  # Flag to indicate if the module is in test mode
         self.setup_mode = False
-        self.ready_to_track = False
         self.frame_provider = None
         self.tracker_launcher = None
 
@@ -44,46 +43,49 @@ class TrackerCenter:
     def handle_command(self, command: str):
         if command == "setup_tracker_1":
             print("[INFO] TrackerCenter: Setup phase 1: Preview started.")
-
-            self.setup_mode = True
-            try:
-                self.tracker_launcher.stop()
-            except:
-                pass  # Ignore if tracker handler is not initialized
-
-            self.stop_preview()  # In case a previous preview was running
-            self.start_preview()
+            
+            self.setup_tracker_1()
 
         elif command == "setup_tracker_2":
             print("[INFO] TrackerCenter: Setup phase 2: Tracker started after preview configuration.")
             
-            self.setup_mode = True
-            self.stop_preview()
-
-            self.queue_handler.send_command("track = 0", "L")
-            self.queue_handler.send_command("track = 0", "R")
-
-
-            self.frame_provider = FrameProvider(self.sync_queue_L, self.sync_queue_R) # Initialize frame provider
-            self.tracker_launcher = TrackerLauncher()
-            
-            self.frame_provider_thread = threading.Thread(target=self.frame_provider.run(), daemon=True)
-            self.frame_provider_thread.run() # Start the frame provider
+            self.setup_tracker_2()
 
         elif command == "launch_tracker":
             print("[INFO] TrackerCenter: Tracker launched directly from config.")
 
-            self.stop_preview()
-            self.ready_to_track = True
-
-            self.queue_handler.send_command("track = 1", "L")
-            self.queue_handler.send_command("track = 1", "R")
-
-            self.frame_provider = FrameProvider(self.sync_queue_L, self.sync_queue_R) # Initialize frame provider
-            self.tracker_launcher = TrackerLauncher()
             
-            self.frame_provider_thread = threading.Thread(target=self.frame_provider.run(), daemon=True)
-            self.frame_provider_thread.run() # Start the frame provider
+
+    def setup_tracker_1(self):
+        self.setup_mode = True
+        try:
+            self.tracker_launcher.stop()
+        except:
+            pass  # Ignore if tracker handler is not initialized
+
+        self.stop_preview()  # In case a previous preview was running
+        self.start_preview()  # Start the preview loop
+
+    def setup_tracker_2(self):
+        self.setup_mode = True
+        self.stop_preview()
+
+        self.queue_handler.send_command({"type": "preview"}, "L")
+        self.queue_handler.send_command({"type": "preview"}, "R")
+
+        self.frame_provider = FrameProvider(self.sync_queue_L, self.sync_queue_R) # Initialize frame provider
+        self.tracker_launcher = TrackerLauncher() # Initialize EyeLoop process
+        
+        self.frame_provider.run() # Start the frame provider
+
+    def launch_tracker(self):
+        self.stop_preview()
+
+        self.frame_provider = FrameProvider(self.sync_queue_L, self.sync_queue_R) # Initialize frame provider
+        self.tracker_launcher = TrackerLauncher() # Initialize EyeLoop process
+        
+        self.frame_provider.run() # Start the frame provider
+        self.queue_handler.update_eyeloop_autosearch(1) # Update the EyeLoop autosearch flag
 
     def start_preview(self):  
 
@@ -98,7 +100,6 @@ class TrackerCenter:
 
     def _preview_loop(self):
         self.frame_provider.run()  # Start the frame provider for preview
-        shape = (CameraManagerConfig.height, CameraManagerConfig.width)
         channels = 1
 
         if not self.test_mode:
@@ -111,9 +112,10 @@ class TrackerCenter:
                 return
 
             while self.setup_mode:
+
                 try:
-                    img_L = np.ndarray(shape + (channels,), dtype=np.uint8, buffer=shm_L.buf).copy()
-                    img_R = np.ndarray(shape + (channels,), dtype=np.uint8, buffer=shm_R.buf).copy()
+                    img_L = np.ndarray(TrackerConfig.memory_shape_L, dtype=np.uint8, buffer=shm_L.buf).copy()
+                    img_R = np.ndarray(TrackerConfig.memory_shape_R, dtype=np.uint8, buffer=shm_R.buf).copy()
                 except Exception as e:
                     self.health_monitor.failure("EyeTracker", f"Shared memory read error: {e}")
                     print(f"[WARN] TrackerCenter: Shared memory read error: {e}")
@@ -139,16 +141,6 @@ class TrackerCenter:
                 time.sleep(1 / TrackerConfig.preview_fps)
                 print("[INFO] TrackerCenter: In test mode; pretending to write to a SharedMemory.")
 
-
-    def send_memory_data(self):
-        self.queue_handler.send_command(
-        {
-            "type": "init",
-            "frame_shape": CameraManagerConfig.memory_shape,
-            "frame_dtype": TrackerConfig.memory_dtype
-        })
-
-
     def stop_preview(self):
         self.setup_mode = False
 
@@ -157,6 +149,6 @@ class TrackerCenter:
             print("[INFO] TrackerCenter: Preview streaming stopped.")
 
         if self.frame_provider:
-            self.frame_provider.cleanup()
+            self.frame_provider.stop()
 
         time.sleep(0.1)  # Allow time for the preview loop to stop
