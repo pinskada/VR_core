@@ -10,15 +10,15 @@ def run_eyeloop(eye: str, importer_name: str, shm_name: str, command_queue, resp
 
     sys.argv = [
         "eyeloop",
-        "--sharedmem", shm_name,
         "--side", eye,
-        "--importer", importer_name
+        "--importer", importer_name,
+        "--sharedmem", shm_name
     ]
-
+    
     if not test_mode:
         from vr_core.eye_tracker.eyeloop_module.eyeloop.run_eyeloop import EyeLoop
         try:
-            print(f"[INFO] run_eyeloop_process: Starting tracker for {eye}, using shared memory: {shm_name}")
+            print(f"[INFO] run_eyeloop_process: Starting tracker for eye: {eye}.")
             EyeLoop(sys.argv[1:], logger=None,
                     command_queue=command_queue,
                     response_queue=response_queue,
