@@ -1,5 +1,6 @@
 from vr_core.config import CameraManagerConfig
 import vr_core.module_list as module_list 
+import cv2
 
 class CameraManager:
     def __init__(self):
@@ -56,4 +57,5 @@ class CameraManager:
             self.online = False
             return
 
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         return frame

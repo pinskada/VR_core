@@ -1,5 +1,6 @@
 import numpy as np
 import time
+import cv2
 from queue import Empty
 from vr_core.config import TrackerConfig
 from multiprocessing import shared_memory, Queue
@@ -48,7 +49,8 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
 
                 # Capture next frame from video or camera
                 if self.use_test_video:
-                    ret, full_frame = self.cap.read()
+                    ret, image = self.cap.read()
+                    full_frame = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
                     if not ret:
                         self.health_monitor.failure("FrameProvider", "Failed to read test frame from video or end of video.")
                         print("[INFO] FrameProvider: End of test video or read error.")
@@ -71,6 +73,12 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
                 # Crop left and right regions from the full frame
                 l = self._crop(full_frame, TrackerConfig.crop_left)
                 r = self._crop(full_frame, TrackerConfig.crop_right)
+
+                time.sleep(1 / TrackerConfig.frame_provider_max_fps)  # Maintain target FPS
+
+                if self._frame_id != 0:
+                    # Wait for both EyeLoop processes to acknowledge the previous frame
+                    self._wait_for_sync()
     
                 # Increment frame ID for synchronization
                 self._frame_id += 1
@@ -95,9 +103,6 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
                     self.online = False
                     break
 
-                self._wait_for_sync()
-    
-                time.sleep(1 / TrackerConfig.frame_provider_max_fps)  # Maintain target FPS
 
                 if self.test_run:
                     break # For testing purposes (running from test function), break after one frame
@@ -166,9 +171,11 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
         w = int((self.x_rel_end - self.x_rel_start) * frame_width)
         h = int((self.y_rel_end - self.y_rel_start) * frame_height)
 
+        TrackerConfig.memory_size = h * w * channels
+
         try:
-            self.shm_L = shared_memory.SharedMemory(name=TrackerConfig.sharedmem_name_left, create=True, size=h * w * channels)
-            self.shm_R = shared_memory.SharedMemory(name=TrackerConfig.sharedmem_name_right, create=True, size=h * w * channels)
+            self.shm_L = shared_memory.SharedMemory(name=TrackerConfig.sharedmem_name_left, create=True, size=TrackerConfig.memory_size)
+            self.shm_R = shared_memory.SharedMemory(name=TrackerConfig.sharedmem_name_right, create=True, size=TrackerConfig.memory_size)
         except Exception as e:
             self.health_monitor.failure("FrameProvider", f"Failed to allocate shared memory: {e}")
             print(f"[ERROR] FrameProvider: Failed to allocate shared memory: {e}")
