@@ -7,9 +7,8 @@
         "request": "launch",
         "program": "${workspaceFolder}/vr_core/eye_tracker/eyeloop_module/eyeloop/run_eyeloop.py",
         "args": [
-          "--sharedmem", "eye_left_frame",
-          "--side", "L",
-          "--video", "test_eye_video/test_video.mp4"
+          //"--importer", "shared_memory_importer",
+          "--video", "test_video/test_video.mp4"
         ],
         "console": "integratedTerminal",
         "justMyCode": true
