@@ -1,6 +1,8 @@
 {
     "version": "0.2.0",
     "configurations": [
+
+
       {
         "name": "Eyeloop (L)",
         "type": "python",
@@ -11,6 +13,16 @@
           "--video", "test_video/test_video.mp4"
         ],
         "console": "integratedTerminal",
+        "justMyCode": true
+      },
+
+      {
+        "name": "Launch core",
+        "type": "python",
+        "request": "launch",
+        "module": "vr_core.core",
+        "console": "integratedTerminal",
+        "cwd": "${workspaceFolder}",
         "justMyCode": true
       }
     ]
