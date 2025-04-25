@@ -47,13 +47,13 @@ class QueueHandler:
     def is_online(self):
         return self.online 
 
-    def get_command_queues(self) -> tuple[Queue, Queue]:
+    def get_command_queues(self):
         return self.command_queue_L, self.command_queue_R
     
-    def get_response_queues(self) -> tuple[Queue, Queue]:
+    def get_response_queues(self):
         return self.response_queue_L, self.response_queue_R
     
-    def get_sync_queues(self) -> tuple[Queue, Queue]:
+    def get_sync_queues(self):
         return self.sync_queue_L, self.sync_queue_R
     
     def send_command(self, command: dict, eye: str):
@@ -84,7 +84,7 @@ class QueueHandler:
                 msg_R = self.response_queue_R.get(timeout=tracker_config.queue_timeout)
                 self.dispatch_message(msg_R, "Right")
 
-            except Exception as e:
+            except Exception:
                 # Silently skip if queues are empty or error occurs
                 time.sleep(tracker_config.queue_timeout)
 

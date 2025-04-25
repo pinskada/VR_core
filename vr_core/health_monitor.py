@@ -12,6 +12,20 @@ class HealthMonitor:
         self._last_status = {}
 
          # Map of component names to instances
+        
+
+        print("[INFO] HealthMonitor: Health monitoring thread started.")
+        self.tcp_server.send( 
+            {
+                "type": "STATUS",
+                "data": "HealthMonitor: Health monitoring thread started.",
+            }, data_type="JSON", priority="low")
+        threading.Thread(target=self.check_for_health, daemon=True).start()
+
+    def monitored_components(self):
+        """
+        Returns a list of components that are monitored for health status.
+        """
         self._monitored = {
             'Gyroscope': module_list.gyroscope,
             'ESP32': module_list.esp32,
@@ -22,15 +36,8 @@ class HealthMonitor:
             'TrackerLauncher': module_list.tracker_launcher,
             'TCPServer': module_list.tcp_server,
             'CommandDispatcher': module_list.command_dispatcher,
-        }
+            }
 
-        print("[INFO] HealthMonitor: Health monitoring thread started.")
-        self.tcp_server.send( 
-            {
-                "type": "STATUS",
-                "data": "HealthMonitor: Health monitoring thread started.",
-            }, data_type="JSON", priority="low")
-        threading.Thread(target=self.check_for_health, daemon=True).start()
 
     def check_for_health(self):
         """
@@ -39,6 +46,9 @@ class HealthMonitor:
         """
 
         while True:
+            
+            self.monitored_components()
+
             for name, comp in self._monitored.items():
                 # Determine current online status
                 current = False

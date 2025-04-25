@@ -46,9 +46,6 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
 
     def run(self):
         try:
-            self.frame_provider_thread = threading.Thread(target=self.run, daemon=True)
-            self.frame_provider_thread.start() # Start the frame provider
-
             while self.is_online():
                 # Check if the frame provider is online
 
@@ -181,9 +178,8 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
             tracker_config.memory_shape_L[0] = int((self.x_rel_end_L - self.x_rel_start_L) * frame_width)
             tracker_config.memory_shape_L[1] = int((self.y_rel_end_L - self.y_rel_start_L) * frame_height)
 
-            tracker_config.memory_shape_L[2] = frame_channels
 
-            self.memory_size_L = tracker_config.memory_shape_L[0] * tracker_config.memory_shape_L[1] * tracker_config.memory_shape_L[2]
+            self.memory_size_L = tracker_config.memory_shape_L[0] * tracker_config.memory_shape_L[1]
 
             try:
                 self.shm_L = shared_memory.SharedMemory(name=tracker_config.sharedmem_name_left, create=True, size=self.memory_size_L)
@@ -209,9 +205,8 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
             tracker_config.memory_shape_R[0] = int((self.x_rel_end_R - self.x_rel_start_R) * frame_width)
             tracker_config.memory_shape_R[1] = int((self.y_rel_end_R - self.y_rel_start_R) * frame_height)
             
-            tracker_config.memory_shape_R[2] = frame_channels
 
-            self.memory_size_R = tracker_config.memory_shape_R[0] * tracker_config.memory_shape_R[1] * tracker_config.memory_shape_R[2]
+            self.memory_size_R = tracker_config.memory_shape_R[0] * tracker_config.memory_shape_R[1]
 
             try:
                 self.shm_R = shared_memory.SharedMemory(name=tracker_config.sharedmem_name_right, create=True, size=self.memory_size_R)
@@ -255,7 +250,7 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
         y_end = int(y_rel_end * frame_height)
 
         # Extract ROI using crop coordinates
-        return frame[y_start:y_end, x_start:x_end]
+        return frame[x_start:x_end, y_start:y_end]
     
     def clean_memory(self, side="both"):
         print("[INFO] FrameProvider: Cleaning up FrameProvider resources.")

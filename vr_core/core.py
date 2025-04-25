@@ -33,12 +33,15 @@ class Core:
         cmd = CommandDispatcher()
         time.sleep(1)
         
+        
         cmd.handle_message(
             {
                 "category": "tracker_mode",
-                "action": "setup_tracker_1",
+                "action": "setup_tracker_2",
                 "params": {},
             }
         )
+        
 
-Core()
+if __name__ == "__main__":
+    Core()

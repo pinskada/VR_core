@@ -74,7 +74,8 @@ class TrackerCenter:
         self.frame_provider = FrameProvider() # Initialize frame provider
         self.tracker_launcher = TrackerLauncher() # Initialize EyeLoop process
         
-        self.frame_provider.run() # Start the frame provider
+        self.frame_provider_thread = threading.Thread(target=self.frame_provider.run(), daemon=True)
+        self.frame_provider_thread.run() # Start the frame provider
 
     def launch_tracker(self):
         self.stop_preview()
@@ -82,7 +83,8 @@ class TrackerCenter:
         self.frame_provider = FrameProvider() # Initialize frame provider
         self.tracker_launcher = TrackerLauncher() # Initialize EyeLoop process
         
-        self.frame_provider.run() # Start the frame provider
+        self.frame_provider_thread = threading.Thread(target=self.frame_provider.run(), daemon=True)
+        self.frame_provider_thread.run() # Start the frame provider
         self.queue_handler.update_eyeloop_autosearch(1) # Update the EyeLoop autosearch flag
 
     def start_preview(self):  
