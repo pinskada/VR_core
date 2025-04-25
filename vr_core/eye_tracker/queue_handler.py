@@ -2,7 +2,7 @@ from multiprocessing import Queue
 import threading
 import time
 import vr_core.module_list as module_list 
-from vr_core.config import TrackerConfig
+from vr_core.config import tracker_config
 
 class QueueHandler:
     """
@@ -78,15 +78,15 @@ class QueueHandler:
     def _response_loop(self):
         while self.online:
             try:
-                msg_L = self.response_queue_L.get(timeout=TrackerConfig.queue_timeout)
+                msg_L = self.response_queue_L.get(timeout=tracker_config.queue_timeout)
                 self.dispatch_message(msg_L, "Left")
 
-                msg_R = self.response_queue_R.get(timeout=TrackerConfig.queue_timeout)
+                msg_R = self.response_queue_R.get(timeout=tracker_config.queue_timeout)
                 self.dispatch_message(msg_R, "Right")
 
             except Exception as e:
                 # Silently skip if queues are empty or error occurs
-                time.sleep(TrackerConfig.queue_timeout)
+                time.sleep(tracker_config.queue_timeout)
 
 
     def dispatch_message(self, message, eye: str):
@@ -137,8 +137,8 @@ class QueueHandler:
             self.frame_id_right = message.get("frame_id")
             self.message_right = message
         else:
-            self.health_monitor.failure("QueueHandler", f"Invalid eye specified: {eye}")
-            print(f"[WARN] QueueHandler: Invalid eye specified: {eye}")
+            self.health_monitor.failure("QueueHandler", f"Invalid eye specified when syncing frames: {eye}")
+            print(f"[WARN] QueueHandler: Invalid eye specified when syncing frames: {eye}")
             return
 
         if self.frame_id_left is not None and self.frame_id_right is not None:
@@ -177,20 +177,20 @@ class QueueHandler:
             self.send_command(
             {
                 "type": "memory",
-                "frame_shape": TrackerConfig.memory_shape_L,
-                "frame_dtype": TrackerConfig.memory_dtype
+                "frame_shape": tracker_config.memory_shape_L,
+                "frame_dtype": tracker_config.memory_dtype
             }, eye=eye)
 
         elif eye == "R":
             self.send_command(
             {
                 "type": "memory",
-                "frame_shape": TrackerConfig.memory_shape_R,
-                "frame_dtype": TrackerConfig.memory_dtype
+                "frame_shape": tracker_config.memory_shape_R,
+                "frame_dtype": tracker_config.memory_dtype
             }, eye=eye)
         else:
-            self.health_monitor.failure("QueueHandler", f"Invalid eye specified: {eye}")
-            print(f"[WARN] QueueHandler: Invalid eye specified: {eye}")
+            self.health_monitor.failure("QueueHandler", f"Invalid eye specified when sending memory data to Eyeloop: {eye}")
+            print(f"[WARN] QueueHandler: Invalid eye specified when sending memory data to Eyeloop: {eye}")
 
     def update_eyeloop_autosearch(self, autosearch):
         """

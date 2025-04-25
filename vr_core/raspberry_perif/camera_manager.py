@@ -1,4 +1,4 @@
-from vr_core.config import CameraManagerConfig
+from vr_core.config import camera_manager_config
 import vr_core.module_list as module_list 
 import cv2
 
@@ -23,7 +23,7 @@ class CameraManager:
         return self.online
 
     def apply_config(self):
-        cam = CameraManagerConfig()
+        cam = camera_manager_config()
 
         # Apply image resolution and buffer settings
         cfg = self.picam2.create_still_configuration(
@@ -43,7 +43,7 @@ class CameraManager:
 
     def capture_frame(self):
         error = None
-        for i in range(CameraManagerConfig.capture_retries):
+        for i in range(camera_manager_config.capture_retries):
             try:
                 frame = self.picam2.capture()
                 error = None

@@ -1,5 +1,5 @@
 import vr_core.module_list as module_list
-from vr_core.config import HealthMonitorConfig
+from vr_core.config import health_monitor
 import threading
 import time
 
@@ -84,7 +84,7 @@ class HealthMonitor:
                 # Update stored state
                 self._last_status[name] = current
 
-            time.sleep(HealthMonitorConfig.check_interval)
+            time.sleep(health_monitor.check_interval)
 
     def status(self, component_name: str, status: str):
         """Handles status updates of a component."""

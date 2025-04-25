@@ -4,7 +4,7 @@ import queue
 import time
 import json
 
-from vr_core.config import TCPConfig
+from vr_core.config import tcp_config
 import vr_core.module_list as module_list
 
 
@@ -27,9 +27,9 @@ class TCPServer:
         module_list.tcp_server = self
 
         # Configuration
-        self.host = TCPConfig.host
-        self.port = TCPConfig.port
-        self.priority_queues = TCPConfig.message_priorities
+        self.host = tcp_config.host
+        self.port = tcp_config.port
+        self.priority_queues = tcp_config.message_priorities
 
         # Internal state
         self.server_socket = None
@@ -50,11 +50,12 @@ class TCPServer:
             self.verify_static_ip()
             self.start_server()
 
-    def verify_static_ip(self, expected_prefix=TCPConfig.static_ip_prefix):
+    def verify_static_ip(self):
         """Optional check: does our local IP match the expected static prefix?"""
+        expected_prefix=tcp_config.static_ip_prefix
         try:
             test_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            test_sock.connect((TCPConfig.google_dns, TCPConfig.http_port))
+            test_sock.connect((tcp_config.google_dns, tcp_config.http_port))
             ip = test_sock.getsockname()[0]
         except Exception as e:
             print(f"[WARN] TCPServer: IP check failed: {e}")
@@ -112,7 +113,7 @@ class TCPServer:
         """Continuously receive data and dispatch JSON messages."""
         while self.online and not self._stop_event.is_set():
             try:
-                data = self.client_conn.recv(TCPConfig.recv_buffer_size)
+                data = self.client_conn.recv(tcp_config.recv_buffer_size)
                 if not data:
                     break
                 text = data.decode('utf-8').strip()
@@ -142,7 +143,7 @@ class TCPServer:
                     print(f"[WARN] TCPServer: Skipping non-bytes: {type(msg)}")
                 break
 
-            time.sleep(TCPConfig.send_loop_interval)
+            time.sleep(tcp_config.send_loop_interval)
 
     def _send_direct(self, packet: bytes):
         """Immediately send a fully-formed packet to Unity."""

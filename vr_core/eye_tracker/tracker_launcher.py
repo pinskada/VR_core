@@ -1,6 +1,6 @@
 from multiprocessing import Process
 from vr_core.eye_tracker.run_eyeloop import run_eyeloop
-from vr_core.config import TrackerConfig
+from vr_core.config import tracker_config
 import time
 import threading
 import vr_core.module_list as module_list
@@ -22,8 +22,8 @@ class TrackerLauncher:
         self.test_mode = test_mode
 
         try:
-            self.proc_left = Process(target=run_eyeloop, args=("L", TrackerConfig.importer_name, TrackerConfig.sharedmem_name_left, self.command_queue_L, self.response_queue_L, self.sync_queue_L, test_mode))
-            self.proc_right = Process(target=run_eyeloop, args=("R", TrackerConfig.importer_name, TrackerConfig.sharedmem_name_right, self.command_queue_R, self.response_queue_R, self.sync_queue_R, test_mode))
+            self.proc_left = Process(target=run_eyeloop, args=("L", tracker_config.importer_name, tracker_config.sharedmem_name_left, self.command_queue_L, self.response_queue_L, self.sync_queue_L, test_mode))
+            self.proc_right = Process(target=run_eyeloop, args=("R", tracker_config.importer_name, tracker_config.sharedmem_name_right, self.command_queue_R, self.response_queue_R, self.sync_queue_R, test_mode))
         except Exception as e:
             self.health_monitor.failure("TrackerLauncher", f"Failed to initialize Eyeloop processes: {e}")
             print("[ERROR] TrackerLauncher: Failed to initialize processes.")
@@ -36,7 +36,7 @@ class TrackerLauncher:
         print("[INFO] TrackerLauncher: Initializing Eyeloop processes...")
         self.proc_left.start()
         self.proc_right.start()
-        time.sleep(TrackerConfig.process_launch_time)  # Allow some time for the processes to stabilize
+        time.sleep(tracker_config.process_launch_time)  # Allow some time for the processes to stabilize
 
         self.health_thread = threading.Thread(target=self._eyeloop_monitor, daemon=True)
         self.health_thread.start()
@@ -53,7 +53,7 @@ class TrackerLauncher:
                 print("[ERROR] TrackerLauncher: Right EyeLoop process is not responding.")
                 self.right_alive = False
 
-            time.sleep(TrackerConfig.eyeloop_health_check_interval)
+            time.sleep(tracker_config.eyeloop_health_check_interval)
 
     def is_online(self):
         return self.online and self.left_alive and self.right_alive

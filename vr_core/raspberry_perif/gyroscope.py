@@ -1,6 +1,6 @@
 import threading
 import time
-from vr_core.config import GyroscopeConfig
+from vr_core.config import gyroscope_config
 import os
 import math
 import vr_core.module_list as module_list 
@@ -16,12 +16,14 @@ class Gyroscope:
 
         self.mock_angle = 0.0
         self.mock_mode = force_mock
-        self.thread = threading.Thread(target=self.run, daemon=True)      
+        self.run_thread = threading.Thread(target=self.run)      
 
         if self.mock_mode:
             # If mock mode is enabled, we don't need to check for hardware availability
             self.health_monitor.status("Gyroscope", "Mock mode active")
             print("[INFO] Gyroscope: Mock mode active — simulating gyro values")
+            self.online = True
+            self.run_thread.start()  # Start the thread to read gyro data
         else:
             try:
                 if self.ensure_i2c_enabled() is False:
@@ -31,10 +33,10 @@ class Gyroscope:
                     return
                 
                 import smbus2 # type: ignore # Import the smbus2 library for I2C communication
-                self.addr = GyroscopeConfig.addr # I2C address of the gyroscope (L3GD20H)
+                self.addr = gyroscope_config.addr # I2C address of the gyroscope (L3GD20H)
 
-                self.bus = smbus2.SMBus(GyroscopeConfig.bus_num) # I2C bus number (1 for Raspberry Pi 3 and later)
-                self.bus.write_byte_data(self.addr, GyroscopeConfig.reg_ctrl1, GyroscopeConfig.ctrl1_enable)    
+                self.bus = smbus2.SMBus(gyroscope_config.bus_num) # I2C bus number (1 for Raspberry Pi 3 and later)
+                self.bus.write_byte_data(self.addr, gyroscope_config.reg_ctrl1, gyroscope_config.ctrl1_enable)    
                 self.online = True  # Set online status to True             
                 self.thread.start() # Start the thread to read gyro data
 
@@ -89,14 +91,15 @@ class Gyroscope:
             return val if val < 32768 else val - 65536
 
         return {
-            'x': read_word(GyroscopeConfig.reg_out_x_l),
-            'y': read_word(GyroscopeConfig.reg_out_y_l),
-            'z': read_word(GyroscopeConfig.reg_out_z_l),
+            'x': read_word(gyroscope_config.reg_out_x_l),
+            'y': read_word(gyroscope_config.reg_out_y_l),
+            'z': read_word(gyroscope_config.reg_out_z_l),
         }
 
 
     def run(self):
         """Continuously read gyroscope data and send it over TCP."""
+    
         error = None
         failure_count = 0
         while self.online:
@@ -104,24 +107,29 @@ class Gyroscope:
             try:
                 data = self.read_gyro() # Get the gyroscope data
                 
-                if self.tcp_server is not None:
-                    self.tcp_server.send(
-                    {
-                        "type": "gyro",
-                        "data": data
-                    }, data_type='JSON', priority='high')
-                    error = None
+                if not self.mock_mode:
+                    if self.tcp_server is not None:
+                        self.tcp_server.send(
+                        {
+                            "type": "gyro",
+                            "data": data
+                        }, data_type='JSON', priority='high')
+                        error = None
+                    else:
+                        print("[WARN] Gyroscope: No TCP sender available. Skipping data send.")
+                    
                 else:
-                    print("[WARN] Gyroscope: No TCP sender available. Skipping data send.")
-                
+                    #print("[INFO] Gyroscope: Mock data sent:", data)
+                    error = None
+
             except Exception as e:
                 failure_count += 1
                 error = e
 
-            if error is not None and failure_count >= GyroscopeConfig.retry_attempts:
+            if error is not None and failure_count >= gyroscope_config.retry_attempts:
                 self.health_monitor.failure("Gyroscope", "Error reading gyro data")
                 self.online = False
                 print("[ERROR] Gyroscope:] Error reading gyro data.")
                 break
 
-            time.sleep(GyroscopeConfig.update_rate)  # Sleep for the specified update rate
+            time.sleep(gyroscope_config.update_rate)  # Sleep for the specified update rate

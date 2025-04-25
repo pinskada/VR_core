@@ -3,27 +3,26 @@ import time
 import cv2
 import threading
 from queue import Empty
-from vr_core.config import TrackerConfig
-from multiprocessing import shared_memory, Queue
+from vr_core.config import tracker_config
+from multiprocessing import shared_memory
 import vr_core.module_list as module_list 
 
 class FrameProvider:  # Handles video acquisition, cropping, and shared memory distribution
-    def __init__(self, test_run: bool = False):
+    def __init__(self):
         self.online = True
 
         module_list.frame_provider = self  # Register the frame provider in the module list
         self.health_monitor = module_list.health_monitor  # Health monitor instance
-        self.use_test_video = TrackerConfig.use_test_video
+        self.use_test_video = tracker_config.use_test_video
         self.queue_handler = module_list.queue_handler  # Reference to the queue handler
 
-        self.test_run = test_run  # Flag to indicate if we are running a test (for testing purposes)
         self._frame_id = 0  # Incremented with each new frame
         self.sync_queue_L, self.sync_queue_R = self.queue_handler.get_sync_queues()
 
         # Choose between test video or live camera
         if self.use_test_video:
             self.cv2 = cv2
-            self.cap = cv2.VideoCapture(TrackerConfig.test_video_path)
+            self.cap = cv2.VideoCapture(tracker_config.test_video_path)
             self.health_monitor.status("FrameProvider", "Using test video for frame capture.")
             print("[INFO] FrameProvider: Using test video for frame capture.")
         else:
@@ -40,12 +39,14 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
                 raise RuntimeError("[ERROR] FrameProvider: Failed to read test frame from video.")
         else:
             test_frame = self.cam_manager.capture_frame()
+        test_frame = cv2.cvtColor(test_frame, cv2.COLOR_BGR2GRAY)
+        test_frame = test_frame.transpose(1,0)[:, :, np.newaxis]
 
-        self._allocate_memory(test_frame) # Allocate shared memory for left and right eye frames
+        self._allocate_memory(test_frame, crop_L_bool=True, crop_R_bool=True) # Allocate shared memory for left and right eye frames
 
     def run(self):
         try:
-            self.frame_provider_thread = threading.Thread(target=self.run(), daemon=True)
+            self.frame_provider_thread = threading.Thread(target=self.run, daemon=True)
             self.frame_provider_thread.start() # Start the frame provider
 
             while self.is_online():
@@ -55,6 +56,7 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
                 if self.use_test_video:
                     ret, image = self.cap.read()
                     full_frame = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+                    full_frame = full_frame.transpose(1,0)[:, :, np.newaxis]
                     if not ret:
                         self.health_monitor.failure("FrameProvider", "Failed to read test frame from video or end of video.")
                         print("[INFO] FrameProvider: End of test video or read error.")
@@ -64,8 +66,8 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
                     full_frame = self.cam_manager.capture_frame()
 
                 # Conditions to check if crop dimensions or resolution have changed
-                crop_L_bool = self.crop_L != TrackerConfig.crop_left[0] 
-                crop_R_bool =  self.crop_R != TrackerConfig.crop_right[1]
+                crop_L_bool = self.crop_L != tracker_config.crop_left
+                crop_R_bool =  self.crop_R != tracker_config.crop_right
                 res_bool = self.shape != full_frame.shape
 
                 # If crop dimensions or resolution have changed, reallocate memory
@@ -74,10 +76,10 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
                     self._allocate_memory(full_frame, crop_L_bool, crop_R_bool)
 
                 # Crop left and right regions from the full frame
-                l = self._crop(full_frame, TrackerConfig.crop_left)
-                r = self._crop(full_frame, TrackerConfig.crop_right)
+                l = self._crop(full_frame, tracker_config.crop_left)
+                r = self._crop(full_frame, tracker_config.crop_right)
 
-                time.sleep(1 / TrackerConfig.frame_provider_max_fps)  # Maintain target FPS
+                time.sleep(1 / tracker_config.frame_provider_max_fps)  # Maintain target FPS
 
                 if self._frame_id != 0:
                     # Wait for both EyeLoop processes to acknowledge the previous frame
@@ -98,8 +100,8 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
 
                 try:
                     # Write cropped frames to shared memory
-                    np.ndarray(TrackerConfig.memory_shape_L, dtype=l.dtype, buffer=self.shm_L.buf)[:] = l
-                    np.ndarray(TrackerConfig.memory_shape_R, dtype=r.dtype, buffer=self.shm_R.buf)[:] = r
+                    np.ndarray(tracker_config.memory_shape_L, dtype=l.dtype, buffer=self.shm_L.buf)[:] = l
+                    np.ndarray(tracker_config.memory_shape_R, dtype=r.dtype, buffer=self.shm_R.buf)[:] = r
                 except Exception as e:
                     self.health_monitor.failure("FrameProvider", f"Failed to write to shared memory: {e}")
                     print(f"[ERROR] FrameProvider: Failed to write to shared memory: {e}")
@@ -107,17 +109,17 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
                     break
 
 
-                if self.test_run:
+                if self.use_test_video:
                     break # For testing purposes (running from test function), break after one frame
         finally:
-            if not self.test_run:
+            if not self.use_test_video:
                 self.cleanup()
 
 
     def _wait_for_sync(self):
 
         # Skip sync wait during tests
-        if self.test_run:
+        if self.use_test_video:
             return
 
         # Block until both EyeLoop processes confirm processing of current frame
@@ -126,13 +128,13 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
 
         while not (left_done and right_done):
             now = time.time()
-            if now - start_time > TrackerConfig.sync_timeout:
-                print(f"[WARN] FrameProvider: Timeout - total sync wait exceeded {TrackerConfig.sync_timeout} sec for frame {self._frame_id}")
+            if now - start_time > tracker_config.sync_timeout:
+                print(f"[WARN] FrameProvider: Timeout - total sync wait exceeded {tracker_config.sync_timeout} sec for frame {self._frame_id}")
                 break
 
             try:
                 if not left_done:
-                    msg_L = self.sync_queue_L.get(timeout=TrackerConfig.queue_timeout)
+                    msg_L = self.sync_queue_L.get(timeout=tracker_config.queue_timeout)
                     if msg_L.get("type") == "ack" and msg_L.get("frame_id") == self._frame_id:
                         left_done = True
             except Empty:
@@ -140,7 +142,7 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
 
             try:
                 if not right_done:
-                    msg_R = self.sync_queue_R.get(timeout=TrackerConfig.queue_timeout)
+                    msg_R = self.sync_queue_R.get(timeout=tracker_config.queue_timeout)
                     if msg_R.get("type") == "ack" and msg_R.get("frame_id") == self._frame_id:
                         right_done = True
             except Empty:
@@ -165,24 +167,26 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
     def _allocate_memory(self, frame, crop_L_bool, crop_R_bool):
 
         self.validate_crop()  # Validate crop dimensions
-        frame_height, frame_width, frame_channels = frame.shape
+        frame_width, frame_height, frame_channels = frame.shape
         self.shape = frame.shape
 
         if crop_L_bool:
-            self.crop_L = TrackerConfig.crop_left
+            self.clean_memory("L")  # Clean up left eye memory if it exists
+
+            self.crop_L = tracker_config.crop_left
 
             self.x_rel_start_L, self.x_rel_end_L = self.crop_L[0]
             self.y_rel_start_L, self.y_rel_end_L = self.crop_L[1]
 
-            TrackerConfig.memory_shape_L[0] = int((self.x_rel_end_L - self.x_rel_start_L) * frame_width)
-            TrackerConfig.memory_shape_L[1] = int((self.y_rel_end_R - self.y_rel_start_R) * frame_height)
+            tracker_config.memory_shape_L[0] = int((self.x_rel_end_L - self.x_rel_start_L) * frame_width)
+            tracker_config.memory_shape_L[1] = int((self.y_rel_end_L - self.y_rel_start_L) * frame_height)
 
-            TrackerConfig.memory_shape_L[2] = frame_channels
+            tracker_config.memory_shape_L[2] = frame_channels
 
-            self.memory_size_L = TrackerConfig.memory_shape_L[0] * TrackerConfig.memory_shape_L[1] * TrackerConfig.memory_shape_L[2]
+            self.memory_size_L = tracker_config.memory_shape_L[0] * tracker_config.memory_shape_L[1] * tracker_config.memory_shape_L[2]
 
             try:
-                self.shm_L = shared_memory.SharedMemory(name=TrackerConfig.sharedmem_name_left, create=True, size=self.memory_size_L)
+                self.shm_L = shared_memory.SharedMemory(name=tracker_config.sharedmem_name_left, create=True, size=self.memory_size_L)
             except Exception as e:
                 self.health_monitor.failure("FrameProvider", f"Failed to allocate shared memory: {e}")
                 self.online = False
@@ -195,20 +199,22 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
 
 
         if crop_R_bool:
-            self.crop_R = TrackerConfig.crop_right
+            self.clean_memory("R")  # Clean up left eye memory if it exists
+
+            self.crop_R = tracker_config.crop_right
 
             self.x_rel_start_R, self.x_rel_end_R = self.crop_R[0]
             self.y_rel_start_R, self.y_rel_end_R = self.crop_R[1]
 
-            TrackerConfig.memory_shape_R[0] = int((self.x_rel_end_R - self.x_rel_start_R) * frame_width)
-            TrackerConfig.memory_shape_R[1] = int((self.y_rel_end_R - self.y_rel_start_R) * frame_height)
+            tracker_config.memory_shape_R[0] = int((self.x_rel_end_R - self.x_rel_start_R) * frame_width)
+            tracker_config.memory_shape_R[1] = int((self.y_rel_end_R - self.y_rel_start_R) * frame_height)
             
-            TrackerConfig.memory_shape_R[2] = frame_channels
+            tracker_config.memory_shape_R[2] = frame_channels
 
-            self.memory_size_R = TrackerConfig.memory_shape_R[0] * TrackerConfig.memory_shape_R[1] * TrackerConfig.memory_shape_R[2]
+            self.memory_size_R = tracker_config.memory_shape_R[0] * tracker_config.memory_shape_R[1] * tracker_config.memory_shape_R[2]
 
             try:
-                self.shm_R = shared_memory.SharedMemory(name=TrackerConfig.sharedmem_name_right, create=True, size=self.memory_size_R)
+                self.shm_R = shared_memory.SharedMemory(name=tracker_config.sharedmem_name_right, create=True, size=self.memory_size_R)
                 print(f"[INFO] FrameProvider: Reallocated SHM.")
 
             except Exception as e:
@@ -216,29 +222,29 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
                 self.online = False
                 raise RuntimeError(f"[ERROR] FrameProvider: Failed to allocate shared memory: {e}")
             
-            self.queue_handler.update_eyeloop_memory("R ")
+            self.queue_handler.update_eyeloop_memory("R")
             self.health_monitor.status("FrameProvider", f"Reallocated shared memory for eye: R")
             print(f"[INFO] FrameProvider: Reallocated right SHM.")
 
 
     def validate_crop(self):    
-        (x0_L, x1_L), (y0_L, y1_L) = TrackerConfig.crop_left
-        (x0_R, x1_R), (y0_R, y1_R) = TrackerConfig.crop_right
+        (x0_L, x1_L), (y0_L, y1_L) = tracker_config.crop_left
+        (x0_R, x1_R), (y0_R, y1_R) = tracker_config.crop_right
 
         if x0_L < 0 or x1_L > 0.5 or y0_L < 0 or y1_L > 1:
-            self.health_monitor.status("FrameProvider", f"Invalid crop dimensions for left eye: {TrackerConfig.crop_left}, resetting to default.")
-            print(f"[WARN] FrameProvider: Invalid crop dimensions for left eye: {TrackerConfig.crop_left}, resetting to default.")
-            TrackerConfig.crop_left = ((0, 0.5), (0, 1))
+            self.health_monitor.status("FrameProvider", f"Invalid crop dimensions for left eye: {tracker_config.crop_left}, resetting to default.")
+            print(f"[WARN] FrameProvider: Invalid crop dimensions for left eye: {tracker_config.crop_left}, resetting to default.")
+            tracker_config.crop_left = ((0, 0.5), (0, 1))
 
         if x0_R < 0.5 or x1_R > 1 or y0_R < 0 or y1_R > 1:
-            self.health_monitor.status("FrameProvider", f"Invalid crop dimensions for right eye: {TrackerConfig.crop_right}, resetting to default.")
-            print(f"[WARN] FrameProvider: Invalid crop dimensions for right eye: {TrackerConfig.crop_right}, resetting to default.")
-            TrackerConfig.crop_right = ((0.5, 1), (0, 1))
+            self.health_monitor.status("FrameProvider", f"Invalid crop dimensions for right eye: {tracker_config.crop_right}, resetting to default.")
+            print(f"[WARN] FrameProvider: Invalid crop dimensions for right eye: {tracker_config.crop_right}, resetting to default.")
+            tracker_config.crop_right = ((0.5, 1), (0, 1))
 
 
     def _crop(self, frame, region):
         (x_rel_start, x_rel_end), (y_rel_start, y_rel_end) = region
-        frame_height, frame_width = frame.shape[:2]
+        frame_width, frame_height = frame.shape[:2]
 
         # Compute x coordinates based of the frame actual size
         x_start = int(x_rel_start * frame_width)
@@ -251,18 +257,25 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
         # Extract ROI using crop coordinates
         return frame[y_start:y_end, x_start:x_end]
     
-    def clean_memory(self):
+    def clean_memory(self, side="both"):
         print("[INFO] FrameProvider: Cleaning up FrameProvider resources.")
-        try:
-            self.shm_L.close()
-            self.shm_L.unlink()
-        except FileNotFoundError:
-            pass
-        try:
-            self.shm_R.close()
-            self.shm_R.unlink()
-        except FileNotFoundError:
-            pass
+        
+        if side == "both" or side == "L":
+            try:
+                existing_shm = shared_memory.SharedMemory(name=tracker_config.sharedmem_name_left)
+                existing_shm.unlink()
+                existing_shm.close()
+            except FileNotFoundError:
+                pass
+        
+        
+        if side == "both" or side == "R":
+            try:
+                existing_shm = shared_memory.SharedMemory(name=tracker_config.sharedmem_name_right)
+                existing_shm.unlink()
+                existing_shm.close()
+            except FileNotFoundError:
+                pass
 
     def stop(self):
         if not self.online:

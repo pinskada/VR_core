@@ -1,8 +1,7 @@
 from vr_core.eye_tracker.frame_provider import FrameProvider
 from vr_core.eye_tracker.tracker_launcher import TrackerLauncher
 from multiprocessing.shared_memory import SharedMemory
-from vr_core.config import TrackerConfig
-from vr_core.config import CameraManagerConfig
+from vr_core.config import tracker_config
 from vr_core.eye_tracker.queue_handler import QueueHandler
 
 import threading
@@ -15,7 +14,6 @@ import vr_core.module_list as module_list
 class TrackerCenter:
     def __init__(self, test_mode=False):  # Initializes all tracking components and command queues
         self.online = True  # Flag to indicate if the tracker is online
-        
         module_list.tracker_center = self  # Register the eye tracker centre in the module list
         self.tcp_server = module_list.tcp_server
         self.health_monitor = module_list.health_monitor
@@ -73,7 +71,7 @@ class TrackerCenter:
         self.queue_handler.send_command({"type": "preview"}, "L")
         self.queue_handler.send_command({"type": "preview"}, "R")
 
-        self.frame_provider = FrameProvider(self.sync_queue_L, self.sync_queue_R) # Initialize frame provider
+        self.frame_provider = FrameProvider() # Initialize frame provider
         self.tracker_launcher = TrackerLauncher() # Initialize EyeLoop process
         
         self.frame_provider.run() # Start the frame provider
@@ -81,7 +79,7 @@ class TrackerCenter:
     def launch_tracker(self):
         self.stop_preview()
 
-        self.frame_provider = FrameProvider(self.sync_queue_L, self.sync_queue_R) # Initialize frame provider
+        self.frame_provider = FrameProvider() # Initialize frame provider
         self.tracker_launcher = TrackerLauncher() # Initialize EyeLoop process
         
         self.frame_provider.run() # Start the frame provider
@@ -89,7 +87,7 @@ class TrackerCenter:
 
     def start_preview(self):  
 
-        self.frame_provider = FrameProvider(self.sync_queue_L, self.sync_queue_R)
+        self.frame_provider = FrameProvider()
         self.frame_provider_thread = threading.Thread(target=self.frame_provider.run(), daemon=True)
         self.frame_provider_thread.run() # Start the frame provider
         self.setup_mode = True
@@ -104,8 +102,8 @@ class TrackerCenter:
 
         if not self.test_mode:
             try:
-                shm_L = SharedMemory(name=TrackerConfig.sharedmem_name_left)
-                shm_R = SharedMemory(name=TrackerConfig.sharedmem_name_right)
+                shm_L = SharedMemory(name=tracker_config.sharedmem_name_left)
+                shm_R = SharedMemory(name=tracker_config.sharedmem_name_right)
             except FileNotFoundError:
                 self.health_monitor.failure("EyeTracker", "Shared memory not found for preview loop.")
                 print("[ERROR] TrackerCenter: Shared memory not found for preview loop.")
@@ -114,16 +112,16 @@ class TrackerCenter:
             while self.setup_mode:
 
                 try:
-                    img_L = np.ndarray(TrackerConfig.memory_shape_L, dtype=np.uint8, buffer=shm_L.buf).copy()
-                    img_R = np.ndarray(TrackerConfig.memory_shape_R, dtype=np.uint8, buffer=shm_R.buf).copy()
+                    img_L = np.ndarray(tracker_config.memory_shape_L, dtype=np.uint8, buffer=shm_L.buf).copy()
+                    img_R = np.ndarray(tracker_config.memory_shape_R, dtype=np.uint8, buffer=shm_R.buf).copy()
                 except Exception as e:
                     self.health_monitor.failure("EyeTracker", f"Shared memory read error: {e}")
                     print(f"[WARN] TrackerCenter: Shared memory read error: {e}")
                     continue
                 
                 try:
-                    _, jpg_L = cv2.imencode(".jpg", img_L, [int(cv2.IMWRITE_JPEG_QUALITY), TrackerConfig.jpeg_quality])
-                    _, jpg_R = cv2.imencode(".jpg", img_R, [int(cv2.IMWRITE_JPEG_QUALITY), TrackerConfig.jpeg_quality])
+                    _, jpg_L = cv2.imencode(".jpg", img_L, [int(cv2.IMWRITE_JPEG_QUALITY), tracker_config.jpeg_quality])
+                    _, jpg_R = cv2.imencode(".jpg", img_R, [int(cv2.IMWRITE_JPEG_QUALITY), tracker_config.jpeg_quality])
                 except Exception as e:
                     self.health_monitor.failure("EyeTracker", f"JPEG encoding error: {e}")
                     print(f"[WARN] TrackerCenter: JPEG encoding error: {e}")
@@ -132,13 +130,13 @@ class TrackerCenter:
                 self.tcp_server.send("left_JPEG", data_type='JSON', priority="medium")
                 self.tcp_server.send(jpg_L.tobytes(), data_type='JPEG', priority="medium")
 
-                self.tcp_server.send(message="right_JPEG", data_type='JSON', priority="medium")
+                self.tcp_server.send(payload="right_JPEG", data_type='JSON', priority="medium")
                 self.tcp_server.send(jpg_R.tobytes(), data_type='JPEG', priority="medium")
 
-                time.sleep(1 / TrackerConfig.preview_fps)
+                time.sleep(1 / tracker_config.preview_fps)
         else:
             while self.setup_mode:
-                time.sleep(1 / TrackerConfig.preview_fps)
+                time.sleep(1 / tracker_config.preview_fps)
                 print("[INFO] TrackerCenter: In test mode; pretending to write to a SharedMemory.")
 
     def stop_preview(self):
