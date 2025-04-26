@@ -53,6 +53,10 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
                 # Capture next frame from video or camera
                 if self.use_test_video:
                     ret, image = self.cap.read()
+                    if image is None:
+                        print("[INFO] FrameProvider: End of video reached.")
+                        return
+
                     full_frame = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
                     full_frame = full_frame.transpose(1,0)[:, :]
                     if not ret:

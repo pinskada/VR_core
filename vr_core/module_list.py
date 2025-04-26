@@ -8,6 +8,10 @@ tracker_center = None
 queue_handler = None
 frame_provider = None
 
+pre_processor = None
+calibration_handler = None
+main_processor = None
+
 camera_manager = None
 gyroscope = None
 esp32 = None

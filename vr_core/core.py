@@ -37,23 +37,26 @@ class Core:
         cmd.handle_message(
             {
                 "category": "tracker_mode",
-                "action": "setup_tracker_1",
+                "action": "launch_tracker",
                 "params": {},
             }
         )
-
-        #time.sleep(10)
-
-        #ModuleList.queue_handler.update_eyeloop_autosearch(autosearch=True)   
-
-        time.sleep(5)
+        """
+        time.sleep(2)
         ModuleList.command_dispatcher.handle_message(
             {
                 "category": "config",
                 "action": "tracker_config crop_left",
-                "params": ((0.0, 0.3), (0.0, 1.0))
+                "params": ((0.2, 0.5), (0.3, 0.7))
             }
         )
-
+        ModuleList.command_dispatcher.handle_message(
+            {
+                "category": "config",
+                "action": "tracker_config crop_left",
+                "params": ((0.5, 0.8), (0.3, 0.7))
+            }
+        )
+        """
 if __name__ == "__main__":
     Core()

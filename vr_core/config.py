@@ -70,8 +70,8 @@ tracker_config = SimpleNamespace(
     sharedmem_name_left = "eye_left_frame",  # Shared memory buffer name for left eye
     sharedmem_name_right = "eye_right_frame",  # Shared memory buffer name for right eye
     memory_dtype = "uint8",  # Data type for the shared memory buffer
-    memory_shape_L = [960, 1080],  # Size of the shared memory buffer (height, width, channels)
-    memory_shape_R = [960, 1080],  # Size of the shared memory buffer (height, width, channels)
+    memory_shape_L = [960, 1080],  # Size of the shared memory buffer (height, width)
+    memory_shape_R = [960, 1080],  # Size of the shared memory buffer (height, width)
     blink_calibration_L = "blink_calibration/blink_calibration_cropL.npy",  # Path to the blink calibration file
     blink_calibration_R = "blink_calibration/blink_calibration_cropR.npy",  # Path to the blink calibration file
 

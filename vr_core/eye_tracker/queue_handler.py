@@ -161,10 +161,12 @@ class QueueHandler:
                         "eye": "Right",
                         "payload": self.message_right
                     }, data_type="JSON", priority="medium")
-                    #print(f"[INFO] QueueHandler: Sending synchronized frames with id {self.frame_id_left} to TCP server")
+                    print(f"[INFO] QueueHandler: Sending synchronized frames with id {self.frame_id_left} to TCP server")
+                    print(f"[DATA] QueueHandler: {self.message_left} ; {self.message_right}")
                 else:
                     # Frames will be sent to post-processing later
-                    print("[INFO] QueueHandler: Frames will be sent to post-processing later")
+                    #print("[INFO] QueueHandler: Frames will be sent to post-processing later")
+                    print(f"[DATA] QueueHandler: {self.message_left} ; {self.message_right}")
                     pass
 
                 self.frame_id_left = None
