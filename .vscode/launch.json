@@ -11,7 +11,7 @@
         "args": [
           //"--importer", "shared_memory_importer",
           "--video", "test_video/test_video.mp4",
-          "--sharedmem", "eye_left_frame"
+          "--sharedmem", "eye_left_frame",
         ],
         "console": "integratedTerminal",
         "justMyCode": true

@@ -29,6 +29,8 @@ class QueueHandler:
             self.response_queue_R = Queue()
             self.sync_queue_L = Queue()
             self.sync_queue_R = Queue()
+            self.acknowledge_queue_L = Queue()
+            self.acknowledge_queue_R = Queue()
         except Exception as e:
             self.health_monitor.failure("QueueHandler", f"Error initializing queues: {e}")
             print(f"[ERROR] QueueHandler: Error initializing queues: {e}")
@@ -54,7 +56,7 @@ class QueueHandler:
         return self.response_queue_L, self.response_queue_R
     
     def get_sync_queues(self):
-        return self.sync_queue_L, self.sync_queue_R
+        return self.sync_queue_L, self.sync_queue_R, self.acknowledge_queue_L, self.acknowledge_queue_R
     
     def send_command(self, command: dict, eye: str):
         """
@@ -95,9 +97,8 @@ class QueueHandler:
         """
         try:
             if isinstance(message, dict):
-                payload = message.get("payload")
-                if payload is not None:
-                    self.sync_frames(payload, eye)                 
+                if "payload" == message.get("type"):
+                    self.sync_frames(message, eye)                 
                 else:
                     self.health_monitor.failure("QueueHandler", f"Missing 'payload' in message from response loop.from eye: {eye}")
                     print("[WARN] QueueHandler: Missing 'payload' in message.")
@@ -122,20 +123,22 @@ class QueueHandler:
         Synchronizes frames between the left and right EyeLoop processes.
         """
 
-        if eye == "L":
-            if not isinstance(message, dict):
+        payload = message.get("payload")
+        data = message.get("data")
+        if eye == "Left":
+            if not isinstance(data, dict):
                 self.health_monitor.failure("QueueHandler", "Invalid message format in sync_frames")
                 print("[WARN] QueueHandler: Invalid message format in sync_frames")
                 return
             self.frame_id_left = message.get("frame_id")
-            self.message_left = message
-        elif eye == "R":
-            if not isinstance(message, dict):
+            self.message_left = data
+        elif eye == "Right":
+            if not isinstance(data, dict):
                 self.health_monitor.failure("QueueHandler", "Invalid message format in sync_frames")
                 print("[WARN] QueueHandler: Invalid message format in sync_frames")
                 return
             self.frame_id_right = message.get("frame_id")
-            self.message_right = message
+            self.message_right = data
         else:
             self.health_monitor.failure("QueueHandler", f"Invalid eye specified when syncing frames: {eye}")
             print(f"[WARN] QueueHandler: Invalid eye specified when syncing frames: {eye}")
@@ -144,21 +147,21 @@ class QueueHandler:
         if self.frame_id_left is not None and self.frame_id_right is not None:
             if self.frame_id_left == self.frame_id_right:
                 # Both frames are synchronized
-                if getattr(self.tracker_center, "setup_mode", False):
+                if getattr(self.tracker_center, "setup_mode", True):
                     # In setup mode, send the frames to the TCP server
                     self.tcp_server.send(
                     {
                         "category": "EyeloopData",
-                        "eye": "L",
+                        "eye": "Left",
                         "payload": self.message_left
                     }, data_type="JSON", priority="medium")
                     self.tcp_server.send(
                     {
                         "category": "EyeloopData",
-                        "eye": "R",
+                        "eye": "Right",
                         "payload": self.message_right
                     }, data_type="JSON", priority="medium")
-                    print("[INFO] QueueHandler: Sending synchronized frames to TCP server")
+                    #print(f"[INFO] QueueHandler: Sending synchronized frames with id {self.frame_id_left} to TCP server")
                 else:
                     # Frames will be sent to post-processing later
                     print("[INFO] QueueHandler: Frames will be sent to post-processing later")
@@ -168,6 +171,18 @@ class QueueHandler:
                 self.frame_id_right = None
                 self.message_left = None
                 self.message_right = None
+
+    def detach_eyeloop_memory(self, eye: str):
+        """
+        Detaches the EyeLoop process from the shared memory.
+        """
+        if eye == "L":
+            self.send_command({"type": "detach"}, eye=eye)
+        elif eye == "R":
+            self.send_command({"type": "detach"}, eye=eye)
+        else:
+            self.health_monitor.failure("QueueHandler", f"Invalid eye specified when detaching memory: {eye}")
+            print(f"[WARN] QueueHandler: Invalid eye specified when detaching memory: {eye}")
 
     def update_eyeloop_memory(self, eye: str):
         """

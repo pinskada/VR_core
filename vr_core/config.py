@@ -55,11 +55,12 @@ esp32_config = SimpleNamespace(
 
 # ---- Tracker Configuration ------------------------------------
 tracker_config = SimpleNamespace(
-    frame_provider_max_fps = 15, # Maximum FPS for the frame provider
+    frame_provider_max_fps = 1000, # Maximum FPS for the frame provider
     jpeg_quality = 75,  # JPEG encoding quality (0-100)
-    sync_timeout = 1.0,  # Timeout for EyeLoop response in seconds
+    sync_timeout = 1,  # Timeout for EyeLoop response in seconds
     #index = 0  # Only used for fallback/testing
     preview_fps = 5,  # FPS for preview stream
+    queue_timeout = 0.01,  # Timeout for queue operations in seconds
     
     crop_left = ((0.0, 0.5), (0.0, 1.0)),  # Relative region (x1, x2, y1, y2) for the left eye
     crop_right = ((0.5, 1.0), (0.0, 1.0)),  # Relative region (x1, x2, y1, y2) for the right eye
@@ -76,7 +77,6 @@ tracker_config = SimpleNamespace(
 
     importer_name = "shared_memory_importer",  # Importer name for the EyeLoop process
     
-    queue_timeout = 0.005,  # Timeout for queue operations in seconds
 
     eyeloop_health_check_interval = 3,  # Interval for health check of the eyeloop processes in seconds
 

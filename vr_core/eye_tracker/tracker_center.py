@@ -25,10 +25,6 @@ class TrackerCenter:
 
         try:
             self.queue_handler = QueueHandler()  # Initialize the queue handler
-
-            self.command_queue_L, self.command_queue_R = self.queue_handler.get_command_queues()
-            self.response_queue_L, self.response_queue_R = self.queue_handler.get_response_queues()
-            self.sync_queue_L, self.sync_queue_R = self.queue_handler.get_sync_queues()
         except Exception as e:
             self.online = False  # Set online status to False if initialization fails
             self.health_monitor.failure("EyeTracker", f"QueueHandler initialization error: {e}")
@@ -55,7 +51,6 @@ class TrackerCenter:
             
 
     def setup_tracker_1(self):
-        self.setup_mode = True
         try:
             self.tracker_launcher.stop()
         except:
@@ -65,17 +60,16 @@ class TrackerCenter:
         self.start_preview()  # Start the preview loop
 
     def setup_tracker_2(self):
-        self.setup_mode = True
         self.stop_preview()
-
+        self.setup_mode = True
         self.queue_handler.send_command({"type": "preview"}, "L")
         self.queue_handler.send_command({"type": "preview"}, "R")
 
         self.frame_provider = FrameProvider() # Initialize frame provider
         self.tracker_launcher = TrackerLauncher() # Initialize EyeLoop process
         
-        self.frame_provider_thread = threading.Thread(target=self.frame_provider.run(), daemon=True)
-        self.frame_provider_thread.run() # Start the frame provider
+        self.frame_provider_thread = threading.Thread(target=self.frame_provider.run, daemon=True)
+        self.frame_provider_thread.start() # Start the frame provider
 
     def launch_tracker(self):
         self.stop_preview()
@@ -83,15 +77,15 @@ class TrackerCenter:
         self.frame_provider = FrameProvider() # Initialize frame provider
         self.tracker_launcher = TrackerLauncher() # Initialize EyeLoop process
         
-        self.frame_provider_thread = threading.Thread(target=self.frame_provider.run(), daemon=True)
-        self.frame_provider_thread.run() # Start the frame provider
+        self.frame_provider_thread = threading.Thread(target=self.frame_provider.run, daemon=True)
+        self.frame_provider_thread.start() # Start the frame provider
         self.queue_handler.update_eyeloop_autosearch(1) # Update the EyeLoop autosearch flag
 
     def start_preview(self):  
 
         self.frame_provider = FrameProvider()
-        self.frame_provider_thread = threading.Thread(target=self.frame_provider.run(), daemon=True)
-        self.frame_provider_thread.run() # Start the frame provider
+        self.frame_provider_thread = threading.Thread(target=self.frame_provider.run, daemon=True)
+        self.frame_provider_thread.start() # Start the frame provider
         self.setup_mode = True
         self.preview_thread = threading.Thread(target=self._preview_loop, daemon=True)
         self.preview_thread.start()
@@ -99,9 +93,8 @@ class TrackerCenter:
         # Start preview loop externally or in separate thread/process
 
     def _preview_loop(self):
-        self.frame_provider.run()  # Start the frame provider for preview
-        channels = 1
 
+        frame = 0
         if not self.test_mode:
             try:
                 shm_L = SharedMemory(name=tracker_config.sharedmem_name_left)
@@ -112,7 +105,9 @@ class TrackerCenter:
                 return
 
             while self.setup_mode:
-
+                frame += 1
+                if frame % 10 == 0:
+                    print(f"[INFO] TrackerCenter: Sending preview; Frame ID: {frame}.")
                 try:
                     img_L = np.ndarray(tracker_config.memory_shape_L, dtype=np.uint8, buffer=shm_L.buf).copy()
                     img_R = np.ndarray(tracker_config.memory_shape_R, dtype=np.uint8, buffer=shm_R.buf).copy()
@@ -138,6 +133,10 @@ class TrackerCenter:
                 time.sleep(1 / tracker_config.preview_fps)
         else:
             while self.setup_mode:
+                frame += 1
+                if frame % 10 == 0:
+                    print(f"[INFO] TrackerCenter: In test mode; Frame ID: {frame}.")
+
                 time.sleep(1 / tracker_config.preview_fps)
                 print("[INFO] TrackerCenter: In test mode; pretending to write to a SharedMemory.")
 

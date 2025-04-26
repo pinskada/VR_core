@@ -68,7 +68,7 @@ class CommandDispatcher:
 
             if hasattr(config_class, attr_name):
                 setattr(config_class, attr_name, params)
-
+                print(f"[INFO] [CommandDispatcher] {class_name}.{attr_name} set to {params}")
                 if class_name == "camera_manager_config":
                     if module_list.camera_manager is not None:
                         module_list.camera_manager.apply_config()
