@@ -134,9 +134,8 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
         while not (left_done and right_done):
             now = time.time()
             if now - start_time > tracker_config.sync_timeout:
-                #print(f"[WARN] FrameProvider: Timeout - total sync wait exceeded {tracker_config.sync_timeout} sec for frame {self._frame_id}")
-                #break
-                pass
+                print(f"[WARN] FrameProvider: Timeout - total sync wait exceeded {tracker_config.sync_timeout} sec for frame {self._frame_id}")
+                break
 
             try:
                 if not left_done:
@@ -176,6 +175,7 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
 
         self.validate_crop()  # Validate crop dimensions
         frame_width, frame_height = frame.shape
+        tracker_config.full_frame_resolution = frame.shape
         self.shape = frame.shape
 
         if crop_L_bool:

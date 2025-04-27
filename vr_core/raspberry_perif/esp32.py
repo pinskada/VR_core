@@ -99,20 +99,20 @@ class ESP32:
 
             time.sleep(esp32_config.handshake_interval_outer)  # Wait before retrying the handshake
 
-    def send_focal_distance(self, distance_mm: float):
-        """Send the focal distance to the ESP32."""
+    def send_gaze_distance(self, distance_mm: float):
+        """Send the gaze distance to the ESP32."""
 
         # Create the message to send
         message = f"{distance_mm:.2f}\n"
 
         # Fake the message for mock mode
         if self.mock_mode:
-            print(f"[INFO] ESP32: Would send focal distance: {message.strip()}")
+            print(f"[INFO] ESP32: Would send gaze distance: {message.strip()}")
             return
 
         try:
             self.serial_conn.write(message.encode('utf-8'))
-            print(f"[INFO] ESP32: Sent focal distance: {message.strip()}")
+            print(f"[INFO] ESP32: Sent gaze distance: {message.strip()}")
         except Exception as e:
             print(f"[WARN] ESP32: Error during UART write: {e}")
 

@@ -16,6 +16,8 @@ class CommandDispatcher:
             self._handle_eyeloop_action(action, params)
         elif category == "tracker_mode":
             self._handle_eye_tracker_action(action)
+        elif category == "calibration":
+            self._handle_calibration_action(action)
         elif category == "config":
             self._handle_config_action(action, params)
         else:
@@ -60,6 +62,34 @@ class CommandDispatcher:
                 }, data_type="JSON", priority="low"
             )
             print("[WARN] CommandDispatcher: TrackerCenter not connected. Cannot handle action.")
+
+
+    def _handle_calibration_action(self, action):
+        if module_list.calibration_handler is not None:
+            if action == "start_calibration":
+                module_list.calibration_handler.start_calibration()
+            elif action == "stop_calibration":
+                module_list.calibration_handler.stop_calibration()
+            elif action == "start_processing":
+                module_list.calibration_handler.start_processing()
+            elif action == "stop_processing":
+                module_list.calibration_handler.stop_processing()
+            else:
+                self.tcp_server.send(
+                    {
+                        "type": "STATUS",
+                        "data": f"Unknown action '{action}' for CalibrationHandler.",
+                    }, data_type="JSON", priority="low"
+                )
+                print(f"[WARN] CommandDispatcher: Unknown calibration action: {action}")
+        else:
+            self.tcp_server.send(
+                {
+                    "type": "STATUS",
+                    "data": "CalibrationHandler is offline.",
+                }, data_type="JSON", priority="low"
+            )
+            print("[WARN] CommandDispatcher: CalibrationHandler not connected. Cannot handle action.")
 
     def _handle_config_action(self, action, params):
         try:

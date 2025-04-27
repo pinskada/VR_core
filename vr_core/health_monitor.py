@@ -36,6 +36,9 @@ class HealthMonitor:
             'TrackerLauncher': module_list.tracker_launcher,
             'TCPServer': module_list.tcp_server,
             'CommandDispatcher': module_list.command_dispatcher,
+            'PreProcessor': module_list.pre_processor,
+            'MainProcessor': module_list.main_processor,
+            'CalibrationHandler': module_list.calibration_handler,
             }
 
 

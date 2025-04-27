@@ -61,23 +61,28 @@ tracker_config = SimpleNamespace(
     #index = 0  # Only used for fallback/testing
     preview_fps = 5,  # FPS for preview stream
     queue_timeout = 0.01,  # Timeout for queue operations in seconds
+    process_launch_time = 0.4,  # Time to wait for the EyeLoop process to stabilize (in seconds)
     
     crop_left = ((0.0, 0.5), (0.0, 1.0)),  # Relative region (x1, x2, y1, y2) for the left eye
     crop_right = ((0.5, 1.0), (0.0, 1.0)),  # Relative region (x1, x2, y1, y2) for the right eye
-
-    process_launch_time = 0.4,  # Time to wait for the EyeLoop process to stabilize (in seconds)
 
     sharedmem_name_left = "eye_left_frame",  # Shared memory buffer name for left eye
     sharedmem_name_right = "eye_right_frame",  # Shared memory buffer name for right eye
     memory_dtype = "uint8",  # Data type for the shared memory buffer
     memory_shape_L = [960, 1080],  # Size of the shared memory buffer (height, width)
     memory_shape_R = [960, 1080],  # Size of the shared memory buffer (height, width)
+    full_frame_resolution = [1920, 1080],  # Full frame resolution (height, width)
+
     blink_calibration_L = "blink_calibration/blink_calibration_cropL.npy",  # Path to the blink calibration file
     blink_calibration_R = "blink_calibration/blink_calibration_cropR.npy",  # Path to the blink calibration file
 
     importer_name = "shared_memory_importer",  # Importer name for the EyeLoop process
     
-
+    print_ipd_state = 10,  # Flag to indicate if the system should print the IPD state
+    filter_alpha = 0.5,  # Alpha value for the low-pass filter (0-1)
+    crop_buffer_factor = 0.1,  # Factor to determine the amount of data to discard from the start and end of the buffer
+    std_threshold = 0.01,  # Threshold for standard deviation to determine if the sample is valid
+    
     eyeloop_health_check_interval = 3,  # Interval for health check of the eyeloop processes in seconds
 
     use_test_video = False,  # Use saved video instead of live camera

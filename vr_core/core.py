@@ -5,6 +5,7 @@ from vr_core.eye_tracker.tracker_center import TrackerCenter
 import vr_core.module_list as ModuleList
 from vr_core.health_monitor import HealthMonitor
 from vr_core.network.command_dispatcher import CommandDispatcher
+from vr_core.eye_processing.pre_processor import PreProcessor
 
 import vr_core.config as config
 
@@ -20,18 +21,12 @@ class Core:
         config.tracker_config.use_test_video = True  # Use saved video instead of live camera
 
         TCPServer()
-        time.sleep(1)
         HealthMonitor()
-        time.sleep(1)
         Gyroscope(force_mock=True)
-        time.sleep(1)
         ESP32(force_mock=True)
-        time.sleep(1)
-        
+        PreProcessor()
         TrackerCenter()
-        time.sleep(1)
         cmd = CommandDispatcher()
-        time.sleep(1)
         
         
         cmd.handle_message(

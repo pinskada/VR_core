@@ -17,6 +17,7 @@ class QueueHandler:
         self.tracker_center = module_list.tracker_center  # Reference to the EyeTrackerCentre instance
         self.tcp_server = module_list.tcp_server  # Reference to the TCP server
         self.health_monitor = module_list.health_monitor  # Reference to the health check module
+        self.pre_processor = module_list.pre_processor  # Reference to the pre-processor module
 
         self.frame_id_left = None
         self.frame_id_right = None
@@ -164,10 +165,8 @@ class QueueHandler:
                     print(f"[INFO] QueueHandler: Sending synchronized frames with id {self.frame_id_left} to TCP server")
                     print(f"[DATA] QueueHandler: {self.message_left} ; {self.message_right}")
                 else:
-                    # Frames will be sent to post-processing later
-                    #print("[INFO] QueueHandler: Frames will be sent to post-processing later")
-                    print(f"[DATA] QueueHandler: {self.message_left} ; {self.message_right}")
-                    pass
+                    self.pre_processor.get_relative_ipd(self.message_left, self.message_right)
+                    
 
                 self.frame_id_left = None
                 self.frame_id_right = None
