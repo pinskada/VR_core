@@ -102,7 +102,7 @@ class Calibration:
         Fit the model to the eye data.
         """
 
-        from models import inverse_model
+        from vr_core.eye_processing.models import inverse_model
 
         if len(self.calibration_data) < 2:
             print("[ERROR] Calibration: Not enough points to fit a model.")
