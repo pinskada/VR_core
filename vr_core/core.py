@@ -24,11 +24,12 @@ class Core:
         HealthMonitor()
         Gyroscope(force_mock=True)
         ESP32(force_mock=True)
-        PreProcessor()
-        TrackerCenter()
-        cmd = CommandDispatcher()
+        #PreProcessor()
+        #TrackerCenter()
+        #cmd = CommandDispatcher()
         
         
+        """
         cmd.handle_message(
             {
                 "category": "tracker_mode",
@@ -36,7 +37,6 @@ class Core:
                 "params": {},
             }
         )
-        """
         time.sleep(2)
         ModuleList.command_dispatcher.handle_message(
             {

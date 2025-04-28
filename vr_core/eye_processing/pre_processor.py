@@ -1,5 +1,6 @@
 import vr_core.module_list as module_list 
 from vr_core.config import tracker_config
+from vr_core.config import eye_processing_config
 from vr_core.eye_processing.calibration_handler import Calibration
 from vr_core.eye_processing.main_processor import MainProcessor
 import time
@@ -51,7 +52,7 @@ class PreProcessor:
         self.print_ipd_state += 1 # Increment the print IPD state counter
 
         # Print the IPD state if the flag is set
-        if self.print_ipd_state == tracker_config.print_ipd_state:
+        if self.print_ipd_state == eye_processing_config.print_ipd_state:
             print(f"[INFO] PreProcessor: Relative IPD = {relative_ipd}")
             self.health_monitor.status("PreProcessor", f"Relative IPD = {relative_ipd}")
             self.print_ipd_state = 1
@@ -78,7 +79,7 @@ class PreProcessor:
             # First value, no smoothing yet
             self.filtered_ipd = new_ipd
         else:
-            self.filtered_ipd = tracker_config.filter_alpha * new_ipd + (1 - tracker_config.filter_alpha) * self.filtered_ipd
+            self.filtered_ipd = eye_processing_config.filter_alpha * new_ipd + (1 - eye_processing_config.filter_alpha) * self.filtered_ipd
         return self.filtered_ipd
 
 

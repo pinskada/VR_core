@@ -119,7 +119,7 @@ class Gyroscope:
                         print("[WARN] Gyroscope: No TCP sender available. Skipping data send.")
                     
                 else:
-                    #print("[INFO] Gyroscope: Mock data sent:", data)
+                    print("[INFO] Gyroscope: Mock data sent:", data)
                     error = None
 
             except Exception as e:

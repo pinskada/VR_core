@@ -77,12 +77,7 @@ tracker_config = SimpleNamespace(
     blink_calibration_R = "blink_calibration/blink_calibration_cropR.npy",  # Path to the blink calibration file
 
     importer_name = "shared_memory_importer",  # Importer name for the EyeLoop process
-    
-    print_ipd_state = 10,  # Flag to indicate if the system should print the IPD state
-    filter_alpha = 0.5,  # Alpha value for the low-pass filter (0-1)
-    crop_buffer_factor = 0.1,  # Factor to determine the amount of data to discard from the start and end of the buffer
-    std_threshold = 0.01,  # Threshold for standard deviation to determine if the sample is valid
-    
+
     eyeloop_health_check_interval = 3,  # Interval for health check of the eyeloop processes in seconds
 
     use_test_video = False,  # Use saved video instead of live camera
@@ -90,6 +85,20 @@ tracker_config = SimpleNamespace(
     test_video_resolution = (1920, 1080),  # Hardcoded resolution, must be changed in the code if needed
     test_video_channels = 1  # Number of channels in the test video, must be changed in the code if needed
 )
+
+eye_processing_config = SimpleNamespace(
+
+    print_ipd_state = 10,  # Flag to indicate if the system should print the IPD state
+    filter_alpha = 0.5,  # Alpha value for the low-pass filter (0-1)
+    crop_buffer_factor = 0.1,  # Factor to determine the amount of data to discard from the start and end of the buffer
+    std_threshold = 0.01,  # Threshold for standard deviation to determine if the sample is valid
+    gyro_buffer = 10,  # Buffer size for gyroscope data
+    gyro_threshold = 30,  # Threshold for gyroscope data to determine if the system should trust the data
+
+    model_params = None,  # Model parameters for the inverse model (to be set during calibration)
+    corrected_model_params = None  # Model parameters for the corrected model (to be set during calibration)
+)
+
 
 # ---- Camera Configuration ----------------------------------------
 camera_manager_config = SimpleNamespace(

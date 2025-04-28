@@ -1,11 +1,9 @@
 import vr_core.module_list as module_list 
-from vr_core.config import tracker_config
+from vr_core.config import eye_processing_config
 import numpy as np
-from scipy.optimize import curve_fit
-import vr_core.eye_processing.models as models
 
 class Calibration:
-    def __init__(self, calib_points_num=3):
+    def __init__(self, calib_points_num=3, diopter=0):
         self.online = True # Flag to indicate if the system is online or offline
 
         module_list.calibration_handler = self
@@ -13,6 +11,7 @@ class Calibration:
         self.health_monitor = module_list.health_monitor # Needed for health monitoring
         self.tcp_server = module_list.tcp_server # Needed for sending data to the unity client
 
+        self.diopter = diopter # Diopter value for the calibration
         self.distance = None # Placeholder for the distance of the virtual object
         self.collecting = False # Flag to indicate if the system is collecting data
 
@@ -42,8 +41,8 @@ class Calibration:
         """
         Get the current distance of the virtual object.
         """
-
-        buffer = self.samples_buffer  # Buffer of samples collected for the previous distance
+        
+        buffer = self.samples_buffer.copy()  # Buffer of samples collected for the previous distance
         self.previous_distance = self.current_distance  # Store the previous distance
 
         if self.previous_distance is not None:
@@ -64,7 +63,7 @@ class Calibration:
             return
 
         # --- Discard initial and final unstable samples ---
-        trim_amount = max(1, int(tracker_config.crop_buffer_factor * len(buffer)))
+        trim_amount = max(1, int(eye_processing_config.crop_buffer_factor * len(buffer)))
         trimmed_samples = buffer[trim_amount:-trim_amount] if len(buffer) > 2 * trim_amount else buffer
 
         if len(trimmed_samples) == 0:
@@ -78,10 +77,12 @@ class Calibration:
         print(f"[INFO] Calibration: Distance {distance} | Avg IPD = {mean_ipd:.6f} | Std Dev = {std_ipd:.6f}")
 
         # --- Validate sample quality ---
-        if std_ipd > tracker_config.std_threshold:
+        if std_ipd > eye_processing_config.std_threshold:
             print(f"[WARN] Calibration: High standard deviation detected ({std_ipd:.6f}), suggesting retry.")
             self.tcp_server.send({"type": "calib", "status": "retry", "distance": distance}, data_type='JSON', priority='medium')
             self.collecting = False
+            self.samples_buffer = []  # Collected IPDs for the current distance
+            self.calibration_data = {}
             return
 
         # --- Save good sample ---
@@ -100,6 +101,9 @@ class Calibration:
         """
         Fit the model to the eye data.
         """
+
+        from models import inverse_model
+
         if len(self.calibration_data) < 2:
             print("[ERROR] Calibration: Not enough points to fit a model.")
             return None
@@ -107,32 +111,36 @@ class Calibration:
         distances = np.array(list(self.calibration_data.keys()))
         ipds = np.array(list(self.calibration_data.values()))
 
-        # Define the model function
-        def model_func(d, a, b):
-            return a / d + b
+        self.model_params = inverse_model.fit(distances, ipds)
+        eye_processing_config.model_params = self.model_params
 
-        # Fit the model: find best a, b to match your collected data
-        try:
-            popt, pcov = curve_fit(model_func, distances, ipds, p0=(1.0, 0.0))
-            a_fit, b_fit = popt
-            print(f"[INFO] Calibration: Model fitted successfully. a = {a_fit:.6f}, b = {b_fit:.6f}")
-            self.model_params = (a_fit, b_fit)
-            return self.model_params
-        except Exception as e:
-            print(f"[ERROR] Calibration: Model fitting failed: {e}")
-            return None
+        print(f"[INFO] Calibration: Model fitted successfully: {self.model_params}")
+        self.tcp_server.send({"type": "calib", "status": "success", "model_params": self.model_params}, data_type='JSON', priority='high')
 
-    def compensate_for_impairment(self, eye_data):
+        self.compensate_for_impairment()
+
+    def compensate_for_impairment(self):
         """
         Compensate for users visual impairment.
         """
-        pass
+        model_params = eye_processing_config.model_params
 
-    def save_calibration(self, calibration_data):
-        """
-        Save the calibration data to a file.
-        """
-        pass
+        if self.diopter == 0.0:
+            # No compensation needed
+            eye_processing_config.corrected_model_params = (model_params[0], model_params[1])
+            return
+
+        # Calculate effective distance shift
+        # How far would a perfect system see through user's optical correction
+        # Focal length in meters
+        focus_distance = 1.0 / self.diopter  # meters
+
+        print(f"[INFO] Compensating for user diopter: {self.diopter} (focus at {focus_distance:.2f} m)")
+
+        eye_processing_config.compensation_factor = 0.005 * self.diopter  # tweakable factor
+        b_new = model_params[1] + eye_processing_config.compensation_factor  # shift the baseline slightly
+
+        eye_processing_config.corrected_model_params = (model_params[0], b_new)  # Update the model parameters with the new 'b' value
 
     def is_online(self):
         return self.online

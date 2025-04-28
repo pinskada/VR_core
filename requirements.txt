@@ -3,3 +3,4 @@ pymba==0.3.*
 numpy==1.19.*
 PyYaml
 Scipy
+smbus2

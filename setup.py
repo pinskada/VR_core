@@ -1,5 +1,14 @@
 from setuptools import setup, find_packages
 
+install_requires = []
+
+with open('requirements.txt') as f:
+    for line in f.readlines():
+        req = line.strip()
+        if not req or req.startswith('#') or '://' in req:
+            continue
+        install_requires.append(req)
+
 setup(
     name="vr_core",
     version="0.1",
