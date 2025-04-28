@@ -21,37 +21,18 @@ class Core:
         config.tracker_config.use_test_video = True  # Use saved video instead of live camera
 
         TCPServer()
+        time.sleep(0.5)
         HealthMonitor()
+        time.sleep(0.5)
         Gyroscope(force_mock=True)
+        time.sleep(0.5)
         ESP32(force_mock=True)
-        #PreProcessor()
-        #TrackerCenter()
-        #cmd = CommandDispatcher()
-        
-        
-        """
-        cmd.handle_message(
-            {
-                "category": "tracker_mode",
-                "action": "launch_tracker",
-                "params": {},
-            }
-        )
-        time.sleep(2)
-        ModuleList.command_dispatcher.handle_message(
-            {
-                "category": "config",
-                "action": "tracker_config crop_left",
-                "params": ((0.2, 0.5), (0.3, 0.7))
-            }
-        )
-        ModuleList.command_dispatcher.handle_message(
-            {
-                "category": "config",
-                "action": "tracker_config crop_left",
-                "params": ((0.5, 0.8), (0.3, 0.7))
-            }
-        )
-        """
+        time.sleep(0.5)
+        PreProcessor()
+        time.sleep(0.5)
+        TrackerCenter()
+        time.sleep(0.5)
+        CommandDispatcher()
+  
 if __name__ == "__main__":
     Core()
