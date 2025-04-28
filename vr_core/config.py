@@ -23,10 +23,13 @@ tcp_config = SimpleNamespace(
 
 # ---- Gyroscope Configuration --------------------------------------
 gyroscope_config = SimpleNamespace(
-    bus_num = 1,         # I2C bus number (1 for Raspberry Pi 3 and later)
-    addr = 0x6b,         # I2C address of the gyroscope (L3GD20H)
     update_rate = 0.01,  # in seconds (100 Hz)
     retry_attempts = 10,  # Number of attempts to read data from the gyroscope
+
+    bus_num = 1,         # I2C bus number (1 for Raspberry Pi 3 and later)
+    addr_gyr_acc = 0x6b,         # I2C address of the gyroscope (L3GD20H)
+    addr_mag = 0x1E,     # I2C address of the magnetometer (LIS3MDL)
+
 
     # Register map
     reg_ctrl1 = 0x20,
