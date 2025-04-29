@@ -26,6 +26,9 @@ gyroscope_config = SimpleNamespace(
     update_rate = 0.01,  # in seconds (100 Hz)
     retry_attempts = 10,  # Number of attempts to read data from the gyroscope
 
+    calib_buffer_size = 100,
+    scale_factor = 0.075,
+
     bus_num = 1,         # I2C bus number (1 for Raspberry Pi 3 and later)
     addr_gyr_acc = 0x6b,         # I2C address of the gyroscope (L3GD20H)
     addr_mag = 0x1E,     # I2C address of the magnetometer (LIS3MDL)
@@ -36,9 +39,19 @@ gyroscope_config = SimpleNamespace(
     ctrl1_enable = 0x0F,
 
     # Registers for X, Y, Z axes
-    reg_out_x_l = 0x28,
-    reg_out_y_l = 0x2A,
-    reg_out_z_l = 0x2C,
+    gyro_reg_out_x = 0x22,
+    gyro_reg_out_y = 0x24,
+    gyro_reg_out_z = 0x26,
+
+    acc_reg_out_x = 0x28,
+    acc_reg_out_y = 0x2A,
+    acc_reg_out_z = 0x2C,
+
+    mag_reg_out_x = 0x28,
+    mag_reg_out_y = 0x2A,
+    mag_reg_out_z = 0x2C
+
+
 )
 
 # ---- ESP32 Configuration ------------------------------------------

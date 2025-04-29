@@ -11,6 +11,12 @@ vr_core.egg-info/SOURCES.txt
 vr_core.egg-info/dependency_links.txt
 vr_core.egg-info/requires.txt
 vr_core.egg-info/top_level.txt
+vr_core/eye_processing/__init__.py
+vr_core/eye_processing/calibration_handler.py
+vr_core/eye_processing/main_processor.py
+vr_core/eye_processing/pre_processor.py
+vr_core/eye_processing/models/__init__.py
+vr_core/eye_processing/models/inverse_model.py
 vr_core/eye_tracker/__init__.py
 vr_core/eye_tracker/frame_provider.py
 vr_core/eye_tracker/queue_handler.py

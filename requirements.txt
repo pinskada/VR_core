@@ -1,6 +1,6 @@
 opencv-contrib-python==4.5.*
 pymba==0.3.*
-numpy==1.19.*
+numpy==1.21.6
 PyYaml
 Scipy
 smbus2

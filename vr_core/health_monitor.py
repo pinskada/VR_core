@@ -18,7 +18,7 @@ class HealthMonitor:
         self.tcp_server.send( 
             {
                 "type": "STATUS",
-                "data": "HealthMonitor: Health monitoring thread started.",
+                "data": "HealthMonitor: Health monitoring thread started."
             }, data_type="JSON", priority="low")
         threading.Thread(target=self.check_for_health, daemon=True).start()
 

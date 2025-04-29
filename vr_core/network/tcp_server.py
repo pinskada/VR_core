@@ -47,7 +47,7 @@ class TCPServer:
         self.command_dispatcher = None
 
         if autostart:
-            self.verify_static_ip()
+            #self.verify_static_ip()
             self.start_server()
 
     def verify_static_ip(self):
@@ -95,12 +95,6 @@ class TCPServer:
         self.client_conn, self.client_addr = conn, addr
         self.client_conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         print(f"[INFO] TCPServer: Connected to {addr}")
-
-        # Send initial handshake
-        try:
-            self.client_conn.sendall(b"CONNECTED\n")
-        except Exception as e:
-            print(f"[WARN] TCPServer: Handshake send failed: {e}")
 
         # Spawn communication threads
         self.receiver_thread = threading.Thread(target=self._receive_loop)

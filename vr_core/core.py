@@ -20,19 +20,19 @@ class Core:
         
         config.tracker_config.use_test_video = True  # Use saved video instead of live camera
 
-        TCPServer()
+        tcp_server = TCPServer()
         time.sleep(0.5)
-        HealthMonitor()
+        #HealthMonitor()
         time.sleep(0.5)
-        Gyroscope(force_mock=True)
+        Gyroscope()
         time.sleep(0.5)
-        ESP32(force_mock=True)
+        #ESP32(force_mock=True)
         time.sleep(0.5)
-        PreProcessor()
+        #PreProcessor()
         time.sleep(0.5)
-        TrackerCenter()
+        #TrackerCenter()
         time.sleep(0.5)
-        CommandDispatcher()
-  
+        #CommandDispatcher()
+       
 if __name__ == "__main__":
     Core()
