@@ -218,7 +218,7 @@ class Gyroscope:
                     data = {"gyro": gyro_data, 
                             "accel": accel_data, 
                             "mag": mag_data} # Combine the data into a single dictionary
-
+                    
                     if self.tcp_server is not None:
                         self.tcp_server.send(
                         {
@@ -226,22 +226,21 @@ class Gyroscope:
                             "data": data
                         }, data_type='JSON', priority='high')
                         error = None
-                        #self.tcp_server.send({
-                        #    "type": "STATUS",
-                        #    "data": "connection test"
-                        #}, data_type="JSON", priority="high")
+
                     else:
                         print("[WARN] Gyroscope: No TCP sender available. Skipping data send.")
                     
+                    if module_list.main_processor is not None:
+                        module_list.main_processor.gyro_handler(gyro_data)
+
                 except Exception as e:
                     failure_count += 1
                     error = e
-                    #print(f"[ERROR] Gyroscope: Failed sending message: {e}")
+                    print(f"[ERROR] Gyroscope: Failed sending message: {e}")
 
                 print_count += 1
-                #print("[INFO] Gyroscope: Data sent:", data)
                 if print_count == 10:
-                    print(data)
+                    #print("[INFO] Gyroscope: Data sent:", data)
                     print_count = 0
 
                 if error is not None and failure_count >= gyroscope_config.retry_attempts:

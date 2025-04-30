@@ -46,6 +46,11 @@ class TCPServer:
         # Dispatcher
         self.command_dispatcher = None
 
+        # Connection state
+        self.reseting_connection = False
+        self.last_unsent = False
+        self.unsent_count = 0
+
         if autostart:
             #self.verify_static_ip()
             self.start_server()
@@ -84,17 +89,21 @@ class TCPServer:
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server_socket.bind((self.host, self.port))
         self.server_socket.listen(1)
-        print(f"[INFO] TCPServer: Waiting for Unity on {self.host}:{self.port}...")
 
+        print(f"[INFO] TCPServer: Waiting for Unity on {self.host}:{self.port}...")
         try:
             conn, addr = self.server_socket.accept()
         except Exception as e:
-            print(f"[WARN] TCPServer: Accept failed: {e}")
+            #print(f"[WARN] TCPServer: Accept failed: {e}")
             return
 
         self.client_conn, self.client_addr = conn, addr
         self.client_conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         print(f"[INFO] TCPServer: Connected to {addr}")
+
+        self.unsent_count = 0
+        self.last_unsent = False
+        self.reseting_connection = False
 
         # Spawn communication threads
         self.receiver_thread = threading.Thread(target=self._receive_loop)
@@ -141,11 +150,21 @@ class TCPServer:
 
     def _send_direct(self, packet: bytes):
         """Immediately send a fully-formed packet to Unity."""
-        try:
-            if self.client_conn:
-                self.client_conn.sendall(packet)
-        except Exception as e:
-            print(f"[WARN] TCPServer: Send error: {e}")
+        if not self.reseting_connection:
+            try:
+                if self.client_conn:
+                    self.client_conn.sendall(packet)
+                    self.last_unsent = False
+            except Exception as e:
+                if self.last_unsent == True:
+                    self.unsent_count += 1
+                self.last_unsent = True
+
+            if self.unsent_count >= tcp_config.restart_server_count:
+                if not self.reseting_connection:
+                    print(f"[WARN] TCPServer: Restarting server due to client dissconected.")
+                self.reseting_connection = True
+                self.restart_server()
 
     def send(self, payload, data_type='JSON', priority='low'):
         """Encode a payload and enqueue it by priority."""
@@ -174,6 +193,11 @@ class TCPServer:
         header = type_map[data_type] + length.to_bytes(3, 'big')
         return header + body
 
+    def restart_server(self):
+        """"When client is unresponsive it shuts down all threads and launches a new listener"""
+        self.stop_server()
+        self.start_server()
+
     def stop_server(self):
         """Signal threads to stop, close sockets, and join threads."""
         self.online = False
@@ -195,6 +219,11 @@ class TCPServer:
             self.server_socket.close()
 
         # Join threads
+        current = threading.current_thread()
         for thr in (self.listener_thread, self.receiver_thread, self.sender_thread):
-            if thr and thr.is_alive():
+            if thr and thr.is_alive() and thr != current:
                 thr.join()
+
+        self.listener_thread = None
+        self.receiver_thread = None
+        self.sender_thread = None

@@ -59,43 +59,17 @@ class MainProcessor:
     def gyro_handler(self, input_gyro_data):
         """
         Update trust based on gyroscope rotation speed.
-        gyro_data: (x_rate, y_rate, z_rate) in deg/s
+        gyro_data: (x_rotation, y_rotation, z_rotation) in deg/s
         """
-        now = time.time()
-        x = input_gyro_data.get('x')
-        y = input_gyro_data.get('y')
-        z = input_gyro_data.get('z')
+        x_rotation = input_gyro_data.get("x")
+        y_rotation = input_gyro_data.get("y")
+        z_rotation = input_gyro_data.get("z")
 
-        self.gyro_buffer.append((now, x, y, z))
+        total_rotation = (x_rotation**2 + y_rotation**2 + z_rotation**2)**0.5
 
-        # Keep buffer size fixed
-        if len(self.gyro_buffer) > self.buffer_size:
-            self.gyro_buffer.pop(0)
-
-        if len(self.gyro_buffer) < 2:
-            # Not enough data to estimate speed yet
-            return
-
-        # Calculate angular speed
-        t0, x0, y0, z0 = self.gyro_buffer[0]
-        t1, x1, y1, z1 = self.gyro_buffer[-1]
-
-        dt = t1 - t0
-        if dt == 0:
-            # Prevent division by zero
-            return
-
-        dx = x1 - x0
-        dy = y1 - y0
-        dz = z1 - z0
-
-        total_rotation = sum(((dx)**2 + (dy)**2 + (dz)**2) ** 0.5)
-
-        rotation_speed = total_rotation / dt
-
-        if rotation_speed > self.gyro_threshold:
+        if total_rotation > self.gyro_threshold:
             self.trust_tracker = False
-            print(f"[DEBUG] Gyro rotation speed: {rotation_speed:.2f} deg/sec | Trust: {self.trust_tracker}")
+            print(f"[DEBUG] Gyro rotation speed: {total_rotation:.2f} deg/sec | Trust: {self.trust_tracker}")
         else:
             self.trust_tracker = True
 

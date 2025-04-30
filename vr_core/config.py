@@ -13,6 +13,8 @@ tcp_config = SimpleNamespace(
     google_dns = "8.8.8.8",  # Used to check if the device is connected to the internet
     http_port = 80,          # Port for HTTP requests (if needed)
 
+    restart_server_count = 10,
+
     # Message priorities for the TCP server
     message_priorities = {
         'high': queue.Queue(), # Reserved for gyroscope data
@@ -109,7 +111,7 @@ eye_processing_config = SimpleNamespace(
     crop_buffer_factor = 0.1,  # Factor to determine the amount of data to discard from the start and end of the buffer
     std_threshold = 0.01,  # Threshold for standard deviation to determine if the sample is valid
     gyro_buffer = 10,  # Buffer size for gyroscope data
-    gyro_threshold = 30,  # Threshold for gyroscope data to determine if the system should trust the data
+    gyro_threshold = 5,  # Threshold for gyroscope data to determine if the system should trust the data
 
     model_params = None,  # Model parameters for the inverse model (to be set during calibration)
     corrected_model_params = None  # Model parameters for the corrected model (to be set during calibration)
