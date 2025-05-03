@@ -39,8 +39,11 @@ class QueueHandler:
             raise
 
         try:
-            self.response_thread = threading.Thread(target=self._response_loop, daemon=True)
-            self.response_thread.start()
+            self.response_thread_left = threading.Thread(target=self._response_loop_left)
+            self.response_thread_right = threading.Thread(target=self._response_loop_right)
+
+            self.response_thread_left.start()
+            self.response_thread_right.start()
         except Exception as e:
             self.health_monitor.failure("QueueHandler", f"Error starting _response_loop thread: {e}")
             print(f"[ERROR] QueueHandler: Error starting _response_loop thread: {e}")
@@ -57,7 +60,10 @@ class QueueHandler:
         return self.response_queue_L, self.response_queue_R
     
     def get_sync_queues(self):
-        return self.sync_queue_L, self.sync_queue_R, self.acknowledge_queue_L, self.acknowledge_queue_R
+        return self.sync_queue_L, self.sync_queue_R
+    
+    def get_ack_queues(self):
+        return self.acknowledge_queue_L, self.acknowledge_queue_R
     
     def send_command(self, command: dict, eye: str):
         """
@@ -78,24 +84,33 @@ class QueueHandler:
             self.online = False
 
 
-    def _response_loop(self):
+    def _response_loop_left(self):
         while self.online:
             try:
-                msg_L = self.response_queue_L.get(timeout=tracker_config.queue_timeout)
+                msg_L = self.response_queue_L.get(timeout=tracker_config.handler_queue_timeout)
                 self.dispatch_message(msg_L, "Left")
 
-                msg_R = self.response_queue_R.get(timeout=tracker_config.queue_timeout)
+            except Exception:
+                # Silently skip if queues are empty or error occurs
+                #time.sleep(tracker_config.handler_queue_timeout)
+                pass
+
+    def _response_loop_right(self):
+        while self.online:
+            try:
+                msg_R = self.response_queue_R.get(timeout=tracker_config.handler_queue_timeout)
                 self.dispatch_message(msg_R, "Right")
 
             except Exception:
                 # Silently skip if queues are empty or error occurs
-                time.sleep(tracker_config.queue_timeout)
-
+                #time.sleep(tracker_config.handler_queue_timeout)
+                pass
 
     def dispatch_message(self, message, eye: str):
         """
         Dispatches a message to the appropriate queue based on its content.
         """
+        
         try:
             if isinstance(message, dict):
                 if "payload" == message.get("type"):
@@ -107,9 +122,8 @@ class QueueHandler:
             elif isinstance(message, bytes):
                 self.tcp_server.send(
                     {
-                        "category": "EyeloopData",
-                        "eye": eye,
-                        "payload": "PNG"
+                        "type": "imageInfo",
+                        "data": f"{eye}_png"
                     }, data_type="JSON", priority="medium")
                 self.tcp_server.send(message, data_type="PNG", priority="medium")
             else:
@@ -133,6 +147,7 @@ class QueueHandler:
                 return
             self.frame_id_left = message.get("frame_id")
             self.message_left = data
+            #print(f"[INFO] QueueHandler: Received left frame with id {self.frame_id_left}")
         elif eye == "Right":
             if not isinstance(data, dict):
                 self.health_monitor.failure("QueueHandler", "Invalid message format in sync_frames")
@@ -140,9 +155,10 @@ class QueueHandler:
                 return
             self.frame_id_right = message.get("frame_id")
             self.message_right = data
+            #print(f"[INFO] QueueHandler: Received right frame with id {self.frame_id_right}")
         else:
             self.health_monitor.failure("QueueHandler", f"Invalid eye specified when syncing frames: {eye}")
-            print(f"[WARN] QueueHandler: Invalid eye specified when syncing frames: {eye}")
+            #print(f"[WARN] QueueHandler: Invalid eye specified when syncing frames: {eye}")
             return
 
         if self.frame_id_left is not None and self.frame_id_right is not None:
@@ -150,20 +166,9 @@ class QueueHandler:
                 # Both frames are synchronized
                 if getattr(self.tracker_center, "setup_mode", True):
                     # In setup mode, send the frames to the TCP server
-                    self.tcp_server.send(
-                    {
-                        "category": "EyeloopData",
-                        "eye": "Left",
-                        "payload": self.message_left
-                    }, data_type="JSON", priority="medium")
-                    self.tcp_server.send(
-                    {
-                        "category": "EyeloopData",
-                        "eye": "Right",
-                        "payload": self.message_right
-                    }, data_type="JSON", priority="medium")
-                    print(f"[INFO] QueueHandler: Sending synchronized frames with id {self.frame_id_left} to TCP server")
-                    print(f"[DATA] QueueHandler: {self.message_left} ; {self.message_right}")
+  
+                    self.pre_processor.get_relative_ipd(self.message_left, self.message_right)
+    
                 else:
                     self.pre_processor.get_relative_ipd(self.message_left, self.message_right)
                     
@@ -233,3 +238,16 @@ class QueueHandler:
         self.send_command({"type": "close"}, eye="L")
         self.send_command({"type": "close"}, eye="R")
         
+    def stop(self):
+        self.online = False
+        self.command_queue_L.close()
+        self.command_queue_R.close()
+        self.response_queue_L.close()
+        self.response_queue_R.close()
+        self.sync_queue_L.close()
+        self.sync_queue_R.close()
+        self.acknowledge_queue_L.close()
+        self.acknowledge_queue_R.close()
+        time.sleep(0.5)
+        self.response_thread_right.join()
+        self.response_thread_left.join()

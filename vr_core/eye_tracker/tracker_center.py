@@ -20,15 +20,6 @@ class TrackerCenter:
 
         self.test_mode = test_mode  # Flag to indicate if the module is in test mode
         self.setup_mode = False
-        self.frame_provider = None
-        self.tracker_launcher = None
-
-        try:
-            self.queue_handler = QueueHandler()  # Initialize the queue handler
-        except Exception as e:
-            self.online = False  # Set online status to False if initialization fails
-            self.health_monitor.failure("EyeTracker", f"QueueHandler initialization error: {e}")
-            print(f"[ERROR] TrackerCenter: QueueHandler initialization error: {e}")
 
     def is_online(self):
         """Check if the tracker is online."""
@@ -55,38 +46,49 @@ class TrackerCenter:
             self.tracker_launcher.stop()
         except:
             pass  # Ignore if tracker handler is not initialized
-
+        
         self.stop_preview()  # In case a previous preview was running
         self.start_preview()  # Start the preview loop
 
     def setup_tracker_2(self):
         self.stop_preview()
         self.setup_mode = True
-        self.queue_handler.send_command({"type": "preview"}, "L")
-        self.queue_handler.send_command({"type": "preview"}, "R")
 
-        self.frame_provider = FrameProvider() # Initialize frame provider
-        self.tracker_launcher = TrackerLauncher() # Initialize EyeLoop process
-        
-        self.frame_provider_thread = threading.Thread(target=self.frame_provider.run, daemon=True)
+        module_list.queue_handler = QueueHandler()  # Reinitialize the queue handler
+        time.sleep(0.5)  # Allow time for the queue handler to initialize
+
+        module_list.queue_handler.send_command({"type": "preview"}, "L")
+        module_list.queue_handler.send_command({"type": "preview"}, "R")
+        module_list.frame_provider = FrameProvider() # Initialize frame provider
+
+        self.frame_provider_thread = threading.Thread(target=module_list.frame_provider.run)
         self.frame_provider_thread.start() # Start the frame provider
+
+        module_list.tracker_launcher = TrackerLauncher() # Initialize EyeLoop process
+        module_list.queue_handler.update_eyeloop_autosearch(1) # Update the EyeLoop autosearch flag
 
     def launch_tracker(self):
         self.stop_preview()
+        module_list.queue_handler = QueueHandler()  # Reinitialize the queue handler
+        time.sleep(0.5)  # Allow time for the queue handler to initialize
 
-        self.frame_provider = FrameProvider() # Initialize frame provider
-        self.tracker_launcher = TrackerLauncher() # Initialize EyeLoop process
+        module_list.frame_provider = FrameProvider() # Initialize frame provider
         
-        self.frame_provider_thread = threading.Thread(target=self.frame_provider.run, daemon=True)
+        self.frame_provider_thread = threading.Thread(target=module_list.frame_provider.run)
         self.frame_provider_thread.start() # Start the frame provider
-        self.queue_handler.update_eyeloop_autosearch(1) # Update the EyeLoop autosearch flag
+        
+        module_list.tracker_launcher = TrackerLauncher() # Initialize EyeLoop process
+        module_list.queue_handler.update_eyeloop_autosearch(1) # Update the EyeLoop autosearch flag
 
     def start_preview(self):  
+        module_list.queue_handler = QueueHandler()  # Reinitialize the queue handler
+        time.sleep(0.5)  # Allow time for the queue handler to initialize
 
-        self.frame_provider = FrameProvider()
-        self.frame_provider_thread = threading.Thread(target=self.frame_provider.run, daemon=True)
+        module_list.frame_provider = FrameProvider()
+        self.frame_provider_thread = threading.Thread(target=module_list.frame_provider.run)
         self.frame_provider_thread.start() # Start the frame provider
         self.setup_mode = True
+        time.sleep(0.5)  # Allow time for the frame provider to start
         self.preview_thread = threading.Thread(target=self._preview_loop, daemon=True)
         self.preview_thread.start()
         print("[INFO] TrackerCenter: Preview streaming started via preview loop.")
@@ -94,6 +96,7 @@ class TrackerCenter:
 
     def _preview_loop(self):
 
+        self.acknowledge_queue_L, self.acknowledge_queue_R = module_list.queue_handler.get_ack_queues()
         frame = 0
         if not self.test_mode:
             try:
@@ -106,11 +109,14 @@ class TrackerCenter:
 
             while self.setup_mode:
                 frame += 1
-                if frame % 10 == 0:
+                if frame % 50 == 0:
                     print(f"[INFO] TrackerCenter: Sending preview; Frame ID: {frame}.")
                 try:
                     img_L = np.ndarray(tracker_config.memory_shape_L, dtype=np.uint8, buffer=shm_L.buf).copy()
                     img_R = np.ndarray(tracker_config.memory_shape_R, dtype=np.uint8, buffer=shm_R.buf).copy()
+                    self.acknowledge_queue_L.put({"type": "ack", "frame_id": frame})
+                    self.acknowledge_queue_R.put({"type": "ack", "frame_id": frame})
+
                 except Exception as e:
                     self.health_monitor.failure("EyeTracker", f"Shared memory read error: {e}")
                     print(f"[WARN] TrackerCenter: Shared memory read error: {e}")
@@ -124,11 +130,11 @@ class TrackerCenter:
                     print(f"[WARN] TrackerCenter: JPEG encoding error: {e}")
                     break
                 
-                self.tcp_server.send("left_JPEG", data_type='JSON', priority="medium")
-                self.tcp_server.send(jpg_L.tobytes(), data_type='JPEG', priority="medium")
+                self.tcp_server.send({"type": "imageInfo", "data": "left_JPEG"}, data_type="JSON", priority="low")
+                self.tcp_server.send(jpg_L.tobytes(), data_type="JPEG", priority="medium")
 
-                self.tcp_server.send(payload="right_JPEG", data_type='JSON', priority="medium")
-                self.tcp_server.send(jpg_R.tobytes(), data_type='JPEG', priority="medium")
+                self.tcp_server.send({"type": "imageInfo", "data": "right_JPEG"}, data_type="JSON", priority="medium")
+                self.tcp_server.send(jpg_R.tobytes(), data_type="JPEG", priority="low")
 
                 time.sleep(1 / tracker_config.preview_fps)
         else:
@@ -142,12 +148,24 @@ class TrackerCenter:
 
     def stop_preview(self):
         self.setup_mode = False
+        try:
+            module_list.frame_provider.frame_id = 0  # Reset the frame ID
+            module_list.frame_provider.stop()  # Stop the frame provider
+            self.frame_provider_thread.join()  # Wait for the thread to finish
+            module_list.frame_provider = None  # Clear the frame provider
+        except:
+            pass
 
-        if hasattr(self, 'preview_thread') and self.preview_thread.is_alive():
-            self.preview_thread.join()
-            print("[INFO] TrackerCenter: Preview streaming stopped.")
+        try:
+            self.shm_L.unlink()  # Unlink the shared memory
+            self.shm_R.unlink()  # Unlink the shared memory
+        except:
+            pass
 
-        if self.frame_provider:
-            self.frame_provider.stop()
+        try:
+            self.preview_thread.join()  # Wait for the thread to finish
+        except:
+            pass
 
+    
         time.sleep(0.1)  # Allow time for the preview loop to stop

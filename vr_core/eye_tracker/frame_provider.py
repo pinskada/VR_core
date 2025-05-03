@@ -17,9 +17,10 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
         self.queue_handler = module_list.queue_handler  # Reference to the queue handler
 
         self.test_mode = test_mode  # Flag for test mode
-        self._frame_id = 0  # Incremented with each new frame
-        self.sync_queue_L, self.sync_queue_R, self.acknowledge_queue_L, self.acknowledge_queue_R = self.queue_handler.get_sync_queues()
-
+        self.frame_id = 0  # Incremented with each new frame
+        self.sync_queue_L, self.sync_queue_R = self.queue_handler.get_sync_queues()
+        self.acknowledge_queue_L, self.acknowledge_queue_R = self.queue_handler.get_ack_queues()
+        print(f"[INFO] FrameProvider: Frame id: {self.frame_id}.")
         # Choose between test video or live camera
         if self.use_test_video:
             self.cv2 = cv2
@@ -42,6 +43,7 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
             test_frame = self.cam_manager.capture_frame()
         test_frame = cv2.cvtColor(test_frame, cv2.COLOR_BGR2GRAY)
         test_frame = test_frame.transpose(1,0)[:, :]
+        mean_img = np.mean(test_frame)
 
         self._allocate_memory(test_frame, crop_L_bool=True, crop_R_bool=True) # Allocate shared memory for left and right eye frames
 
@@ -81,21 +83,20 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
                 # Crop left and right regions from the full frame
                 l = self._crop(full_frame, tracker_config.crop_left)
                 r = self._crop(full_frame, tracker_config.crop_right)
-
-                time.sleep(1 / tracker_config.frame_provider_max_fps)  # Maintain target FPS
-
-                if self._frame_id != 0:
+               
+                if self.frame_id != 0:
                     # Wait for both EyeLoop processes to acknowledge the previous frame
+                    time.sleep(1 / tracker_config.frame_provider_max_fps)  # Maintain target FPS
                     self._wait_for_sync()
     
                 # Increment frame ID for synchronization
-                self._frame_id += 1
+                self.frame_id += 1
 
                 try:
                     # Write cropped frames to shared memory
                     np.ndarray(tracker_config.memory_shape_L, dtype=l.dtype, buffer=self.shm_L.buf)[:] = l
                     np.ndarray(tracker_config.memory_shape_R, dtype=r.dtype, buffer=self.shm_R.buf)[:] = r
-                    #print(f"[INFO] FrameProvider: Wrote frame {self._frame_id} to shared memory.")
+                    #print(f"[INFO] FrameProvider: Wrote frame {self.frame_id} to shared memory.")
                 except Exception as e:
                     self.health_monitor.failure("FrameProvider", f"Failed to write to shared memory: {e}")
                     print(f"[ERROR] FrameProvider: Failed to write to shared memory: {e}")
@@ -104,9 +105,9 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
 
                 try:
                     # Put frame ID in sync queues for both EyeLoop processes
-                    self.sync_queue_L.put({"frame_id": self._frame_id, "type": "frame_id"})
-                    self.sync_queue_R.put({"frame_id": self._frame_id, "type": "frame_id"})
-                    #print(f"[INFO] FrameProvider: Put frame ID {self._frame_id} in sync queues.")
+                    self.sync_queue_L.put({"frame_id": self.frame_id, "type": "frame_id"})
+                    self.sync_queue_R.put({"frame_id": self.frame_id, "type": "frame_id"})
+                    #print(f"[INFO] FrameProvider: Put frame ID {self.frame_id} in sync queues.")
                 except Exception as e:
                     self.health_monitor.failure("FrameProvider", f"Failed to put frame ID in sync queue: {e}")
                     print(f"[ERROR] FrameProvider: Failed to put frame ID in sync queue: {e}")
@@ -130,45 +131,45 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
         # Block until both EyeLoop processes confirm processing of current frame
         left_done = right_done = False
         start_time = time.time()
-        #print(f"[INFO] FrameProvider: New frame: {self._frame_id}")
+        #print(f"[INFO] FrameProvider: New frame: {self.frame_id}")
         while not (left_done and right_done):
             now = time.time()
             if now - start_time > tracker_config.sync_timeout:
-                print(f"[WARN] FrameProvider: Timeout - total sync wait exceeded {tracker_config.sync_timeout} sec for frame {self._frame_id}")
+                print(f"[WARN] FrameProvider: Timeout - total sync wait exceeded {tracker_config.sync_timeout} sec for frame {self.frame_id}")
                 break
 
             try:
                 if not left_done:
-                    msg_L = self.acknowledge_queue_L.get(timeout=tracker_config.queue_timeout)
-                    if msg_L.get("type") == "ack" and msg_L.get("frame_id") == self._frame_id:
+                    msg_L = self.acknowledge_queue_L.get(timeout=tracker_config.provider_queue_timeout)
+                    if msg_L.get("type") == "ack" and msg_L.get("frame_id") == self.frame_id:
                         left_done = True
-                        #print(f"[INFO] FrameProvider: Left EyeLoop acknowledged frame {self._frame_id}.")
+                        #print(f"[INFO] FrameProvider: Left EyeLoop acknowledged frame {self.frame_id}.")
             except Empty:
                 pass
 
             try:
                 if not right_done:
-                    msg_R = self.acknowledge_queue_R.get(timeout=tracker_config.queue_timeout)
-                    if msg_R.get("type") == "ack" and msg_R.get("frame_id") == self._frame_id:
+                    msg_R = self.acknowledge_queue_R.get(timeout=tracker_config.provider_queue_timeout)
+                    if msg_R.get("type") == "ack" and msg_R.get("frame_id") == self.frame_id:
                         right_done = True
-                        #print(f"[INFO] FrameProvider: Right EyeLoop acknowledged frame {self._frame_id}.")
+                        #print(f"[INFO] FrameProvider: Right EyeLoop acknowledged frame {self.frame_id}.")
             except Empty:
                 pass
 
             time.sleep(0.001)  # Small sleep to avoid busy waiting
 
         if not left_done:
-            print(f"[WARN] FrameProvider: Left EyeLoop did not acknowledge frame {self._frame_id} in time.")
+            print(f"[WARN] FrameProvider: Left EyeLoop did not acknowledge frame {self.frame_id} in time.")
         if not right_done:
-            print(f"[WARN] FrameProvider: Right EyeLoop did not acknowledge frame {self._frame_id} in time.")
+            print(f"[WARN] FrameProvider: Right EyeLoop did not acknowledge frame {self.frame_id} in time.")
 
 
     def is_online(self):
         return self.online
 
     @property
-    def current_frame_id(self):
-        return self._frame_id
+    def currentframe_id(self):
+        return self.frame_id
 
 
     def _allocate_memory(self, frame, crop_L_bool, crop_R_bool):
@@ -273,10 +274,9 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
         if side == "both" or side == "L":
             print("[INFO] FrameProvider: Cleaning up left FrameProvider resources.")
             try:
-                existing_shm = SharedMemory(name=tracker_config.sharedmem_name_left)
-                existing_shm.unlink()
-                existing_shm.close()
-                existing_shm = None
+                self.shm_L = SharedMemory(name=tracker_config.sharedmem_name_left)
+                self.shm_L.unlink()
+                self.shm_L.close()
                 try:
                     self.shm_L = None
                 except:
@@ -290,10 +290,9 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
         if side == "both" or side == "R":
             print("[INFO] FrameProvider: Cleaning up right FrameProvider resources.")
             try:
-                existing_shm = SharedMemory(name=tracker_config.sharedmem_name_right)
-                existing_shm.unlink()
-                existing_shm.close()
-                existing_shm = None
+                self.shm_R = SharedMemory(name=tracker_config.sharedmem_name_right)
+                self.shm_R.unlink()
+                self.shm_R.close()
                 try:
                     self.shm_R = None
                 except:
@@ -304,9 +303,8 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
                 print(f"[WARNING] Forced memory cleanup error: {e}")
 
     def stop(self):
-        if not self.online:
-            self.online = False
-            self.clean_memory()
+        self.online = False
+        self.clean_memory()
 
-            if self.use_test_video:
-                self.cap.release()
+        if self.use_test_video:
+            self.cap.release()

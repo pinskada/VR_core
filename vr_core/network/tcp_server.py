@@ -43,9 +43,6 @@ class TCPServer:
         self.receiver_thread = None
         self.sender_thread = None
 
-        # Dispatcher
-        self.command_dispatcher = None
-
         # Connection state
         self.reseting_connection = False
         self.last_unsent = False
@@ -121,10 +118,10 @@ class TCPServer:
                     break
                 text = data.decode('utf-8').strip()
                 print(f"[INFO] TCPServer: Received: {text}")
-                if self.command_dispatcher:
+                if module_list.command_dispatcher:
                     try:
                         msg = json.loads(text)
-                        self.command_dispatcher.handle_message(msg)
+                        module_list.command_dispatcher.handle_message(msg)
                     except json.JSONDecodeError:
                         print(f"[WARN] TCPServer: Bad JSON: {text}")
             except Exception as e:
@@ -227,3 +224,7 @@ class TCPServer:
         self.listener_thread = None
         self.receiver_thread = None
         self.sender_thread = None
+
+
+    def is_online(self):
+        return self.online

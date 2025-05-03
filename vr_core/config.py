@@ -76,9 +76,9 @@ tracker_config = SimpleNamespace(
     frame_provider_max_fps = 1000, # Maximum FPS for the frame provider
     jpeg_quality = 75,  # JPEG encoding quality (0-100)
     sync_timeout = 1,  # Timeout for EyeLoop response in seconds
-    #index = 0  # Only used for fallback/testing
     preview_fps = 5,  # FPS for preview stream
-    queue_timeout = 0.01,  # Timeout for queue operations in seconds
+    handler_queue_timeout = 0.001,  # Timeout for queue operations in seconds
+    provider_queue_timeout = 0.01,  # Timeout for provider queue operations in seconds
     process_launch_time = 0.4,  # Time to wait for the EyeLoop process to stabilize (in seconds)
     
     crop_left = ((0.0, 0.5), (0.0, 1.0)),  # Relative region (x1, x2, y1, y2) for the left eye
@@ -106,7 +106,7 @@ tracker_config = SimpleNamespace(
 
 eye_processing_config = SimpleNamespace(
 
-    print_ipd_state = 10,  # Flag to indicate if the system should print the IPD state
+    print_ipd_state = 50,  # Flag to indicate if the system should print the IPD state
     filter_alpha = 0.5,  # Alpha value for the low-pass filter (0-1)
     crop_buffer_factor = 0.1,  # Factor to determine the amount of data to discard from the start and end of the buffer
     std_threshold = 0.01,  # Threshold for standard deviation to determine if the sample is valid

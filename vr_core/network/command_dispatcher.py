@@ -1,8 +1,11 @@
 import vr_core.config as Config
-import vr_core.module_list as module_list 
+import vr_core.module_list as module_list
+from vr_core.eye_tracker.tracker_center import TrackerCenter
+import time
 
 class CommandDispatcher:
     def __init__(self):
+        self.online = True
 
         module_list.command_dispatcher = self  # Register the command dispatcher in the module list
         self.tcp_server = module_list.tcp_server  # Access the TCP server from the module list
@@ -11,6 +14,8 @@ class CommandDispatcher:
         category = command_msg.get("category")
         action = command_msg.get("action")
         params = command_msg.get("params", {})
+
+        print(f"[INFO] CommandDispatcher: Message inbound; Category: {category}")
 
         if category == "eye_tracker":
             self._handle_eyeloop_action(action, params)
@@ -39,31 +44,27 @@ class CommandDispatcher:
 
 
     def _handle_eye_tracker_action(self, action):
-        if module_list.tracker_center is not None:
-            if action == "setup_tracker_1":
-                module_list.tracker_center.setup_tracker_1()
-            elif action == "setup_tracker_2":
-                module_list.tracker_center.setup_tracker_2()
-            elif action == "launch_tracker":
-                module_list.tracker_center.launch_tracker()
-            else:
-                self.tcp_server.send(
-                    {
-                        "type": "STATUS",
-                        "data": f"Unknown action '{action}' for TrackerCenter.",
-                    }, data_type="JSON", priority="low"
-                )
-                print(f"[WARN] CommandDispatcher: Unknown tracker_center mode: {action}")
+        if action == "setup_tracker_1":
+            self.kill_eyetracker()
+            module_list.tracker_center = TrackerCenter()
+            module_list.tracker_center.setup_tracker_1()
+        elif action == "setup_tracker_2":
+            self.kill_eyetracker()
+            module_list.tracker_center = TrackerCenter()
+            module_list.tracker_center.setup_tracker_2()
+        elif action == "launch_tracker":
+            self.kill_eyetracker()
+            module_list.tracker_center = TrackerCenter()
+            module_list.tracker_center.launch_tracker()
         else:
             self.tcp_server.send(
                 {
                     "type": "STATUS",
-                    "data": "TrackerCenter is offline.",
+                    "data": f"Unknown action '{action}' for TrackerCenter.",
                 }, data_type="JSON", priority="low"
             )
-            print("[WARN] CommandDispatcher: TrackerCenter not connected. Cannot handle action.")
-
-
+            print(f"[WARN] CommandDispatcher: Unknown tracker_center mode: {action}")
+  
     def _handle_calibration_action(self, action):
         if module_list.calibration_handler is not None:
             if action == "start_calibration":
@@ -136,4 +137,23 @@ class CommandDispatcher:
                 }, data_type="JSON", priority="low"
             )
             print(f"[WARN] Config: Unknown configuration class: '{class_name}'")
+
+    def kill_eyetracker(self):
+        try:
+            module_list.tracker_center.stop_preview()
+        except:
+            pass
+        module_list.tracker_center = None
+
+        try:
+            module_list.queue_handler.stop()
+        except Exception as e:
+            print(f"[WARN] CommandDispatcher: Error stopping QueueHandler: {e}")
+
+        module_list.queue_handler = None
+        module_list.tracker_launcher = None
+        time.sleep(0.5)
+
+    def is_online(self):
+        return self.online
 

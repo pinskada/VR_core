@@ -1,3 +1,13 @@
+import os
+import sys
+
+print("===== DEBUG INFO =====")
+print("PYTHONPATH:", os.environ.get("PYTHONPATH"))
+print("VIRTUAL_ENV:", os.environ.get("VIRTUAL_ENV"))
+print("SYS PATH:", sys.path)
+print("======================")
+
+
 from vr_core.network.tcp_server import TCPServer
 from vr_core.raspberry_perif.esp32 import ESP32
 from vr_core.raspberry_perif.gyroscope import Gyroscope
@@ -22,17 +32,27 @@ class Core:
 
         tcp_server = TCPServer()
         time.sleep(0.5)
-        #HealthMonitor()
+        HealthMonitor()
         time.sleep(0.5)
         Gyroscope()
         time.sleep(0.5)
-        #ESP32(force_mock=True)
+        ESP32(force_mock=True)
         time.sleep(0.5)
-        #PreProcessor()
+        PreProcessor()
         time.sleep(0.5)
-        #TrackerCenter()
-        time.sleep(0.5)
-        #CommandDispatcher()
+        cmd = CommandDispatcher()
        
+        """
+        cmd.handle_message({
+            "category": "tracker_mode",
+            "action": "setup_tracker_1",
+        })
+        time.sleep(5)
+        cmd.handle_message({
+            "category": "tracker_mode",
+            "action": "setup_tracker_2",
+        })
+        """
+
 if __name__ == "__main__":
     Core()

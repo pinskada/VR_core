@@ -17,7 +17,8 @@ class TrackerLauncher:
 
         self.command_queue_L, self.command_queue_R = self.queue_handler.get_command_queues()
         self.response_queue_L, self.response_queue_R = self.queue_handler.get_response_queues()
-        self.sync_queue_L, self.sync_queue_R, self.acknowledge_queue_L, self.acknowledge_queue_R = self.queue_handler.get_sync_queues()
+        self.sync_queue_L, self.sync_queue_R = self.queue_handler.get_sync_queues()
+        self.acknowledge_queue_L, self.acknowledge_queue_R = self.queue_handler.get_ack_queues()
 
         self.test_mode = test_mode
 
