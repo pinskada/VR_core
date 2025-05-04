@@ -218,13 +218,12 @@ class Gyroscope:
                     data = {"gyro": gyro_data, 
                             "accel": accel_data, 
                             "mag": mag_data} # Combine the data into a single dictionary
-                    
                     if self.tcp_server is not None:
                         self.tcp_server.send(
                         {
                             "type": "9dof",
                             "data": data
-                        }, data_type='JSON', priority='high')
+                        }, data_type="JSON", priority="high")
                         error = None
 
                     else:

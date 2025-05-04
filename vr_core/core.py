@@ -41,16 +41,22 @@ class Core:
         PreProcessor()
         time.sleep(0.5)
         cmd = CommandDispatcher()
-       
         """
+       
         cmd.handle_message({
             "category": "tracker_mode",
             "action": "setup_tracker_1",
         })
-        time.sleep(5)
+        time.sleep(20)
         cmd.handle_message({
             "category": "tracker_mode",
             "action": "setup_tracker_2",
+        })
+        time.sleep(5)
+        cmd.handle_message({
+            "category": "config",
+            "action": "tracker_config crop_left",
+            "params": ((0.0, 0.25), (0.0, 1.0))
         })
         """
 

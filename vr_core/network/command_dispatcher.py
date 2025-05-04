@@ -46,16 +46,22 @@ class CommandDispatcher:
     def _handle_eye_tracker_action(self, action):
         if action == "setup_tracker_1":
             self.kill_eyetracker()
+            Config.tracker_config.sync_timeout = 5
             module_list.tracker_center = TrackerCenter()
             module_list.tracker_center.setup_tracker_1()
         elif action == "setup_tracker_2":
             self.kill_eyetracker()
+            Config.tracker_config.sync_timeout = 1
             module_list.tracker_center = TrackerCenter()
             module_list.tracker_center.setup_tracker_2()
         elif action == "launch_tracker":
             self.kill_eyetracker()
+            Config.tracker_config.sync_timeout = 1
             module_list.tracker_center = TrackerCenter()
             module_list.tracker_center.launch_tracker()
+        elif action == "stop_preview":
+            self.kill_eyetracker()
+            Config.tracker_config.sync_timeout = 1
         else:
             self.tcp_server.send(
                 {
@@ -98,6 +104,8 @@ class CommandDispatcher:
             config_class = getattr(Config, class_name)
 
             if hasattr(config_class, attr_name):
+                if attr_name.startswith("crop_"):
+                    params = (tuple(params[0]), tuple(params[1]))
                 setattr(config_class, attr_name, params)
                 print(f"[INFO] [CommandDispatcher] {class_name}.{attr_name} set to {params}")
                 if class_name == "camera_manager_config":
@@ -148,8 +156,7 @@ class CommandDispatcher:
         try:
             module_list.queue_handler.stop()
         except Exception as e:
-            print(f"[WARN] CommandDispatcher: Error stopping QueueHandler: {e}")
-
+            pass
         module_list.queue_handler = None
         module_list.tracker_launcher = None
         time.sleep(0.5)

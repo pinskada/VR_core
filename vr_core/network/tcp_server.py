@@ -114,10 +114,10 @@ class TCPServer:
         while self.online and not self._stop_event.is_set():
             try:
                 data = self.client_conn.recv(tcp_config.recv_buffer_size)
-                if not data:
+                if data == 0 or not data:
+                    print(f"[WARN] TCPServer: Connection closed by client.")
                     break
                 text = data.decode('utf-8').strip()
-                print(f"[INFO] TCPServer: Received: {text}")
                 if module_list.command_dispatcher:
                     try:
                         msg = json.loads(text)
@@ -127,10 +127,13 @@ class TCPServer:
             except Exception as e:
                 print(f"[WARN] TCPServer: Receive error: {e}")
                 break
+        self.reseting_connection = True
+        print(f"[WARN] TCPServer: Restarting server due to client dissconected.")
+        self.restart_server()
 
     def _send_loop(self):
         """Continuously check priority queues and send waiting messages."""
-        while self.online and not self._stop_event.is_set():
+        while self.online and not self._stop_event.is_set() and not self.reseting_connection:
             for level in ('high', 'medium', 'low'):
                 try:
                     msg = self.priority_queues[level].get_nowait()
@@ -153,18 +156,16 @@ class TCPServer:
                     self.client_conn.sendall(packet)
                     self.last_unsent = False
             except Exception as e:
+                print(f"[WARN] TCPServer: Send error: {e}")
                 if self.last_unsent == True:
                     self.unsent_count += 1
                 self.last_unsent = True
 
-            if self.unsent_count >= tcp_config.restart_server_count:
-                if not self.reseting_connection:
-                    print(f"[WARN] TCPServer: Restarting server due to client dissconected.")
-                self.reseting_connection = True
-                self.restart_server()
-
     def send(self, payload, data_type='JSON', priority='low'):
         """Encode a payload and enqueue it by priority."""
+
+        #if data_type == "JPEG":
+        #    print(f"[INFO] TCPServer: Sending JPEG image.")
         packet = self.encode_message(payload, data_type)
         queue_ref = self.priority_queues.get(priority, self.priority_queues['low'])
         queue_ref.put(packet)
@@ -193,6 +194,7 @@ class TCPServer:
     def restart_server(self):
         """"When client is unresponsive it shuts down all threads and launches a new listener"""
         self.stop_server()
+        module_list.command_dispatcher.handle_message({"category": "tracker_mode", "action": "stop_preview"})
         self.start_server()
 
     def stop_server(self):

@@ -179,21 +179,35 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
         tracker_config.full_frame_resolution = frame.shape
         self.shape = frame.shape
 
+        print(f"[INFO] FrameProvider: Current crop: {tracker_config.crop_left}, right: {tracker_config.crop_right}")
+
         if crop_L_bool:
             self.queue_handler.detach_eyeloop_memory("L")
-            time.sleep(1.5)  # Small delay to ensure proper detachment
+            time.sleep(0.1)  # Small delay to ensure proper detachment
 
             self.crop_L = tracker_config.crop_left
 
-            self.x_rel_start_L, self.x_rel_end_L = self.crop_L[0]
-            self.y_rel_start_L, self.y_rel_end_L = self.crop_L[1]
+            x_rel_start_L, x_rel_end_L = self.crop_L[0]
+            y_rel_start_L, y_rel_end_L = self.crop_L[1]
+            
+            x_start_L = int(x_rel_start_L * frame_width)
+            x_end_L = int(x_rel_end_L * frame_width)
 
-            tracker_config.memory_shape_L[0] = int((self.x_rel_end_L - self.x_rel_start_L) * frame_width)
-            tracker_config.memory_shape_L[1] = int((self.y_rel_end_L - self.y_rel_start_L) * frame_height)
+            # Compute y coordinates based of the frame actual size
+            y_start_L = int(y_rel_start_L * frame_height)
+            y_end_L = int(y_rel_end_L * frame_height)
+            
+            tracker_config.memory_shape_L[0] = x_end_L-x_start_L
+            tracker_config.memory_shape_L[1] = y_end_L-y_start_L
 
             self.memory_size_L = tracker_config.memory_shape_L[0] * tracker_config.memory_shape_L[1]
 
+
             self.clean_memory("L")  # Clean up left eye memory if it exists
+            try:
+                module_list.tracker_center.reset_preview_memory("L")
+            except:
+                pass
 
             try:
                 self.shm_L = SharedMemory(name=tracker_config.sharedmem_name_left, create=True, size=self.memory_size_L)
@@ -206,28 +220,38 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
             self.health_monitor.status("FrameProvider", f"Reallocated shared memory for eye: L")
 
             print(f"[INFO] FrameProvider: Reallocated left SHM.")
-
+            print(f"[INFO] FrameProvider: Left memoryShape: {tracker_config.memory_shape_L}")
 
         if crop_R_bool:
             self.queue_handler.detach_eyeloop_memory("R")
-            time.sleep(0.2)  # Small delay to ensure proper detachment
+            time.sleep(0.1)  # Small delay to ensure proper detachment
 
             self.crop_R = tracker_config.crop_right
 
-            self.x_rel_start_R, self.x_rel_end_R = self.crop_R[0]
-            self.y_rel_start_R, self.y_rel_end_R = self.crop_R[1]
+            x_rel_start_R, x_rel_end_R = self.crop_R[0]
+            y_rel_start_R, y_rel_end_R = self.crop_R[1]
 
-            tracker_config.memory_shape_R[0] = int((self.x_rel_end_R - self.x_rel_start_R) * frame_width)
-            tracker_config.memory_shape_R[1] = int((self.y_rel_end_R - self.y_rel_start_R) * frame_height)
+            x_start_R = int(x_rel_start_R * frame_width)
+            x_end_R = int(x_rel_end_R * frame_width)
+
+            # Compute y coordinates based of the frame actual size
+            y_start_R = int(y_rel_start_R * frame_height)
+            y_end_R = int(y_rel_end_R * frame_height)
+
+            tracker_config.memory_shape_R[0] = x_end_R-x_start_R
+            tracker_config.memory_shape_R[1] = y_end_R-y_start_R
 
             self.memory_size_R = tracker_config.memory_shape_R[0] * tracker_config.memory_shape_R[1]
 
             self.clean_memory("R")  # Clean up left eye memory if it exists
 
             try:
-                self.shm_R = SharedMemory(name=tracker_config.sharedmem_name_right, create=True, size=self.memory_size_R)
-                print(f"[INFO] FrameProvider: Reallocated SHM.")
+                module_list.tracker_center.reset_preview_memory("R")
+            except:
+                pass
 
+            try:
+                self.shm_R = SharedMemory(name=tracker_config.sharedmem_name_right, create=True, size=self.memory_size_R)
             except Exception as e:
                 self.health_monitor.failure("FrameProvider", f"Failed to allocate shared memory: {e}")
                 self.online = False
@@ -237,6 +261,7 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
             
             self.health_monitor.status("FrameProvider", f"Reallocated shared memory for eye: R")
             print(f"[INFO] FrameProvider: Reallocated right SHM.")
+            print(f"[INFO] FrameProvider: Right memoryShape: {tracker_config.memory_shape_R}")
 
 
     def validate_crop(self):    

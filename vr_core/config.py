@@ -13,9 +13,9 @@ tcp_config = SimpleNamespace(
     google_dns = "8.8.8.8",  # Used to check if the device is connected to the internet
     http_port = 80,          # Port for HTTP requests (if needed)
 
-    restart_server_count = 10,
+    restart_server_count = 1,
 
-    # Message priorities for the TCP server
+    # Message priorities for the TCP server7
     message_priorities = {
         'high': queue.Queue(), # Reserved for gyroscope data
         'medium': queue.Queue(), # Reserved for eye tracker data
@@ -73,10 +73,10 @@ esp32_config = SimpleNamespace(
 
 # ---- Tracker Configuration ------------------------------------
 tracker_config = SimpleNamespace(
-    frame_provider_max_fps = 1000, # Maximum FPS for the frame provider
+    frame_provider_max_fps = 1000, # Maximum FPS for the frame provider3`1`3
     jpeg_quality = 75,  # JPEG encoding quality (0-100)
     sync_timeout = 1,  # Timeout for EyeLoop response in seconds
-    preview_fps = 5,  # FPS for preview stream
+    preview_fps = 20,  # FPS for preview stream
     handler_queue_timeout = 0.001,  # Timeout for queue operations in seconds
     provider_queue_timeout = 0.01,  # Timeout for provider queue operations in seconds
     process_launch_time = 0.4,  # Time to wait for the EyeLoop process to stabilize (in seconds)
@@ -86,7 +86,7 @@ tracker_config = SimpleNamespace(
 
     sharedmem_name_left = "eye_left_frame",  # Shared memory buffer name for left eye
     sharedmem_name_right = "eye_right_frame",  # Shared memory buffer name for right eye
-    memory_dtype = "uint8",  # Data type for the shared memory buffer
+    memory_dtype = "uint8",  # Data type for the shared9`1b54n67` memory buffer
     memory_shape_L = [960, 1080],  # Size of the shared memory buffer (height, width)
     memory_shape_R = [960, 1080],  # Size of the shared memory buffer (height, width)
     full_frame_resolution = [1920, 1080],  # Full frame resolution (height, width)

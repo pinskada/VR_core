@@ -82,13 +82,15 @@ class TrackerCenter:
 
     def start_preview(self):  
         module_list.queue_handler = QueueHandler()  # Reinitialize the queue handler
-        time.sleep(0.5)  # Allow time for the queue handler to initialize
+        time.sleep(0.1)  # Allow time for the queue handler to initialize
 
         module_list.frame_provider = FrameProvider()
         self.frame_provider_thread = threading.Thread(target=module_list.frame_provider.run)
         self.frame_provider_thread.start() # Start the frame provider
         self.setup_mode = True
-        time.sleep(0.5)  # Allow time for the frame provider to start
+        time.sleep(0.1)  # Allow time for the frame provider to start
+        self.last_shape_L = tracker_config.memory_shape_L
+        self.last_shape_R = tracker_config.memory_shape_R
         self.preview_thread = threading.Thread(target=self._preview_loop, daemon=True)
         self.preview_thread.start()
         print("[INFO] TrackerCenter: Preview streaming started via preview loop.")
@@ -107,9 +109,38 @@ class TrackerCenter:
                 print("[ERROR] TrackerCenter: Shared memory not found for preview loop.")
                 return
 
+            
+            print("[INFO] TrackerCenter: Initialising preview loop.")
             while self.setup_mode:
                 frame += 1
-                if frame % 50 == 0:
+
+                current_shape_L = tracker_config.memory_shape_L
+                current_shape_R = tracker_config.memory_shape_R
+                print(f"[INFO] TrackerCenter: Last left memory shape: {self.last_shape_L}")
+                print(f"[INFO] TrackerCenter: Current left memory shape: {current_shape_L}")
+                
+                print(f"[INFO] TrackerCenter: Last right memory shape: {self.last_shape_R}")
+                print(f"[INFO] TrackerCenter: Current right memory  shape: {current_shape_R}")
+
+                if self.reallocate_memory_L:
+                    shm_L.close()  # Unlink the old shared memory
+                    time.sleep(0.05)
+                    shm_L = SharedMemory(name=tracker_config.sharedmem_name_left)  # Recreate the shared memory
+                    time.sleep(0.05)
+                    self.reallocate_memory_L = False  # Reset the reallocation flag
+                    print(f"[INFO] FrameProvider: New left memory shape: {tracker_config.memory_shape_L}")
+                    print(f"[INFO] FrameProvider: Current left memory buffer: {shm_L.buf}")
+
+                if self.reallocate_memory_R:
+                    shm_R.close()  # Unlink the old shared memory
+                    time.sleep(0.05)
+                    shm_R = SharedMemory(name=tracker_config.sharedmem_name_right)  # Recreate the shared memory
+                    time.sleep(0.05)
+                    self.reallocate_memory_R = False  # Reset the reallocation flag
+                    print(f"[INFO] FrameProvider: New right memory shape: {tracker_config.memory_shape_R}")
+                    print(f"[INFO] FrameProvider: Current right memory buffer: {shm_R.buf}")
+
+                if frame % 5 == 0:
                     print(f"[INFO] TrackerCenter: Sending preview; Frame ID: {frame}.")
                 try:
                     img_L = np.ndarray(tracker_config.memory_shape_L, dtype=np.uint8, buffer=shm_L.buf).copy()
@@ -130,13 +161,14 @@ class TrackerCenter:
                     print(f"[WARN] TrackerCenter: JPEG encoding error: {e}")
                     break
                 
-                self.tcp_server.send({"type": "imageInfo", "data": "left_JPEG"}, data_type="JSON", priority="low")
-                self.tcp_server.send(jpg_L.tobytes(), data_type="JPEG", priority="medium")
+                self.tcp_server.send({"type": "imageInfo", "data": "left_JPEG"}, data_type="JSON", priority="high")
+                self.tcp_server.send(jpg_L.tobytes(), data_type="JPEG", priority="high")
+                time.sleep(1 / tracker_config.preview_fps*2)
 
-                self.tcp_server.send({"type": "imageInfo", "data": "right_JPEG"}, data_type="JSON", priority="medium")
-                self.tcp_server.send(jpg_R.tobytes(), data_type="JPEG", priority="low")
+                self.tcp_server.send({"type": "imageInfo", "data": "right_JPEG"}, data_type="JSON", priority="high")
+                self.tcp_server.send(jpg_R.tobytes(), data_type="JPEG", priority="high")
+                time.sleep(1 / tracker_config.preview_fps*2)
 
-                time.sleep(1 / tracker_config.preview_fps)
         else:
             while self.setup_mode:
                 frame += 1
@@ -145,6 +177,14 @@ class TrackerCenter:
 
                 time.sleep(1 / tracker_config.preview_fps)
                 print("[INFO] TrackerCenter: In test mode; pretending to write to a SharedMemory.")
+
+    def reset_preview_memory(self, side):
+        if side == "L":
+            self.reallocate_memory_L = True
+        elif side == "R":
+            self.reallocate_memory_R = True
+        else:
+            raise ValueError("Invalid side. Use 'L' or 'R'.")
 
     def stop_preview(self):
         self.setup_mode = False
