@@ -28,7 +28,7 @@ class Core:
 
     def __init__(self) -> None:
         
-        config.tracker_config.use_test_video = True  # Use saved video instead of live camera
+        #config.tracker_config.use_test_video = True  # Use saved video instead of live camera
 
         tcp_server = TCPServer()
         time.sleep(0.5)
@@ -41,12 +41,12 @@ class Core:
         PreProcessor()
         time.sleep(0.5)
         cmd = CommandDispatcher()
-        """
        
         cmd.handle_message({
             "category": "tracker_mode",
             "action": "setup_tracker_1",
         })
+        """
         time.sleep(20)
         cmd.handle_message({
             "category": "tracker_mode",

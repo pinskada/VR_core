@@ -15,7 +15,7 @@ class CameraManager:
             self.picam2 = Picamera2()  # Initialize camera object
         except ImportError as e:
             self.health_monitor.failure("CameraManager", f"Picamera2 not available: {e}")
-            print("[ERROR] CameraManager: Picamera2 not available")
+            print(f"[ERROR] CameraManager: Picamera2 not available: {e}")
             self.online = False
             return
         
@@ -23,7 +23,7 @@ class CameraManager:
         return self.online
 
     def apply_config(self):
-        cam = camera_manager_config()
+        cam = camera_manager_config
 
         # Apply image resolution and buffer settings
         cfg = self.picam2.create_still_configuration(

@@ -76,7 +76,7 @@ tracker_config = SimpleNamespace(
     frame_provider_max_fps = 1000, # Maximum FPS for the frame provider3`1`3
     jpeg_quality = 75,  # JPEG encoding quality (0-100)
     sync_timeout = 1,  # Timeout for EyeLoop response in seconds
-    preview_fps = 20,  # FPS for preview stream
+    preview_fps = 10,  # FPS for preview stream
     handler_queue_timeout = 0.001,  # Timeout for queue operations in seconds
     provider_queue_timeout = 0.01,  # Timeout for provider queue operations in seconds
     process_launch_time = 0.4,  # Time to wait for the EyeLoop process to stabilize (in seconds)
@@ -120,10 +120,10 @@ eye_processing_config = SimpleNamespace(
 
 # ---- Camera Configuration ----------------------------------------
 camera_manager_config = SimpleNamespace(
-    width = 200,
-    height = 100,
+    width = 4608,
+    height = 2592,
 
-    focus = 2.5,  # Only used if autofocus is False
+    focus = 30,# Only used if autofocus is False
     exposure_time = 10000,  # In microseconds
     analogue_gain = 2.0,  # Brightness boost
     af_mode = 0,  # 0 = manual, 1 = auto

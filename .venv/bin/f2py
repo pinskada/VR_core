@@ -1,4 +1,4 @@
-#!/home/VRberry/Public/VR_core/.venv/bin/python3.9
+#!/home/VRberry/Public/VR_core/.venv/bin/python
 # -*- coding: utf-8 -*-
 import re
 import sys

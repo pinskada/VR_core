@@ -114,7 +114,8 @@ class QueueHandler:
         try:
             if isinstance(message, dict):
                 if "payload" == message.get("type"):
-                    self.sync_frames(message, eye)                 
+                    if message.get("data"):
+                        self.sync_frames(message, eye)                 
                 else:
                     self.health_monitor.failure("QueueHandler", f"Missing 'payload' in message from response loop.from eye: {eye}")
                     print("[WARN] QueueHandler: Missing 'payload' in message.")
@@ -123,9 +124,12 @@ class QueueHandler:
                 self.tcp_server.send(
                     {
                         "type": "imageInfo",
-                        "data": f"{eye}_png"
+                        "data": f"{eye}"
                     }, data_type="JSON", priority="medium")
+                time.sleep(0.05)
                 self.tcp_server.send(message, data_type="PNG", priority="medium")
+                time.sleep(0.05)
+                #print(f"[INFO] QueueHandler: Sending {eye} eye PNG preview to client")
             else:
                 self.health_monitor.failure("QueueHandler", f"Unexpected message format: {type(message)}, content: {str(message)[:100]}")
                 print(f"[WARN] QueueHandler: Unexpected message format: {type(message)}, content: {str(message)[:100]}")
@@ -212,6 +216,23 @@ class QueueHandler:
         else:
             self.health_monitor.failure("QueueHandler", f"Invalid eye specified when sending memory data to Eyeloop: {eye}")
             print(f"[WARN] QueueHandler: Invalid eye specified when sending memory data to Eyeloop: {eye}")
+
+    def prompt_preview(self, send_preview):
+        """
+        Updates Eyeloop whether to send preview.
+        """
+        self.send_command(
+        {
+            "type": "config",
+            "param": "preview",
+            "value": send_preview
+        }, eye="L")
+        self.send_command(
+        {
+            "type": "config",
+            "param": "preview",
+            "value": send_preview
+        }, eye="R")
 
     def update_eyeloop_autosearch(self, autosearch):
         """
