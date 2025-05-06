@@ -8,8 +8,8 @@
 
 # === CONFIGURE HERE ===
 INTERFACE="eth0"                   # Change to wlan0 for Wi-Fi
-STATIC_IP="192.168.1.2"           # Desired static IP
-ROUTER_IP="192.168.1.1"            # Usually your gateway
+STATIC_IP="192.168.2.2"           # Desired static IP
+ROUTER_IP="192.168.2.1"            # Usually your gateway
 DNS="8.8.8.8 1.1.1.1"              # Google and Cloudflare DNS
 # =======================
 

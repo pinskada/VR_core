@@ -16,7 +16,9 @@ import vr_core.module_list as ModuleList
 from vr_core.health_monitor import HealthMonitor
 from vr_core.network.command_dispatcher import CommandDispatcher
 from vr_core.eye_processing.pre_processor import PreProcessor
+from vr_core.raspberry_perif.camera_manager import CameraManager
 
+import vr_core.module_list as module_list
 import vr_core.config as config
 
 import time
@@ -28,8 +30,10 @@ class Core:
 
     def __init__(self) -> None:
         
-        #config.tracker_config.use_test_video = True  # Use saved video instead of live camera
-
+        config.tracker_config.use_test_video = True  # Use saved video instead of live camera
+        
+        if not config.tracker_config.use_test_video:
+            module_list.cam_manager = CameraManager()
         tcp_server = TCPServer()
         time.sleep(0.5)
         HealthMonitor()
@@ -41,12 +45,13 @@ class Core:
         PreProcessor()
         time.sleep(0.5)
         cmd = CommandDispatcher()
+        
        
-        cmd.handle_message({
-            "category": "tracker_mode",
-            "action": "setup_tracker_1",
-        })
         """
+        ModuleList.cmd_dispatcher_queue.put({
+            "category": "tracker_mode",
+            "action": "setup_tracker_1"
+        })
         time.sleep(20)
         cmd.handle_message({
             "category": "tracker_mode",

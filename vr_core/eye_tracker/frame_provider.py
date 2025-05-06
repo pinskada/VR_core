@@ -28,9 +28,7 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
             self.health_monitor.status("FrameProvider", "Using test video for frame capture.")
             print("[INFO] FrameProvider: Using test video for frame capture.")
         else:
-            from vr_core.raspberry_perif.camera_manager import CameraManager
-            self.cam_manager = CameraManager()
-            self.cam_manager.apply_config()
+            module_list.cam_manager.apply_config()
 
         # Capture a test frame to determine actual crop size
         if self.use_test_video:
@@ -39,9 +37,10 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
                 self.health_monitor.failure("FrameProvider", "Failed to read test frame from video.")
                 self.online = False
                 raise RuntimeError("[ERROR] FrameProvider: Failed to read test frame from video.")
+            test_frame = cv2.cvtColor(test_frame, cv2.COLOR_BGR2GRAY)
+
         else:
-            test_frame = self.cam_manager.capture_frame()
-        test_frame = cv2.cvtColor(test_frame, cv2.COLOR_BGR2GRAY)
+            test_frame = module_list.cam_manager.capture_frame()
         test_frame = test_frame.transpose(1,0)[:, :]
         mean_img = np.mean(test_frame)
 
@@ -51,23 +50,32 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
         try:
             while self.is_online():
                 # Check if the frame provider is online
+                # Increment frame ID for synchronization
+                self.frame_id += 1
+
+                if self.frame_id != 1:
+                    # Wait for both EyeLoop processes to acknowledge the previous frame
+                    time.sleep(1 / tracker_config.frame_provider_max_fps)  # Maintain target FPS
+                    self._wait_for_sync()
 
                 # Capture next frame from video or camera
                 if self.use_test_video:
-                    ret, image = self.cap.read()
-                    if image is None:
+                    ret, full_frame = self.cap.read()
+                    if full_frame is None:
                         print("[INFO] FrameProvider: End of video reached.")
                         return
 
-                    full_frame = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-                    full_frame = full_frame.transpose(1,0)[:, :]
                     if not ret:
                         self.health_monitor.failure("FrameProvider", "Failed to read test frame from video or end of video.")
                         print("[INFO] FrameProvider: End of test video or read error.")
                         self.online = False
                         break
                 else:
-                    full_frame = self.cam_manager.capture_frame()
+                    full_frame = module_list.cam_manager.capture_frame()
+
+                if (self.frame_id) % 10 == 0:
+                    print(f"[INFO] FrameProvider: Frames being written to memory: {time.time()}")
+                full_frame = full_frame.transpose(1,0)[:, :]
 
                 # Conditions to check if crop dimensions or resolution have changed
                 crop_L_bool = self.crop_L != tracker_config.crop_left
@@ -83,15 +91,7 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
                 # Crop left and right regions from the full frame
                 l = self._crop(full_frame, tracker_config.crop_left)
                 r = self._crop(full_frame, tracker_config.crop_right)
-               
-                if self.frame_id != 0:
-                    # Wait for both EyeLoop processes to acknowledge the previous frame
-                    time.sleep(1 / tracker_config.frame_provider_max_fps)  # Maintain target FPS
-                    self._wait_for_sync()
-    
-                # Increment frame ID for synchronization
-                self.frame_id += 1
-
+            
                 try:
                     # Write cropped frames to shared memory
                     np.ndarray(tracker_config.memory_shape_L, dtype=l.dtype, buffer=self.shm_L.buf)[:] = l

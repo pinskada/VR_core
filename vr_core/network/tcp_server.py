@@ -121,7 +121,10 @@ class TCPServer:
                 if module_list.command_dispatcher:
                     try:
                         msg = json.loads(text)
-                        module_list.command_dispatcher.handle_message(msg)
+                        if module_list.cmd_dispatcher_queue is not None:
+                            module_list.cmd_dispatcher_queue.put(msg)
+                        else:
+                            print("Command dispatcher not initialsed.")
                     except json.JSONDecodeError:
                         print(f"[WARN] TCPServer: Bad JSON: {text}")
             except Exception as e:
@@ -194,7 +197,7 @@ class TCPServer:
     def restart_server(self):
         """"When client is unresponsive it shuts down all threads and launches a new listener"""
         self.stop_server()
-        module_list.command_dispatcher.handle_message({"category": "tracker_mode", "action": "stop_preview"})
+        module_list.cmd_dispatcher_queue.put({"category": "tracker_mode", "action": "stop_preview"})
         self.start_server()
 
     def stop_server(self):

@@ -1,6 +1,10 @@
-Metadata-Version: 2.4
-Name: vr_core
+Metadata-Version: 1.0
+Name: vr-core
 Version: 0.1
-Requires-Dist: opencv-python
-Requires-Dist: numpy
-Dynamic: requires-dist
+Summary: UNKNOWN
+Home-page: UNKNOWN
+Author: UNKNOWN
+Author-email: UNKNOWN
+License: UNKNOWN
+Description: UNKNOWN
+Platform: UNKNOWN

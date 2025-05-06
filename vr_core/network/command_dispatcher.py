@@ -2,6 +2,8 @@ import vr_core.config as Config
 import vr_core.module_list as module_list
 from vr_core.eye_tracker.tracker_center import TrackerCenter
 import time
+import queue
+import threading
 
 class CommandDispatcher:
     def __init__(self):
@@ -10,24 +12,35 @@ class CommandDispatcher:
         module_list.command_dispatcher = self  # Register the command dispatcher in the module list
         self.tcp_server = module_list.tcp_server  # Access the TCP server from the module list
 
-    def handle_message(self, command_msg: dict):
-        category = command_msg.get("category")
-        action = command_msg.get("action")
-        params = command_msg.get("params", {})
+        module_list.cmd_dispatcher_queue = queue.Queue()
 
-        print(f"[INFO] CommandDispatcher: Message inbound; Category: {category}")
+        self.handle_message_thread = threading.Thread(target=self.handle_message)
+        self.handle_message_thread.start() # Start the frame provider
 
-        if category == "eye_tracker":
-            self._handle_eyeloop_action(action, params)
-        elif category == "tracker_mode":
-            self._handle_eye_tracker_action(action)
-        elif category == "calibration":
-            self._handle_calibration_action(action)
-        elif category == "config":
-            self._handle_config_action(action, params)
-        else:
-            print(f"[WARN] CommandDispatcher: Unknown command category: {category}")
+    def handle_message(self):
+        while self.online:
+            
+            try:
+                command_msg = module_list.cmd_dispatcher_queue.get(timeout=0.005)
 
+                category = command_msg.get("category")
+                action = command_msg.get("action")
+                params = command_msg.get("params", {})
+
+                print(f"[INFO] CommandDispatcher: Message inbound; Category: {category}")
+
+                if category == "eye_tracker":
+                    self._handle_eyeloop_action(action, params)
+                elif category == "tracker_mode":
+                    self._handle_eye_tracker_action(action)
+                elif category == "calibration":
+                    self._handle_calibration_action(action)
+                elif category == "config":
+                    self._handle_config_action(action, params)
+                else:
+                    print(f"[WARN] CommandDispatcher: Unknown command category: {category}")
+            except Exception:
+                pass
 
     def _handle_eyeloop_action(self, action, params):
         if module_list.queue_handler is not None:

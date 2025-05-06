@@ -172,10 +172,10 @@ class QueueHandler:
                     # In setup mode, send the frames to the TCP server
   
                     self.pre_processor.get_relative_ipd(self.message_left, self.message_right)
-    
+                    print("Good to go")
                 else:
                     self.pre_processor.get_relative_ipd(self.message_left, self.message_right)
-                    
+                    print("Good to go")
 
                 self.frame_id_left = None
                 self.frame_id_right = None

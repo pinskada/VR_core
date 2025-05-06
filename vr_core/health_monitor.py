@@ -29,7 +29,7 @@ class HealthMonitor:
         self._monitored = {
             'Gyroscope': module_list.gyroscope,
             'ESP32': module_list.esp32,
-            'CameraManager': module_list.camera_manager,
+            #'CameraManager': module_list.camera_manager,
             'TrackerCenter': module_list.tracker_center,
             'QueueHandler': module_list.queue_handler,
             'FrameProvider': module_list.frame_provider,

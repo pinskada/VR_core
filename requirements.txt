@@ -1,5 +1,7 @@
+scipy==1.6.*
 pymba==0.3.*
-
+numpy==1.19.*
 PyYaml
 smbus2
+
 

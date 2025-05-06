@@ -132,14 +132,17 @@ class TrackerCenter:
                     print(f"[INFO] FrameProvider: New right memory shape: {tracker_config.memory_shape_R}")
                     #print(f"[INFO] FrameProvider: Current right memory buffer: {shm_R.buf}")
 
-                if frame % 20 == 0:
-                    print(f"[INFO] TrackerCenter: Sending preview; Frame ID: {frame}.")
+                if frame % 1 == 0:
+                    pass
+                    #print(f"[INFO] TrackerCenter: Sending preview; Frame ID: {frame}.")
                 try:
                     img_L = np.ndarray(tracker_config.memory_shape_L, dtype=np.uint8, buffer=shm_L.buf).copy()
                     img_R = np.ndarray(tracker_config.memory_shape_R, dtype=np.uint8, buffer=shm_R.buf).copy()
                     self.acknowledge_queue_L.put({"type": "ack", "frame_id": frame})
                     self.acknowledge_queue_R.put({"type": "ack", "frame_id": frame})
-
+                    if frame % 10 == 0:
+                        pass
+                        print(f"[INFO] TrackerCenter: Frame load from memory {time.time()}")
                 except Exception as e:
                     self.health_monitor.failure("EyeTracker", f"Shared memory read error: {e}")
                     print(f"[WARN] TrackerCenter: Shared memory read error: {e}")
@@ -153,16 +156,17 @@ class TrackerCenter:
                     print(f"[WARN] TrackerCenter: JPEG encoding error: {e}")
                     break
                 
-                self.tcp_server.send({"type": "imageInfo", "data": "Left"}, data_type="JSON", priority="high")
-                time.sleep(0.05)
-                self.tcp_server.send(jpg_L.tobytes(), data_type="JPEG", priority="high")
+                self.tcp_server.send({"type": "imageInfo", "data": "Left"}, data_type="JSON", priority="medium")
+                time.sleep(0.01)
+                self.tcp_server.send(jpg_L.tobytes(), data_type="JPEG", priority="medium")
                 time.sleep(1 / tracker_config.preview_fps*2)
 
-                self.tcp_server.send({"type": "imageInfo", "data": "Right"}, data_type="JSON", priority="high")
-                time.sleep(0.05)
-                self.tcp_server.send(jpg_R.tobytes(), data_type="JPEG", priority="high")
+                self.tcp_server.send({"type": "imageInfo", "data": "Right"}, data_type="JSON", priority="medium")
+                time.sleep(0.01)
+                self.tcp_server.send(jpg_R.tobytes(), data_type="JPEG", priority="medium")
                 time.sleep(1 / tracker_config.preview_fps*2)
-
+                if frame % 10 == 0:
+                    print(f"[INFO] TrackerCenter: Frame pending to unity {time.time()}")
         else:
             while self.setup_mode:
                 frame += 1

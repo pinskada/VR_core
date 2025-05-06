@@ -9,7 +9,6 @@ vr_core/module_list.py
 vr_core.egg-info/PKG-INFO
 vr_core.egg-info/SOURCES.txt
 vr_core.egg-info/dependency_links.txt
-vr_core.egg-info/requires.txt
 vr_core.egg-info/top_level.txt
 vr_core/eye_processing/__init__.py
 vr_core/eye_processing/calibration_handler.py
