@@ -141,16 +141,16 @@ class TrackerCenter:
                     self.acknowledge_queue_L.put({"type": "ack", "frame_id": frame})
                     self.acknowledge_queue_R.put({"type": "ack", "frame_id": frame})
                     if frame % 10 == 0:
+                        #print(f"[INFO] TrackerCenter: Frame load from memory {time.time()}")
                         pass
-                        print(f"[INFO] TrackerCenter: Frame load from memory {time.time()}")
                 except Exception as e:
                     self.health_monitor.failure("EyeTracker", f"Shared memory read error: {e}")
                     print(f"[WARN] TrackerCenter: Shared memory read error: {e}")
                     continue
                 
                 try:
-                    _, jpg_L = cv2.imencode(".jpg", img_L, [int(cv2.IMWRITE_JPEG_QUALITY), tracker_config.jpeg_quality])
-                    _, jpg_R = cv2.imencode(".jpg", img_R, [int(cv2.IMWRITE_JPEG_QUALITY), tracker_config.jpeg_quality])
+                    _, jpg_L = cv2.imencode(".jpg", img_L, [int(cv2.IMWRITE_JPEG_QUALITY), int(tracker_config.jpeg_quality)])
+                    _, jpg_R = cv2.imencode(".jpg", img_R, [int(cv2.IMWRITE_JPEG_QUALITY), int(tracker_config.jpeg_quality)])
                 except Exception as e:
                     self.health_monitor.failure("EyeTracker", f"JPEG encoding error: {e}")
                     print(f"[WARN] TrackerCenter: JPEG encoding error: {e}")
@@ -166,7 +166,8 @@ class TrackerCenter:
                 self.tcp_server.send(jpg_R.tobytes(), data_type="JPEG", priority="medium")
                 time.sleep(1 / tracker_config.preview_fps*2)
                 if frame % 10 == 0:
-                    print(f"[INFO] TrackerCenter: Frame pending to unity {time.time()}")
+                    #print(f"[INFO] TrackerCenter: Frame pending to unity {time.time()}")
+                    pass
         else:
             while self.setup_mode:
                 frame += 1

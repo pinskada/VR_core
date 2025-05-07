@@ -25,7 +25,10 @@ class CommandDispatcher:
 
                 category = command_msg.get("category")
                 action = command_msg.get("action")
-                params = command_msg.get("params", {})
+                try:
+                    params = command_msg.get("params", {})
+                except Exception:
+                    pass
 
                 print(f"[INFO] CommandDispatcher: Message inbound; Category: {category}")
 
@@ -64,17 +67,17 @@ class CommandDispatcher:
             module_list.tracker_center.setup_tracker_1()
         elif action == "setup_tracker_2":
             self.kill_eyetracker()
-            Config.tracker_config.sync_timeout = 1
+            Config.tracker_config.sync_timeout = 10
             module_list.tracker_center = TrackerCenter()
             module_list.tracker_center.setup_tracker_2()
         elif action == "launch_tracker":
             self.kill_eyetracker()
-            Config.tracker_config.sync_timeout = 1
+            Config.tracker_config.sync_timeout = 10
             module_list.tracker_center = TrackerCenter()
             module_list.tracker_center.launch_tracker()
         elif action == "stop_preview":
             self.kill_eyetracker()
-            Config.tracker_config.sync_timeout = 1
+            Config.tracker_config.sync_timeout = 10
         else:
             self.tcp_server.send(
                 {
@@ -117,10 +120,6 @@ class CommandDispatcher:
             config_class = getattr(Config, class_name)
 
             if hasattr(config_class, attr_name):
-                if attr_name.startswith("crop_"):
-                    params = (tuple(params[0]), tuple(params[1]))
-                setattr(config_class, attr_name, params)
-                print(f"[INFO] [CommandDispatcher] {class_name}.{attr_name} set to {params}")
                 if class_name == "camera_manager_config":
                     if module_list.camera_manager is not None:
                         module_list.camera_manager.apply_config()
@@ -132,6 +131,12 @@ class CommandDispatcher:
                             }, data_type="JSON", priority="low"
                         )
                         print("[WARN] Config: CameraManager not initialized. Camera settings not applied.")
+                elif attr_name.startswith("crop_"):
+                    params = (tuple(params[0]), tuple(params[1]))
+                    setattr(config_class, attr_name, params)
+                else:
+                    setattr(config_class, attr_name, float(params))
+                print(f"[INFO] CommandDispatcher: {class_name}.{attr_name} set to {params}")
 
                 print(f"[Config] {class_name}.{attr_name} set to {params}")
             else:

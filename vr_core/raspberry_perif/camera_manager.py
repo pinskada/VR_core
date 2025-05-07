@@ -36,8 +36,8 @@ class CameraManager:
         # Apply manual or automatic exposure and focus settings
         self.picam2.set_controls({
             "AfMode": cam.af_mode,
-            "LensPosition": cam.focus,
-            "ExposureTime": cam.exposure_time,
+            "LensPosition": int(cam.focus),
+            "ExposureTime": int(cam.exposure_time),
             "AnalogueGain": cam.analogue_gain
         })
         self.picam2.start()  # Start the camera stream
@@ -53,13 +53,14 @@ class CameraManager:
                 frame = request.make_array("main")
                 request.release()
 
-                frame = cv2.resize(frame, (camera_manager_config.width, camera_manager_config.height), interpolation=cv2.INTER_LINEAR)
+                frame = cv2.resize(frame, (int(camera_manager_config.width), int(camera_manager_config.height)), interpolation=cv2.INTER_LINEAR)
 
                 error = None
                 break
             except Exception as e:
                 error = e
                 print(f"[ERROR] CameraManager: error taking frame: {e}")
+
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
 
@@ -70,6 +71,7 @@ class CameraManager:
             return
 
         if self.frame_id % 10 == 0:
-            print(f"[INFO] CameraManager: Returning frame: {time.time()}")
+            #print(f"[INFO] CameraManager: Returning frame: {time.time()}")
+            pass
 
         return frame

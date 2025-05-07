@@ -74,12 +74,13 @@ esp32_config = SimpleNamespace(
 # ---- Tracker Configuration ------------------------------------
 tracker_config = SimpleNamespace(
     frame_provider_max_fps = 1000, # Maximum FPS for the frame provider3`1`3
-    jpeg_quality = 25,  # JPEG encoding quality (0-100)
+    jpeg_quality = 15,  # JPEG encoding quality (0-100)
     sync_timeout = 10,  # Timeout for EyeLoop response in seconds
-    preview_fps = 40,  # FPS for preview stream
+    preview_fps = 20,  # FPS for preview stream
     handler_queue_timeout = 0.001,  # Timeout for queue operations in seconds
     provider_queue_timeout = 0.01,  # Timeout for provider queue operations in seconds
     process_launch_time = 0.4,  # Time to wait for the EyeLoop process to stabilize (in seconds)
+    png_send_rate = 10,
     
     crop_left = ((0.0, 0.5), (0.0, 1.0)),  # Relative region (x1, x2, y1, y2) for the left eye
     crop_right = ((0.5, 1.0), (0.0, 1.0)),  # Relative region (x1, x2, y1, y2) for the right eye
@@ -110,7 +111,6 @@ eye_processing_config = SimpleNamespace(
     filter_alpha = 0.5,  # Alpha value for the low-pass filter (0-1)
     crop_buffer_factor = 0.1,  # Factor to determine the amount of data to discard from the start and end of the buffer
     std_threshold = 0.01,  # Threshold for standard deviation to determine if the sample is valid
-    gyro_buffer = 10,  # Buffer size for gyroscope data
     gyro_threshold = 5,  # Threshold for gyroscope data to determine if the system should trust the data
 
     model_params = None,  # Model parameters for the inverse model (to be set during calibration)

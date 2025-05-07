@@ -20,9 +20,6 @@ class MainProcessor:
 
         self.trust_eye_data = [] # Indicates if the eye data is trusted or not based on gyroscope data
 
-        self.gyro_buffer = []
-
-
     def process_eye_data(self, ipd):
         """
         Process the eye data.

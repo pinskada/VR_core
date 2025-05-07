@@ -51,12 +51,13 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
             while self.is_online():
                 # Check if the frame provider is online
                 # Increment frame ID for synchronization
-                self.frame_id += 1
 
-                if self.frame_id != 1:
+                if self.frame_id != 0:
                     # Wait for both EyeLoop processes to acknowledge the previous frame
                     time.sleep(1 / tracker_config.frame_provider_max_fps)  # Maintain target FPS
                     self._wait_for_sync()
+
+                self.frame_id += 1
 
                 # Capture next frame from video or camera
                 if self.use_test_video:
@@ -64,6 +65,7 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
                     if full_frame is None:
                         print("[INFO] FrameProvider: End of video reached.")
                         return
+                    full_frame = cv2.cvtColor(full_frame, cv2.COLOR_BGR2GRAY)
 
                     if not ret:
                         self.health_monitor.failure("FrameProvider", "Failed to read test frame from video or end of video.")
@@ -74,7 +76,8 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
                     full_frame = module_list.cam_manager.capture_frame()
 
                 if (self.frame_id) % 10 == 0:
-                    print(f"[INFO] FrameProvider: Frames being written to memory: {time.time()}")
+                    #print(f"[INFO] FrameProvider: Frames being written to memory: {time.time()}")
+                    pass
                 full_frame = full_frame.transpose(1,0)[:, :]
 
                 # Conditions to check if crop dimensions or resolution have changed
@@ -268,12 +271,12 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
         (x0_L, x1_L), (y0_L, y1_L) = tracker_config.crop_left
         (x0_R, x1_R), (y0_R, y1_R) = tracker_config.crop_right
 
-        if x0_L < 0 or x1_L > 0.5 or y0_L < 0 or y1_L > 1:
+        if x0_L < 0 or x1_L > 0.5 or y0_L < 0 or y1_L > 1 or x0_L > x1_L or y0_L > y1_L:
             self.health_monitor.status("FrameProvider", f"Invalid crop dimensions for left eye: {tracker_config.crop_left}, resetting to default.")
             print(f"[WARN] FrameProvider: Invalid crop dimensions for left eye: {tracker_config.crop_left}, resetting to default.")
             tracker_config.crop_left = ((0, 0.5), (0, 1))
 
-        if x0_R < 0.5 or x1_R > 1 or y0_R < 0 or y1_R > 1:
+        if x0_R < 0.5 or x1_R > 1 or y0_R < 0 or y1_R > 1 or x0_R > x1_R or y0_R > y1_R:
             self.health_monitor.status("FrameProvider", f"Invalid crop dimensions for right eye: {tracker_config.crop_right}, resetting to default.")
             print(f"[WARN] FrameProvider: Invalid crop dimensions for right eye: {tracker_config.crop_right}, resetting to default.")
             tracker_config.crop_right = ((0.5, 1), (0, 1))

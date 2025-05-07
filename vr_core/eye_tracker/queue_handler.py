@@ -22,6 +22,9 @@ class QueueHandler:
         self.frame_id_left = None
         self.frame_id_right = None
 
+        self.png_id_left = 0
+        self.png_id_right = 0
+
         try:
             # Initialize queues for both left and right EyeLoop processes
             self.command_queue_L = Queue()
@@ -121,15 +124,36 @@ class QueueHandler:
                     print("[WARN] QueueHandler: Missing 'payload' in message.")
             
             elif isinstance(message, bytes):
-                self.tcp_server.send(
-                    {
-                        "type": "imageInfo",
-                        "data": f"{eye}"
-                    }, data_type="JSON", priority="medium")
-                time.sleep(0.05)
-                self.tcp_server.send(message, data_type="PNG", priority="medium")
-                time.sleep(0.05)
-                #print(f"[INFO] QueueHandler: Sending {eye} eye PNG preview to client")
+                if eye == "Left":
+                    self.png_id_left += 1
+                else:
+                    self.png_id_right += 1
+
+                send_left = self.png_id_left % tracker_config.png_send_rate == 0
+                send_right = (self.png_id_right + round(tracker_config.png_send_rate / 2)) % tracker_config.png_send_rate == 0
+
+                if send_left and eye == "Left":
+                    self.tcp_server.send(
+                        {
+                            "type": "imageInfo",
+                            "data": f"{eye}"
+                        }, data_type="JSON", priority="medium")
+                    time.sleep(0.1)
+                    self.tcp_server.send(message, data_type="PNG", priority="medium")
+                    time.sleep(0.1)
+                    self.png_id_left = 0
+                    #print(f"[INFO] QueueHandler: Sending {eye} eye PNG preview to client")
+                elif send_right and eye == "Right":
+                    self.tcp_server.send(
+                        {
+                            "type": "imageInfo",
+                            "data": f"{eye}"
+                        }, data_type="JSON", priority="medium")
+                    time.sleep(0.1)
+                    self.tcp_server.send(message, data_type="PNG", priority="medium")
+                    time.sleep(0.1)
+                    self.png_id_right = 0
+                    #print(f"[INFO] QueueHandler: Sending {eye} eye PNG preview to client")
             else:
                 self.health_monitor.failure("QueueHandler", f"Unexpected message format: {type(message)}, content: {str(message)[:100]}")
                 print(f"[WARN] QueueHandler: Unexpected message format: {type(message)}, content: {str(message)[:100]}")
