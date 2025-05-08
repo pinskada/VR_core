@@ -41,7 +41,7 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
 
         else:
             test_frame = module_list.cam_manager.capture_frame()
-        test_frame = test_frame.transpose(1,0)[:, :]
+        #test_frame = test_frame.transpose(1,0)[:, :]
         mean_img = np.mean(test_frame)
 
         self._allocate_memory(test_frame, crop_L_bool=True, crop_R_bool=True) # Allocate shared memory for left and right eye frames
@@ -78,7 +78,7 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
                 if (self.frame_id) % 10 == 0:
                     #print(f"[INFO] FrameProvider: Frames being written to memory: {time.time()}")
                     pass
-                full_frame = full_frame.transpose(1,0)[:, :]
+                #full_frame = full_frame.transpose(1,0)[:, :]
 
                 # Conditions to check if crop dimensions or resolution have changed
                 crop_L_bool = self.crop_L != tracker_config.crop_left
@@ -177,7 +177,7 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
 
     def _allocate_memory(self, frame, crop_L_bool, crop_R_bool):
 
-        self.validate_crop()  # Validate crop dimensions
+        #self.validate_crop()  # Validate crop dimensions
         frame_width, frame_height = frame.shape
         tracker_config.full_frame_resolution = frame.shape
         self.shape = frame.shape

@@ -50,7 +50,7 @@ class Core:
         """
         ModuleList.cmd_dispatcher_queue.put({
             "category": "tracker_mode",
-            "action": "setup_tracker_1"
+            "action": "setup_tracker_2"
         })
         time.sleep(20)
         cmd.handle_message({

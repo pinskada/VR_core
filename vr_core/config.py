@@ -80,10 +80,10 @@ tracker_config = SimpleNamespace(
     handler_queue_timeout = 0.001,  # Timeout for queue operations in seconds
     provider_queue_timeout = 0.01,  # Timeout for provider queue operations in seconds
     process_launch_time = 0.4,  # Time to wait for the EyeLoop process to stabilize (in seconds)
-    png_send_rate = 10,
+    png_send_rate = 4,
     
-    crop_left = ((0.0, 0.5), (0.0, 1.0)),  # Relative region (x1, x2, y1, y2) for the left eye
-    crop_right = ((0.5, 1.0), (0.0, 1.0)),  # Relative region (x1, x2, y1, y2) for the right eye
+    crop_left = ((0.0, 1.0), (0.0, 0.5)),  # Relative region (x1, x2, y1, y2) for the left eye
+    crop_right = ((0.0, 1.0), (0.5, 1.0)),  # Relative region (x1, x2, y1, y2) for the right eye
 
     sharedmem_name_left = "eye_left_frame",  # Shared memory buffer name for left eye
     sharedmem_name_right = "eye_right_frame",  # Shared memory buffer name for right eye
