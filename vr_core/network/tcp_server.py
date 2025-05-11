@@ -206,6 +206,8 @@ class TCPServer:
         self.online = False
         self._stop_event.set()
 
+        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
         # Close sockets to unblock accept/recv
         if self.client_conn:
             try:

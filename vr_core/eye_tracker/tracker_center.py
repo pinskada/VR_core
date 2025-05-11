@@ -158,8 +158,8 @@ class TrackerCenter:
                 self.tcp_server.send(jpg_R.tobytes(), data_type="JPEG", priority="medium")
                 time.sleep(1 / tracker_config.preview_fps*2)
                 if frame % 10 == 0:
-                    #print(f"[INFO] TrackerCenter: Frame pending to unity {time.time()}")
-                    pass
+                    print(f"[INFO] TrackerCenter: Frame pending to unity {time.time()}")
+                    #pass
         else:
             while self.setup_mode:
                 frame += 1
