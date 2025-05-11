@@ -80,7 +80,7 @@ tracker_config = SimpleNamespace(
     handler_queue_timeout = 0.001,  # Timeout for queue operations in seconds
     provider_queue_timeout = 0.01,  # Timeout for provider queue operations in seconds
     process_launch_time = 0.4,  # Time to wait for the EyeLoop process to stabilize (in seconds)
-    png_send_rate = 4,
+    png_send_rate = 8,
     
     crop_left = ((0.0, 1.0), (0.0, 0.5)),  # Relative region (x1, x2, y1, y2) for the left eye
     crop_right = ((0.0, 1.0), (0.5, 1.0)),  # Relative region (x1, x2, y1, y2) for the right eye
@@ -109,9 +109,10 @@ eye_processing_config = SimpleNamespace(
 
     print_ipd_state = 50,  # Flag to indicate if the system should print the IPD state
     filter_alpha = 0.5,  # Alpha value for the low-pass filter (0-1)
-    crop_buffer_factor = 0.1,  # Factor to determine the amount of data to discard from the start and end of the buffer
+    buffer_crop_factor = 0.1,  # Factor to determine the amount of data to discard from the start and end of the buffer
     std_threshold = 0.01,  # Threshold for standard deviation to determine if the sample is valid
     gyro_threshold = 5,  # Threshold for gyroscope data to determine if the system should trust the data
+    compensation_factor = 1,
 
     model_params = None,  # Model parameters for the inverse model (to be set during calibration)
     corrected_model_params = None  # Model parameters for the corrected model (to be set during calibration)

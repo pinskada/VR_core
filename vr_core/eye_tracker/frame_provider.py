@@ -20,7 +20,7 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
         self.frame_id = 0  # Incremented with each new frame
         self.sync_queue_L, self.sync_queue_R = self.queue_handler.get_sync_queues()
         self.acknowledge_queue_L, self.acknowledge_queue_R = self.queue_handler.get_ack_queues()
-        print(f"[INFO] FrameProvider: Frame id: {self.frame_id}.")
+
         # Choose between test video or live camera
         if self.use_test_video:
             self.cv2 = cv2
@@ -78,7 +78,6 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
                 if (self.frame_id) % 10 == 0:
                     #print(f"[INFO] FrameProvider: Frames being written to memory: {time.time()}")
                     pass
-                #full_frame = full_frame.transpose(1,0)[:, :]
 
                 # Conditions to check if crop dimensions or resolution have changed
                 crop_L_bool = self.crop_L != tracker_config.crop_left
@@ -135,7 +134,7 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
         left_done = right_done = False
         start_time = time.time()
         #print(f"[INFO] FrameProvider: New frame: {self.frame_id}")
-        while not (left_done and right_done):
+        while not (left_done and right_done) and self.online:
             now = time.time()
             if now - start_time > tracker_config.sync_timeout:
                 print(f"[WARN] FrameProvider: Timeout - total sync wait exceeded {tracker_config.sync_timeout} sec for frame {self.frame_id}")
@@ -161,9 +160,9 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
 
             time.sleep(0.001)  # Small sleep to avoid busy waiting
 
-        if not left_done:
+        if not left_done and self.online:
             print(f"[WARN] FrameProvider: Left EyeLoop did not acknowledge frame {self.frame_id} in time.")
-        if not right_done:
+        if not right_done and self.online:
             print(f"[WARN] FrameProvider: Right EyeLoop did not acknowledge frame {self.frame_id} in time.")
 
 
@@ -300,11 +299,11 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
     def clean_memory(self, side="both"):
         
         if side == "both" or side == "L":
-            print("[INFO] FrameProvider: Cleaning up left FrameProvider resources.")
             try:
                 self.shm_L = SharedMemory(name=tracker_config.sharedmem_name_left)
                 self.shm_L.unlink()
                 self.shm_L.close()
+                print("[INFO] FrameProvider: Cleaning up left FrameProvider resources.")
                 try:
                     self.shm_L = None
                 except:
@@ -316,11 +315,11 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
         
         
         if side == "both" or side == "R":
-            print("[INFO] FrameProvider: Cleaning up right FrameProvider resources.")
             try:
                 self.shm_R = SharedMemory(name=tracker_config.sharedmem_name_right)
                 self.shm_R.unlink()
                 self.shm_R.close()
+                print("[INFO] FrameProvider: Cleaning up right FrameProvider resources.")
                 try:
                     self.shm_R = None
                 except:
@@ -332,6 +331,7 @@ class FrameProvider:  # Handles video acquisition, cropping, and shared memory d
 
     def stop(self):
         self.online = False
+        time.sleep(0.5)
         self.clean_memory()
 
         if self.use_test_video:

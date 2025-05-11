@@ -42,20 +42,13 @@ class TrackerCenter:
             
 
     def setup_tracker_1(self):
-        try:
-            self.tracker_launcher.stop()
-        except:
-            pass  # Ignore if tracker handler is not initialized
-        
-        self.stop_preview()  # In case a previous preview was running
         self.start_preview()  # Start the preview loop
 
     def setup_tracker_2(self):
-        self.stop_preview()
         self.setup_mode = True
 
         module_list.queue_handler = QueueHandler()  # Reinitialize the queue handler
-        time.sleep(0.5)  # Allow time for the queue handler to initialize
+        time.sleep(0.1)  # Allow time for the queue handler to initialize
 
         module_list.frame_provider = FrameProvider() # Initialize frame provider
 
@@ -67,9 +60,8 @@ class TrackerCenter:
         module_list.queue_handler.prompt_preview(1)
 
     def launch_tracker(self):
-        self.stop_preview()
         module_list.queue_handler = QueueHandler()  # Reinitialize the queue handler
-        time.sleep(0.5)  # Allow time for the queue handler to initialize
+        time.sleep(0.1)  # Allow time for the queue handler to initialize
 
         module_list.frame_provider = FrameProvider() # Initialize frame provider
         
@@ -157,12 +149,12 @@ class TrackerCenter:
                     break
                 
                 self.tcp_server.send({"type": "imageInfo", "data": "Left"}, data_type="JSON", priority="medium")
-                time.sleep(0.01)
+                time.sleep(0.1)
                 self.tcp_server.send(jpg_L.tobytes(), data_type="JPEG", priority="medium")
                 time.sleep(1 / tracker_config.preview_fps*2)
 
                 self.tcp_server.send({"type": "imageInfo", "data": "Right"}, data_type="JSON", priority="medium")
-                time.sleep(0.01)
+                time.sleep(0.1)
                 self.tcp_server.send(jpg_R.tobytes(), data_type="JPEG", priority="medium")
                 time.sleep(1 / tracker_config.preview_fps*2)
                 if frame % 10 == 0:
@@ -188,7 +180,13 @@ class TrackerCenter:
     def stop_preview(self):
         self.setup_mode = False
         try:
-            module_list.frame_provider.frame_id = 0  # Reset the frame ID
+            module_list.queue_handler.close_eyeloop()
+        except:
+            pass
+
+        time.sleep(0.5)
+
+        try:
             module_list.frame_provider.stop()  # Stop the frame provider
             self.frame_provider_thread.join()  # Wait for the thread to finish
             module_list.frame_provider = None  # Clear the frame provider

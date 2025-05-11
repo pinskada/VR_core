@@ -118,7 +118,7 @@ class QueueHandler:
             if isinstance(message, dict):
                 if "payload" == message.get("type"):
                     if message.get("data"):
-                        self.sync_frames(message, eye)                 
+                        self.sync_frames(message, eye)          
                 else:
                     self.health_monitor.failure("QueueHandler", f"Missing 'payload' in message from response loop.from eye: {eye}")
                     print("[WARN] QueueHandler: Missing 'payload' in message.")
@@ -293,6 +293,6 @@ class QueueHandler:
         self.sync_queue_R.close()
         self.acknowledge_queue_L.close()
         self.acknowledge_queue_R.close()
-        time.sleep(0.5)
+        time.sleep(0.1)
         self.response_thread_right.join()
         self.response_thread_left.join()

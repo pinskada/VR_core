@@ -2,6 +2,7 @@ from vr_core.config import camera_manager_config
 import vr_core.module_list as module_list 
 import cv2
 import time
+import sys
 
 class CameraManager:
     def __init__(self):
@@ -11,17 +12,39 @@ class CameraManager:
         self.command_dispatcher = module_list.command_dispatcher
         self.health_monitor = module_list.health_monitor
         self.frame_id = 0
-        try:
-            from picamera2 import Picamera2 # type: ignore
-            self.picam2 = Picamera2()  # Initialize camera object
-        except Exception as e:
-            self.health_monitor.failure("CameraManager", f"Picamera2 not available: {e}")
-            print(f"[ERROR] CameraManager: Picamera2 not available: {e}")
-            self.online = False
-            return
+        if not hasattr(sys, 'is_finalizing') or not sys.is_finalizing():
+            try:
+                from picamera2 import Picamera2 # type: ignore
+                self.picam2 = Picamera2()  # Initialize camera object
+            except Exception as e:
+                self.health_monitor.failure("CameraManager", f"Picamera2 not available: {e}")
+                print(f"[ERROR] CameraManager: Picamera2 not available: {e}")
+                self.online = False
+                return
+        else:
+            print("[ERROR] CameraManager: Picamera2 not available, sys is finalizing.")
         
     def is_online(self):
         return self.online
+
+    def start_camera(self):
+        try:
+            self.apply_config()
+            self.picam2.start()
+            self.online = True
+            print("[INFO] CamManager: Camera started.")
+        except Exception as e:
+            print(f"[ERROR] CamManager: Failed to start camera: {e}")
+            self.online = False
+
+    def stop_camera(self):
+        try:
+            self.picam2.stop()
+            print("[INFO] CamManager: Camera stopped.")
+            self.online = False
+        except Exception as e:
+            print(f"[ERROR] CamManager: Failed to stop camera: {e}")
+
 
     def apply_config(self):
         cam = camera_manager_config
@@ -31,16 +54,22 @@ class CameraManager:
             main={"size": (4608, 2592)},
             buffer_count=2
         )
-        self.picam2.configure(cfg)
-
-        # Apply manual or automatic exposure and focus settings
-        self.picam2.set_controls({
-            "AfMode": cam.af_mode,
-            "LensPosition": int(cam.focus),
-            "ExposureTime": int(cam.exposure_time),
-            "AnalogueGain": cam.analogue_gain
-        })
-        self.picam2.start()  # Start the camera stream
+        """
+        try:
+            self.picam2.configure(cfg)
+        except Exception as e:
+            print(f"[ERROR] CamManager: Failed to configure camera: {e}")
+        """
+        try:
+            # Apply manual or automatic exposure and focus settings
+            self.picam2.set_controls({
+                "AfMode": cam.af_mode,
+                "LensPosition": int(cam.focus),
+                "ExposureTime": int(cam.exposure_time),
+                "AnalogueGain": cam.analogue_gain
+            })
+        except Exception as e:
+            print(f"[ERROR] CamManager: Failed to set controls: {e}")
 
     def capture_frame(self):
         self.frame_id += 1

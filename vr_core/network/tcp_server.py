@@ -127,6 +127,7 @@ class TCPServer:
                             print("Command dispatcher not initialsed.")
                     except json.JSONDecodeError:
                         print(f"[WARN] TCPServer: Bad JSON: {text}")
+                        pass
             except Exception as e:
                 print(f"[WARN] TCPServer: Receive error: {e}")
                 break
