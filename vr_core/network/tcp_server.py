@@ -1,3 +1,5 @@
+"""Cross-platform TCP server for Unity."""
+
 import socket
 import threading
 import queue
@@ -22,7 +24,7 @@ class TCPServer:
     Types: JSON='J', JPEG='G', PNG='P'
     """
 
-    def __init__(self, autostart=True):
+    def __init__(self, autostart : bool =True):
         # Register server
         module_list.tcp_server = self
 
@@ -127,12 +129,12 @@ class TCPServer:
                             print("Command dispatcher not initialsed.")
                     except json.JSONDecodeError:
                         print(f"[WARN] TCPServer: Bad JSON: {text}")
-                        pass
+
             except Exception as e:
                 print(f"[WARN] TCPServer: Receive error: {e}")
                 break
         self.reseting_connection = True
-        print(f"[WARN] TCPServer: Restarting server due to client dissconected.")
+        print("[WARN] TCPServer: Restarting server due to client dissconected.")
         self.restart_server()
 
     def _send_loop(self):
@@ -165,7 +167,7 @@ class TCPServer:
                     self.unsent_count += 1
                 self.last_unsent = True
 
-    def send(self, payload, data_type='JSON', priority='low'):
+    def send(self, payload, data_type : str = 'JSON', priority : str = 'low'):
         """Encode a payload and enqueue it by priority."""
 
         #if data_type == "JPEG":

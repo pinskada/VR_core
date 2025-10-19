@@ -1,15 +1,16 @@
-from vr_core.eye_tracker.frame_provider import FrameProvider
-from vr_core.eye_tracker.tracker_launcher import TrackerLauncher
-from multiprocessing.shared_memory import SharedMemory
-from vr_core.config import tracker_config
-from vr_core.eye_tracker.queue_handler import QueueHandler
+"""Tracker Center Module for VR Eye Tracking System"""
 
+from multiprocessing.shared_memory import SharedMemory
 import threading
 import time
 import numpy as np
 import cv2
-import vr_core.module_list as module_list 
 
+import vr_core.module_list as module_list
+from vr_core.eye_tracker.frame_provider import FrameProvider
+from vr_core.eye_tracker.tracker_launcher import TrackerLauncher
+from vr_core.config import tracker_config
+from vr_core.eye_tracker.queue_handler import QueueHandler
 
 class TrackerCenter:
     def __init__(self, test_mode=False):  # Initializes all tracking components and command queues
@@ -139,7 +140,7 @@ class TrackerCenter:
                     self.health_monitor.failure("EyeTracker", f"Shared memory read error: {e}")
                     print(f"[WARN] TrackerCenter: Shared memory read error: {e}")
                     continue
-                
+
                 try:
                     _, jpg_L = cv2.imencode(".jpg", img_L, [int(cv2.IMWRITE_JPEG_QUALITY), int(tracker_config.jpeg_quality)])
                     _, jpg_R = cv2.imencode(".jpg", img_R, [int(cv2.IMWRITE_JPEG_QUALITY), int(tracker_config.jpeg_quality)])
@@ -147,7 +148,7 @@ class TrackerCenter:
                     self.health_monitor.failure("EyeTracker", f"JPEG encoding error: {e}")
                     print(f"[WARN] TrackerCenter: JPEG encoding error: {e}")
                     break
-                
+
                 self.tcp_server.send({"type": "imageInfo", "data": "Left"}, data_type="JSON", priority="medium")
                 time.sleep(0.1)
                 self.tcp_server.send(jpg_L.tobytes(), data_type="JPEG", priority="medium")

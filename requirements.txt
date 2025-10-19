@@ -1,7 +1,6 @@
-scipy==1.6.*
-pymba==0.3.*
-numpy==1.19.*
-PyYaml
-smbus2
-
+numpy>=1.26,<2.0
+PyYAML>=6.0.1
+cipy>=1.11,<1.14
+smbus2>=0.4,<0.5
+opencv-contrib-python>=4.9,<4.11
 

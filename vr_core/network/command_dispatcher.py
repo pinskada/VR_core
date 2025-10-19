@@ -1,11 +1,14 @@
+"""Communicatrion router between modules and TCP server."""
+
+import time
+import queue
+import threading
+
 import vr_core.config as Config
 import vr_core.module_list as module_list
 from vr_core.eye_tracker.tracker_center import TrackerCenter
 from vr_core.raspberry_perif.camera_manager import CameraManager
 
-import time
-import queue
-import threading
 
 class CommandDispatcher:
     def __init__(self):
@@ -21,7 +24,7 @@ class CommandDispatcher:
 
     def handle_message(self):
         while self.online:
-            
+
             try:
                 command_msg = module_list.cmd_dispatcher_queue.get(timeout=0.005)
 
@@ -50,7 +53,7 @@ class CommandDispatcher:
     def _handle_eyeloop_action(self, action, params):
         if module_list.queue_handler is not None:
             module_list.queue_handler.send_command(params, action)
-        else:    
+        else:
             self.tcp_server.send(
                 {
                     "type": "STATUS",
@@ -100,7 +103,7 @@ class CommandDispatcher:
                 }, data_type="JSON", priority="low"
             )
             print(f"[WARN] CommandDispatcher: Unknown tracker_center mode: {action}")
-  
+
     def _handle_calibration_action(self, action):
         if module_list.calibration_handler is not None:
             if action == "start_calibration":
@@ -185,7 +188,7 @@ class CommandDispatcher:
             module_list.tracker_center.stop_preview()
         except:
             pass
-        
+
         module_list.tracker_center = None
         try:
             module_list.queue_handler.stop()
@@ -197,11 +200,10 @@ class CommandDispatcher:
             pass
         module_list.queue_handler = None
         module_list.tracker_launcher = None
-        
+
         print("[INFO] CommandDispatcher: All resources clean.")
 
         time.sleep(0.1)
 
     def is_online(self):
         return self.online
-
