@@ -30,7 +30,7 @@ class MainProcessor:
             print("[WARN] MainProcessor: Model not loaded, cannot process eye data.")
             self.print_model_error = False
             return
-        
+
         self.print_model_error = False
 
         self.model_real = eye_processing_config.model_params

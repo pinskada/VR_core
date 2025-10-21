@@ -29,18 +29,17 @@ class TrackerCenter:
     def handle_command(self, command: str):
         if command == "setup_tracker_1":
             print("[INFO] TrackerCenter: Setup phase 1: Preview started.")
-            
+
             self.setup_tracker_1()
 
         elif command == "setup_tracker_2":
             print("[INFO] TrackerCenter: Setup phase 2: Tracker started after preview configuration.")
-            
+
             self.setup_tracker_2()
 
         elif command == "launch_tracker":
             print("[INFO] TrackerCenter: Tracker launched directly from config.")
 
-            
 
     def setup_tracker_1(self):
         self.start_preview()  # Start the preview loop
@@ -65,14 +64,14 @@ class TrackerCenter:
         time.sleep(0.1)  # Allow time for the queue handler to initialize
 
         module_list.frame_provider = FrameProvider() # Initialize frame provider
-        
+
         self.frame_provider_thread = threading.Thread(target=module_list.frame_provider.run)
         self.frame_provider_thread.start() # Start the frame provider
-        
+
         module_list.tracker_launcher = TrackerLauncher() # Initialize EyeLoop process
         module_list.queue_handler.update_eyeloop_autosearch(1) # Update the EyeLoop autosearch flag
 
-    def start_preview(self):  
+    def start_preview(self):
         module_list.queue_handler = QueueHandler()  # Reinitialize the queue handler
         time.sleep(0.1)  # Allow time for the queue handler to initialize
 
@@ -199,5 +198,5 @@ class TrackerCenter:
                 self.preview_thread.join()  # Wait for the thread to finish
         except:
             pass
-    
+
         time.sleep(0.1)  # Allow time for the preview loop to stop

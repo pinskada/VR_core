@@ -1,4 +1,4 @@
-import vr_core.module_list as module_list 
+import vr_core.module_list as module_list
 from vr_core.config import tracker_config
 from vr_core.config import eye_processing_config
 from vr_core.eye_processing.calibration_handler import Calibration
@@ -13,7 +13,7 @@ class PreProcessor:
         module_list.pre_processor = self
 
         self.health_monitor = module_list.health_monitor # Needed for health monitoring
-          
+
         self.calibration = False # Flag to indicate if the system should send data to the calibration handler
         self.process = False # Flag to indicate if the system should send data to the main processor
 
@@ -25,14 +25,14 @@ class PreProcessor:
         """
         Get relative ipd of the eye data.
         """
-        
+
         # Extract pupil centers
         x_left, y_left = pupil_left['pupil'][0][0], pupil_left['pupil'][0][1]
         x_right, y_right = pupil_right['pupil'][0][0], pupil_right['pupil'][0][1]
 
         crop_left = tracker_config.crop_left  # Relative region (x1, x2, y1, y2) for the left eye, by default (0.0, 0.5), (0.0, 1.0)
         crop_right = tracker_config.crop_right  # Relative region (x1, x2, y1, y2) for the right eye, by default (0.5, 1.0), (0.0, 1.0)
- 
+
         full_frame_width, full_frame_height = tracker_config.full_frame_resolution # Full frame resolution (height, width), likely 1920x1080
 
         # Calculate the full frame coordinates of the pupil centers
@@ -56,14 +56,14 @@ class PreProcessor:
             print(f"[INFO] PreProcessor: Relative IPD = {relative_ipd}")
             self.health_monitor.status("PreProcessor", f"Relative IPD = {relative_ipd}")
             self.print_ipd_state = 1
-        
+
         if self.calibration == True and module_list.calibration_handler is not None:
             try:
                 self.calibration.get_ipd(relative_ipd) # Get the IPD from the eye data
             except Exception as e:
                 self.health_monitor.failure("PreProcessor", f"Attempted to get IPD, even though the CalibrationHandler is not initialised: {e}")
                 print(f"[ERROR] PreProcessor: Attempted to get IPD, even though the CalibrationHandler is not initialised: {e}")
-                
+
         elif self.process == True and module_list.main_processor is not None:
             try:
                 module_list.main_processor.process_eye_data(relative_ipd)  # Process the eye data
@@ -72,7 +72,7 @@ class PreProcessor:
                 print(f"[ERROR] PreProcessor: Attempted to process eye data, even though the MainProcessor is not initialised: {e}")
         else:
             pass
-            
+
 
     def filter_ipd(self, new_ipd):
         if self.filtered_ipd is None:
@@ -132,7 +132,6 @@ class PreProcessor:
         module_list.calibration_handler = None
         self.calibration = False
 
-        
+
     def is_online(self):
         return self.online
-

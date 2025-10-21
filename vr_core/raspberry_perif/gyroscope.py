@@ -1,18 +1,19 @@
+"""Gyroscope module for VR Core on Raspberry Pi."""
+
 import threading
 import time
-from vr_core.config import gyroscope_config
 import os
 import math
-import vr_core.module_list as module_list 
 
+import vr_core.module_list as module_list
+from vr_core.config import gyroscope_config
 
 class Gyroscope:
+    """Gyroscope module for VR Core on Raspberry Pi."""
     def __init__(self, force_mock=False):
         self.online = True
 
         module_list.gyroscope = self  # Register the gyroscope in the module list
-        self.tcp_server = module_list.tcp_server  # Reference to the TCP server
-        self.health_monitor = module_list.health_monitor
         self.mock_angle = 0.0
         self.mock_mode = force_mock
         self.calibration = True
@@ -25,59 +26,82 @@ class Gyroscope:
 
         if self.mock_mode:
             # If mock mode is enabled, we don't need to check for hardware availability
-            self.health_monitor.status("Gyroscope", "Mock mode active")
+            if module_list.health_monitor:
+                module_list.health_monitor.status("Gyroscope", "Mock mode active")
+            else:
+                print("[INFO] Gyroscope: Health monitor not available.")
             print("[INFO] Gyroscope: Mock mode active — simulating gyro values")
             self.online = True
             try:
-                self.run_thread = threading.Thread(target=self.run) # Create a thread to run the gyroscope data reading
+                # Create a thread to run the gyroscope data reading
+                self.run_thread = threading.Thread(target=self.run)
                 self.run_thread.start()  # Start the thread to read gyro data
                 print("[INFO] Gyroscope: Thread have initialised.")
-            except Exception as e:
+            except (RuntimeError, OSError) as e:
                 print(f"[ERROR] Gyroscope: Thread did not initialise: {e}")
         else:
             try:
                 if self.ensure_i2c_enabled() is False:
                     print("[ERROR] Gyroscope: I2C not enabled. Exiting.")
-                    self.health_monitor.failure("Gyroscope", "I2C not enabled")
+                    if module_list.health_monitor:
+                        module_list.health_monitor.failure("Gyroscope", "I2C not enabled")
+                    else:
+                        print("[INFO] Gyroscope: Health monitor not available.")
                     self.online = False
                     return
-                
+
                 import smbus2 # type: ignore # Import the smbus2 library for I2C communication
-             
-                self.bus = smbus2.SMBus(gyroscope_config.bus_num) # I2C bus number (1 for Raspberry Pi 3 and later)
+
+                # I2C bus number (1 for Raspberry Pi 3 and later)
+                self.bus = smbus2.SMBus(gyroscope_config.bus_num)
 
                 # --- Initialize LSM6DS33 (gyro + accel) ---
                 # Enable Gyroscope: 104 Hz, 2000 dps full scale
-                self.bus.write_byte_data(gyroscope_config.addr_gyr_acc, 0x11, 0x4C)  # CTRL2_G: ODR = 104 Hz, FS = ±2000 dps
-                #self.bus.write_byte_data(gyroscope_config.addr_gyr_acc, 0x11, 0x40)  # CTRL1_XL: ODR = 104 Hz, FS = ±2g
+                # CTRL2_G: ODR = 104 Hz, FS = ±2000 dps
+                self.bus.write_byte_data(gyroscope_config.addr_gyr_acc, 0x11, 0x4C)
+
+                # CTRL1_XL: ODR = 104 Hz, FS = ±2g
+                #self.bus.write_byte_data(gyroscope_config.addr_gyr_acc, 0x11, 0x40)
 
                 # Enable Accelerometer: 104 Hz, ±2g full scale
-                self.bus.write_byte_data(gyroscope_config.addr_gyr_acc, 0x10, 0x4C)  # CTRL1_XL: ODR = 104 Hz, FS = ±2g
+                # CTRL1_XL: ODR = 104 Hz, FS = ±2g
+                self.bus.write_byte_data(gyroscope_config.addr_gyr_acc, 0x10, 0x4C)
 
                 # --- Initialize LIS3MDL (magnetometer) ---
                 # Enable Magnetometer: Ultra-high performance, 80 Hz
-                self.bus.write_byte_data(gyroscope_config.addr_mag, 0x20, 0x7E)  # CTRL_REG1: Temp disable, Ultra-high perf, 80 Hz
-                self.bus.write_byte_data(gyroscope_config.addr_mag, 0x21, 0x60)  # CTRL_REG2: Full scale ±4 gauss
-                self.bus.write_byte_data(gyroscope_config.addr_mag, 0x22, 0x00)  # CTRL_REG3: Continuous-conversion mode
-                self.bus.write_byte_data(gyroscope_config.addr_mag, 0x23, 0x0C)  # CTRL_REG4: Ultra-high perf on Z
+
+                # CTRL_REG1: Temp disable, Ultra-high perf, 80 Hz
+                self.bus.write_byte_data(gyroscope_config.addr_mag, 0x20, 0x7E)
+                # CTRL_REG2: Full scale ±4 gauss
+                self.bus.write_byte_data(gyroscope_config.addr_mag, 0x21, 0x60)
+                # CTRL_REG3: Continuous-conversion mode
+                self.bus.write_byte_data(gyroscope_config.addr_mag, 0x22, 0x00)
+                # CTRL_REG4: Ultra-high perf on Z
+                self.bus.write_byte_data(gyroscope_config.addr_mag, 0x23, 0x0C)
 
                 #CTRL1_XL = 0x10 → Accelerometer config: 104Hz, ±2g, 400Hz bandwidth
                 self.bus.write_byte_data(gyroscope_config.addr_gyr_acc, 0x10, 0x40)
 
                 # CTRL9_XL = 0x18 → Enable all accel axes
-                self.bus.write_byte_data(gyroscope_config.addr_gyr_acc, 0x18, 0x38)  # XEN_XL | YEN_XL | ZEN_XL
+                # XEN_XL | YEN_XL | ZEN_XL
+                self.bus.write_byte_data(gyroscope_config.addr_gyr_acc, 0x18, 0x38)
 
                 # CTRL3_C = 0x12 → Enable BDU (Block Data Update)
-                self.bus.write_byte_data(gyroscope_config.addr_gyr_acc, 0x12, 0x44)  # BDU = 1, IF_INC = 1
+                # BDU = 1, IF_INC = 1
+                self.bus.write_byte_data(gyroscope_config.addr_gyr_acc, 0x12, 0x44)
 
-                self.online = True  # Set online status to True  
-                self.run_thread = threading.Thread(target=self.run) # Create a thread to run the gyroscope data reading
+                self.online = True  # Set online status to True
+                # Create a thread to run the gyroscope data reading
+                self.run_thread = threading.Thread(target=self.run)
                 self.run_thread.start() # Start the thread to read gyro data
 
                 print("[INFO] Gyroscope: Gyro initialized")
 
             except OSError as e:
-                self.health_monitor.failure("Gyroscope", "Initialisation error")
+                if module_list.health_monitor:
+                    module_list.health_monitor.failure("Gyroscope", "Initialisation error")
+                else:
+                    print("[INFO] Gyroscope: Health monitor not available.")
                 print(f"[ERROR] Gyroscope: Error initializing: {e}")
                 self.online = False
                 return
@@ -91,6 +115,7 @@ class Gyroscope:
 
 
     def is_online(self):
+        """Check if the gyroscope is online."""
         return self.online
 
 
@@ -104,7 +129,7 @@ class Gyroscope:
             return False
         else:
             return True
-    
+
 
     def read_gyro(self):
         """Read gyroscope data."""
@@ -159,7 +184,6 @@ class Gyroscope:
 
     def read_mag(self):
         """Read magnetometer data."""
-        
         # Create synthetic data if in mock mode
         if self.mock_mode:
             self.mock_angle += 0.1
@@ -168,7 +192,7 @@ class Gyroscope:
                 'y': round(15.0 * math.sin(self.mock_angle / 2), 2),
                 'z': round(10.0 * math.cos(self.mock_angle), 2),
             }
-        
+
         def read_word(reg):
             low = self.bus.read_byte_data(gyroscope_config.addr_mag, reg)
             high = self.bus.read_byte_data(gyroscope_config.addr_mag, reg+1)
@@ -190,7 +214,7 @@ class Gyroscope:
         calib_count = 0
         while self.online:
 
-            if self.calibration == True:
+            if self.calibration:
                 gyro_data = self.read_gyro() # Get the gyroscope data
                 self.calib_buffer_x.append(gyro_data.get("x"))
                 self.calib_buffer_y.append(gyro_data.get("y"))
@@ -215,24 +239,26 @@ class Gyroscope:
                     gyro_data['y'] -= self.y_ofset
                     gyro_data['z'] -= self.z_ofset
 
-                    data = {"gyro": gyro_data, 
-                            "accel": accel_data, 
+                    data = {"gyro": gyro_data,
+                            "accel": accel_data,
                             "mag": mag_data} # Combine the data into a single dictionary
-                    if self.tcp_server is not None:
-                        self.tcp_server.send(
+                    if module_list.tcp_server:
+                        module_list.tcp_server.send(
                         {
                             "type": "9dof",
                             "data": data
                         }, data_type="JSON", priority="high")
                         error = None
-
                     else:
                         print("[WARN] Gyroscope: No TCP sender available. Skipping data send.")
-                    
-                    if module_list.main_processor is not None:
-                        module_list.main_processor.gyro_handler(gyro_data)
 
-                except Exception as e:
+                    if module_list.main_processor:
+                        module_list.main_processor.gyro_handler(gyro_data)
+                    else:
+                        print("[INFO] Gyroscope: Main processor not available.")
+
+                except (OSError, IOError, ConnectionError, ValueError, AttributeError) as e:
+                    # Catch expected I/O / networking / value / attribute errors explicitly
                     failure_count += 1
                     error = e
                     print(f"[ERROR] Gyroscope: Failed sending message: {e}")
@@ -243,7 +269,10 @@ class Gyroscope:
                     print_count = 0
 
                 if error is not None and failure_count >= gyroscope_config.retry_attempts:
-                    self.health_monitor.failure("Gyroscope", "Error reading gyro data")
+                    if module_list.health_monitor:
+                        module_list.health_monitor.failure("Gyroscope", "Error reading gyro data")
+                    else:
+                        print("[INFO] Gyroscope: Health monitor not available.")
                     self.online = False
                     print(f"[ERROR] Gyroscope: Error reading gyro data {error}.")
                     break

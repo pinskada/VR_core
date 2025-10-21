@@ -1,25 +1,33 @@
-import vr_core.module_list as module_list
-from vr_core.config import health_monitor
+"""Health monitoring for VR Core components."""
+
 import threading
 import time
 
+import vr_core.module_list as module_list
+from vr_core.config import health_monitor
+
 class HealthMonitor:
+    """Health monitoring for VR Core components.
+    Periodically checks the online status of registered components and reports changes"""
+
     def __init__(self):
         module_list.health_monitor = self
-        self.tcp_server = module_list.tcp_server
 
         self._stop_event = threading.Event()
         self._last_status = {}
-
-         # Map of component names to instances
-        
+        self._monitored = {}  # Map of component names to instances
 
         print("[INFO] HealthMonitor: Health monitoring thread started.")
-        self.tcp_server.send( 
-            {
-                "type": "STATUS",
-                "data": "HealthMonitor: Health monitoring thread started."
-            }, data_type="JSON", priority="low")
+        if module_list.tcp_server:
+            module_list.tcp_server.send(
+                {
+                    "type": "STATUS",
+                    "data": "HealthMonitor: Health monitoring thread started."
+                }, data_type="JSON", priority="low"
+            )
+        else:
+            print("[WARN] HealthMonitor: No TCPServer available for status updates.")
+
         threading.Thread(target=self.check_for_health, daemon=True).start()
 
     def monitored_components(self):
@@ -49,7 +57,7 @@ class HealthMonitor:
         """
 
         while True:
-            
+
             self.monitored_components()
 
             for name, comp in self._monitored.items():
@@ -58,7 +66,9 @@ class HealthMonitor:
                 if comp is not None and hasattr(comp, 'is_online'):
                     try:
                         current = bool(comp.is_online())
-                    except Exception:
+                    except (AttributeError, TypeError, RuntimeError, OSError) as e:
+                        # Log the specific error and treat the component as offline
+                        print(f"[HealthMonitor] Error checking {name}.is_online(): {e}")
                         current = False
 
                 previous = self._last_status.get(name)
@@ -83,8 +93,8 @@ class HealthMonitor:
                 print(f"[HealthMonitor] {name} went {status_str}")
 
                 # Notify over TCP if server provided
-                if self.tcp_server:
-                    self.tcp_server.send(
+                if module_list.tcp_server:
+                    module_list.tcp_server.send(
                         {
                             'type': 'STATUS',
                             'component': name,
@@ -93,6 +103,8 @@ class HealthMonitor:
                         data_type='JSON',
                         priority='low'
                     )
+                else:
+                    print("[WARN] HealthMonitor: No TCPServer available for status updates.")
 
                 # Update stored state
                 self._last_status[name] = current
@@ -101,16 +113,23 @@ class HealthMonitor:
 
     def status(self, component_name: str, status: str):
         """Handles status updates of a component."""
-        self.tcp_server.send(
-            {
-                "type": "STATUS",
-                "data": f"{component_name}: {status}",
-            }, data_type="JSON", priority="low")
+        if module_list.tcp_server:
+            module_list.tcp_server.send(
+                {
+                    "type": "STATUS",
+                    "data": f"{component_name}: {status}",
+                }, data_type="JSON", priority="low"
+            )
+        else:
+            print("[WARN] HealthMonitor: No TCPServer available for status updates.")
 
     def failure(self, component_name: str, status: str):
         """Handles failure update of a component."""
-        self.tcp_server.send(
-            {
-                "type": "FAILURE",
-                "data": f"{component_name}: {status}",
-            }, data_type="JSON", priority="low")
+        if module_list.tcp_server:
+            module_list.tcp_server.send(
+                {
+                    "type": "FAILURE",
+                    "data": f"{component_name}: {status}",
+                }, data_type="JSON", priority="low")
+        else:
+            print("[WARN] HealthMonitor: No TCPServer available for status updates.")

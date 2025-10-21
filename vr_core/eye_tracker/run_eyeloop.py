@@ -1,3 +1,5 @@
+"""Start EyeLoop process from within a multiprocessing.Process context."""
+
 import sys
 import time
 
@@ -17,7 +19,7 @@ def run_eyeloop(eye: str, importer_name: str, shm_name: str, blink_cal: str, com
 
         #"--video", "test_video/test_video.mp4",
     ]
-    
+
     if not test_mode:
         from vr_core.eye_tracker.eyeloop_module.eyeloop.run_eyeloop import EyeLoop
         try:
@@ -33,7 +35,8 @@ def run_eyeloop(eye: str, importer_name: str, shm_name: str, blink_cal: str, com
             print(f"[ERROR] run_eyeloop_process: EyeLoop process for eye {eye} crashed: {e}")
             import traceback; traceback.print_exc()
     else:
-        print(f"[INFO] run_eyeloop_process: Test mode: EyeLoop process for eye {eye} would start here.")
+        print("[INFO] run_eyeloop_process: Test mode: "
+              f"EyeLoop process for eye {eye} would start here.")
         while True:
             # In test mode, we can simulate or mock the behavior of the EyeLoop process.
             # This is useful for unit tests where we don't want to start the actual process.

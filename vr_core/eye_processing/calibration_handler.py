@@ -28,7 +28,7 @@ class Calibration:
         """
         Get the Interpupillary Distance (IPD) from the eye data.
         """
-        
+
         if self.collecting and self.current_distance is not None:
             try:
                 # Append the relative IPD to the samples buffer
@@ -41,7 +41,7 @@ class Calibration:
         """
         Get the current distance of the virtual object.
         """
-        
+
         buffer = self.samples_buffer.copy()  # Buffer of samples collected for the previous distance
         self.previous_distance = self.current_distance  # Store the previous distance
 

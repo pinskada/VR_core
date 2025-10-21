@@ -6,6 +6,7 @@ import queue
 import time
 import json
 
+import vr_core.config
 from vr_core.config import tcp_config
 import vr_core.module_list as module_list
 
@@ -24,10 +25,10 @@ class TCPServer:
     Types: JSON='J', JPEG='G', PNG='P'
     """
 
-    def __init__(self, autostart : bool =True):
+    def __init__(self, config: config.tcp_config, send_q: queue.Queue):
         # Register server
         module_list.tcp_server = self
-
+        self.send_queue = send_q
         # Configuration
         self.host = tcp_config.host
         self.port = tcp_config.port
@@ -50,22 +51,24 @@ class TCPServer:
         self.last_unsent = False
         self.unsent_count = 0
 
-        if autostart:
-            #self.verify_static_ip()
-            self.start_server()
+        # if autostart:
+        #     #self.verify_static_ip()
+        #     self.start_server()
 
     def verify_static_ip(self):
         """Optional check: does our local IP match the expected static prefix?"""
         expected_prefix=tcp_config.static_ip_prefix
+        test_sock = None
         try:
             test_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             test_sock.connect((tcp_config.google_dns, tcp_config.http_port))
             ip = test_sock.getsockname()[0]
-        except Exception as e:
+        except OSError as e:
             print(f"[WARN] TCPServer: IP check failed: {e}")
             return False
         finally:
-            test_sock.close()
+            if test_sock:
+                test_sock.close()
 
         if ip.startswith(expected_prefix):
             print(f"[INFO] TCPServer: IP OK: {ip}")
@@ -79,7 +82,7 @@ class TCPServer:
             return
         self.online = True
         self._stop_event.clear()
-        self.listener_thread = threading.Thread(target=self._listen_for_connection)
+        self.listener_thread = threading.Thread(target=self._listen_for_connection, daemon=True)
         self.listener_thread.start()
 
     def _listen_for_connection(self):
@@ -92,8 +95,8 @@ class TCPServer:
         print(f"[INFO] TCPServer: Waiting for Unity on {self.host}:{self.port}...")
         try:
             conn, addr = self.server_socket.accept()
-        except Exception as e:
-            #print(f"[WARN] TCPServer: Accept failed: {e}")
+        except OSError as e:
+            print(f"[WARN] TCPServer: Accept failed: {e}")
             return
 
         self.client_conn, self.client_addr = conn, addr
@@ -105,7 +108,7 @@ class TCPServer:
         self.reseting_connection = False
 
         # Spawn communication threads
-        self.receiver_thread = threading.Thread(target=self._receive_loop)
+        self.receiver_thread = threading.Thread(target=self._receive_loop, daemon=True)
         self.sender_thread = threading.Thread(target=self._send_loop)
         self.receiver_thread.start()
         self.sender_thread.start()
@@ -115,9 +118,14 @@ class TCPServer:
         """Continuously receive data and dispatch JSON messages."""
         while self.online and not self._stop_event.is_set():
             try:
+                # Guard against client_conn being None (static analysis warns about recv on None)
+                if not self.client_conn:
+                    time.sleep(0.1)
+                    continue
+
                 data = self.client_conn.recv(tcp_config.recv_buffer_size)
                 if data == 0 or not data:
-                    print(f"[WARN] TCPServer: Connection closed by client.")
+                    print("[WARN] TCPServer: Connection closed by client.")
                     break
                 text = data.decode('utf-8').strip()
                 if module_list.command_dispatcher:
@@ -130,7 +138,7 @@ class TCPServer:
                     except json.JSONDecodeError:
                         print(f"[WARN] TCPServer: Bad JSON: {text}")
 
-            except Exception as e:
+            except (OSError, ConnectionResetError, ConnectionAbortedError, BrokenPipeError) as e:
                 print(f"[WARN] TCPServer: Receive error: {e}")
                 break
         self.reseting_connection = True
@@ -161,9 +169,9 @@ class TCPServer:
                 if self.client_conn:
                     self.client_conn.sendall(packet)
                     self.last_unsent = False
-            except Exception as e:
+            except OSError as e:
                 print(f"[WARN] TCPServer: Send error: {e}")
-                if self.last_unsent == True:
+                if self.last_unsent:
                     self.unsent_count += 1
                 self.last_unsent = True
 
@@ -177,6 +185,7 @@ class TCPServer:
         queue_ref.put(packet)
 
     def encode_message(self, payload, data_type: str) -> bytes:
+        """Encode a message with header for sending."""
         type_map = {'JSON': b'J', 'JPEG': b'G', 'PNG': b'P'}
         if data_type not in type_map:
             raise ValueError(f"Unsupported data type: {data_type}")
@@ -200,7 +209,14 @@ class TCPServer:
     def restart_server(self):
         """"When client is unresponsive it shuts down all threads and launches a new listener"""
         self.stop_server()
-        module_list.cmd_dispatcher_queue.put({"category": "tracker_mode", "action": "stop_preview"})
+        q = getattr(module_list, 'cmd_dispatcher_queue', None)
+        if q is not None:
+            try:
+                q.put({"category": "tracker_mode", "action": "stop_preview"})
+            except (queue.Full, AttributeError, TypeError) as e:
+                print(f"[WARN] TCPServer: Failed to notify cmd_dispatcher_queue: {e}")
+        else:
+            print("[WARN] TCPServer: cmd_dispatcher_queue not available, skipping stop_preview.")
         self.start_server()
 
     def stop_server(self):
@@ -208,20 +224,20 @@ class TCPServer:
         self.online = False
         self._stop_event.set()
 
-        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        #self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
         # Close sockets to unblock accept/recv
         if self.client_conn:
             try:
                 self.client_conn.shutdown(socket.SHUT_RDWR)
-            except Exception:
+            except OSError:
                 pass
             self.client_conn.close()
 
         if self.server_socket:
             try:
                 self.server_socket.shutdown(socket.SHUT_RDWR)
-            except Exception:
+            except OSError:
                 pass
             self.server_socket.close()
 
@@ -237,4 +253,5 @@ class TCPServer:
 
 
     def is_online(self):
+        """Check if server is online."""
         return self.online
