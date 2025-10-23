@@ -6,7 +6,7 @@ import threading
 
 import vr_core.config as Config
 import vr_core.module_list as module_list
-from vr_core.eye_tracker.tracker_center import TrackerCenter
+from vr_core.eye_tracker.tracker_control import TrackerCenter
 #from vr_core.raspberry_perif.camera_manager import CameraManager
 
 

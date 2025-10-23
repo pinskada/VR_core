@@ -1,3 +1,5 @@
+"""Configuration module for VR Core system."""
+
 import queue
 from types import SimpleNamespace
 
@@ -52,14 +54,12 @@ gyroscope_config = SimpleNamespace(
     mag_reg_out_x = 0x28,
     mag_reg_out_y = 0x2A,
     mag_reg_out_z = 0x2C
-
-
 )
 
 # ---- ESP32 Configuration ------------------------------------------
 esp32_config = SimpleNamespace(
     port="/dev/serial0", # Serial port for ESP32 (e.g., /dev/serial0 on Raspberry Pi)
-    baudrate=115200, # Baud rate for the serial connection 
+    baudrate=115200, # Baud rate for the serial connection
     timeout=1, # Timeout for the serial connection (in seconds)
 
     handshake_attempts = 3, # Number of attempts to perform the handshake
@@ -68,12 +68,12 @@ esp32_config = SimpleNamespace(
     handshake_message = "STATUS", # Handshake message to send to ESP32
     handshake_response = "ONLINE", # Expected response from ESP32 after handshake
 
-    send_attempts = 3 # Number of attempts to send the focal distance   
+    send_attempts = 3 # Number of attempts to send the focal distance
 )
 
 # ---- Tracker Configuration ------------------------------------
 tracker_config = SimpleNamespace(
-    frame_provider_max_fps = 1000, # Maximum FPS for the frame provider3`1`3
+    frame_provider_max_fps = 1000, # Maximum FPS for the frame provider
     jpeg_quality = 15,  # JPEG encoding quality (0-100)
     sync_timeout = 10,  # Timeout for EyeLoop response in seconds
     preview_fps = 20,  # FPS for preview stream
@@ -81,7 +81,7 @@ tracker_config = SimpleNamespace(
     provider_queue_timeout = 0.01,  # Timeout for provider queue operations in seconds
     process_launch_time = 0.4,  # Time to wait for the EyeLoop process to stabilize (in seconds)
     png_send_rate = 8,
-    
+
     crop_left = ((0.0, 1.0), (0.0, 0.5)),  # Relative region (x1, x2, y1, y2) for the left eye
     crop_right = ((0.0, 1.0), (0.5, 1.0)),  # Relative region (x1, x2, y1, y2) for the right eye
 

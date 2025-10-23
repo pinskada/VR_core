@@ -1,10 +1,10 @@
 import vr_core.module_list as module_list 
 from vr_core.config import tracker_config
 from vr_core.config import eye_processing_config
-from vr_core.eye_processing.models import inverse_model
+from vr_core.gaze.models import inverse_model
 import time
 
-class MainProcessor:
+class GazeCalc:
     def __init__(self):
         self.online = True # Flag to indicate if the system is online or offline
 

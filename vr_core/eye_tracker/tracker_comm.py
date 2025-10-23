@@ -7,7 +7,7 @@ import time
 import vr_core.module_list as module_list
 from vr_core.config import tracker_config
 
-class QueueHandler:
+class TrackerComm:
     """
     Contains the command and response queues for the EyeLoop processes.
     This class is used to manage the communication between the EyeLoop processes

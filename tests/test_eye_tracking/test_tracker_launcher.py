@@ -1,4 +1,4 @@
-from vr_core.eye_tracker.tracker_launcher import TrackerLauncher
+from vr_core.eye_tracker.tracker_process import TrackerLauncher
 import vr_core.module_list as module_list
 from unittest.mock import MagicMock
 from multiprocessing import Queue

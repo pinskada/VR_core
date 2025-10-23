@@ -8,7 +8,7 @@ from vr_core.eye_tracker.run_eyeloop import run_eyeloop
 from vr_core.config import tracker_config
 import vr_core.module_list as module_list
 
-class TrackerLauncher:
+class TrackerProcess:
     """Launches and monitors the eye tracker processes."""
     def __init__(self, test_mode=False):
         self.online = True  # Indicates if the tracker is online

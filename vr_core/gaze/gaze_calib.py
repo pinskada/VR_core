@@ -1,8 +1,11 @@
-import vr_core.module_list as module_list 
-from vr_core.config import eye_processing_config
+"""Gaze model calibration module."""
+
 import numpy as np
 
-class Calibration:
+import vr_core.module_list as module_list
+from vr_core.config import eye_processing_config
+
+class GazeCalib:
     def __init__(self, calib_points_num=3, diopter=0):
         self.online = True # Flag to indicate if the system is online or offline
 
@@ -102,7 +105,7 @@ class Calibration:
         Fit the model to the eye data.
         """
 
-        from vr_core.eye_processing.models import inverse_model
+        from vr_core.gaze.models import inverse_model
 
         if len(self.calibration_data) < 2:
             print("[ERROR] Calibration: Not enough points to fit a model.")

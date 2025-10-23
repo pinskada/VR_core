@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 from multiprocessing import Queue
 import vr_core.module_list as module_list
-from vr_core.eye_tracker.queue_handler import QueueHandler
+from vr_core.eye_tracker.tracker_comm import QueueHandler
 
 
 class TestQueueHandler(unittest.TestCase):

@@ -1,12 +1,12 @@
 import vr_core.module_list as module_list
 from vr_core.config import tracker_config
 from vr_core.config import eye_processing_config
-from vr_core.eye_processing.calibration_handler import Calibration
-from vr_core.eye_processing.main_processor import MainProcessor
+from vr_core.gaze.gaze_calib import Calibration
+from vr_core.gaze.gaze_calc import MainProcessor
 import time
 import numpy as np
 
-class PreProcessor:
+class GazeControl:
     def __init__(self):
         self.online = True # Flag to indicate if the system is online or offline
 
