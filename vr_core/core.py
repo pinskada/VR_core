@@ -1,21 +1,37 @@
+# ruff: noqa: F401,F841
+# pylint: disable=unused-import, unused-argument, unused-variable
+# pyright: reportUnusedImport=false, reportUnusedVariable=false
+
 """Core engine for RPI."""
 
 import os
 import sys
 import time
-import multiprocessing
-import queue
-from dataclasses import dataclass
+import logging
+import signal
+from typing import Dict, List
+
+from vr_core.base_service import BaseService
+from vr_core.config_service.config import Config
+from vr_core.ports.queues import CommQueues
+
+from vr_core.health_monitor import HealthMonitor
 
 from vr_core.network.tcp_server import TCPServer
+from vr_core.network.comm_router import CommandDispatcher
+
 from vr_core.raspberry_perif.esp32 import ESP32
 from vr_core.raspberry_perif.gyroscope import Gyroscope
-from vr_core.health_monitor import HealthMonitor
-from vr_core.network.command_dispatcher import CommandDispatcher
-from vr_core.eye_processing.pre_processor import PreProcessor
 from vr_core.raspberry_perif.camera_manager import CameraManager
-import vr_core.module_list as module_list
-import vr_core.config as config
+
+from vr_core.eye_tracker.tracker_control import TrackerControl
+from vr_core.eye_tracker.tracker_comm import TrackerComm
+from vr_core.eye_tracker.tracker_process import TrackerProcess
+from vr_core.eye_tracker.frame_provider import FrameProvider
+
+from vr_core.gaze.gaze_control import GazeControl
+from vr_core.gaze.gaze_calib import GazeCalib
+from vr_core.gaze.gaze_calc import GazeCalc
 
 
 print("===== DEBUG INFO =====")
@@ -24,47 +40,35 @@ print("VIRTUAL_ENV:", os.environ.get("VIRTUAL_ENV"))
 print("SYS PATH:", sys.path)
 print("======================")
 
-@dataclass
-class Queues:
-    """
-    Centralized place to create/share queues/interfaces between services.
-    DI note: pass *only what you need* to each service; don’t share this whole object.
-    """
-
-    command_queue_l = multiprocessing.Queue()
-    command_queue_r = multiprocessing.Queue()
-    response_queue_l = multiprocessing.Queue()
-    response_queue_r = multiprocessing.Queue()
-    sync_queue_l = multiprocessing.Queue()
-    sync_queue_r = multiprocessing.Queue()
-    acknowledge_queue_l = multiprocessing.Queue()
-    acknowledge_queue_r = multiprocessing.Queue()
-
-    send_queue = queue.Queue()
 
 class Core:
     """
-    Core engine for RPI..
+    Core engine for RPI.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, cfg: Config, argv: List[str] | None = None):
         print("Starting VR Core...")
 
-        self.queues = Queues()
+        self.argv = argv or []
+        self.cfg = cfg
+        self.queues = CommQueues()
+        self.services: Dict[str, BaseService] = {}
+        self._stop_requested = False
+
+
+    # -------- build: construct everything & inject dependencies --------
 
     def build(self):
         """Build and start all core modules."""
 
-        tcp_server = TCPServer(
-            config=config.tcp_config,
-            send_q=self.queues.send_queue
-        )
+        # tcp_server = TCPServer(
+        #     config=self.cfg,
+        #     send_q=self.queues.tcp_queue
+        # )
 
-
-
-        config.tracker_config.use_test_video = True  # Use saved video instead of live camera
-        if not config.tracker_config.use_test_video:
-            module_list.cam_manager = CameraManager()
+        # config.tracker_config.use_test_video = True  # Use saved video instead of live camera
+        # if not config.tracker_config.use_test_video:
+        #     module_list.cam_manager = CameraManager()
         time.sleep(0.5)
         HealthMonitor()
         time.sleep(0.5)
@@ -72,11 +76,137 @@ class Core:
         time.sleep(0.5)
         ESP32(force_mock=True)
         time.sleep(0.5)
-        PreProcessor()
+        #PreProcessor()
         time.sleep(0.5)
         CommandDispatcher()  # type: ignore # noqa: F841
 
+        self.services = {}
+
+
+    # ------------------------ lifecycle: start/stop ---------------------
+
+    def start(self) -> None:
+        """ Start services in dependency order, waiting for readiness on each."""
+
+        log = logging.getLogger("core")
+        if not self.services:
+            log.warning("No services registered. Did you forget to call build() or wire them?")
+            return
+
+        # Order listed in build()
+        start_order: List[str] = list(self.services.keys())
+        log.info("Starting services in order: %s", " → ".join(start_order))
+
+        for name in start_order:
+            svc = self.services[name]
+            log.info("→ start %s", name)
+            svc.start()
+            # Wait for the service to declare readiness
+            if name == "TCPServer":
+                timeout = self.cfg.tcp.connect_timeout
+                if timeout == -1:
+                    timeout = float("inf")
+            else:
+                timeout = 5
+            if not svc.ready(timeout=timeout):
+                raise TimeoutError(f"Service '{name}' did not become ready in time")
+
+        log.info("All services started and ready.")
+
+
+    def stop(self):
+        """Stop services in reverse order and join them."""
+        log = logging.getLogger("core")
+        if not self.services:
+            return
+
+        stop_order = list(reversed(self.services.keys()))
+        log.info("Stopping services in reverse order: %s", " ← ".join(stop_order))
+
+        # Request stop
+        for name in stop_order:
+            try:
+                log.info("→ stop %s", name)
+                self.services[name].stop()
+            except (RuntimeError, ValueError, OSError) as e:
+                # Common states: not started, already closed, socket already closed
+                log.warning("Benign stop error in %s: %s", name, e, exc_info=True)
+            except Exception:  # pylint: disable=broad-except
+                log.exception("Unexpected error calling stop() on %s", name)
+
+        # Join
+        for name in stop_order:
+            svc = self.services[name]
+            try:
+                svc.join(timeout=5)
+            except (RuntimeError, ValueError) as e:
+                log.warning("Join error in %s: %s", name, e, exc_info=True)
+            except Exception:  # pylint: disable=broad-except
+                log.exception("Unexpected exception joining %s", name)
+            else:
+                # No exception: verify thread actually stopped
+                if getattr(svc, "alive", None):
+                    try:
+                        still_alive = svc.alive  # BaseService exposes this
+                    except Exception:  # pylint: disable=broad-except
+                        still_alive = False
+                    if still_alive:
+                        log.error("%s did not stop within 5s (still alive).", name)
+
+        log.info("All services stopped.")
+
+
+    def wait_forever(self):
+        """Idle loop for the supervisor. Add supervision/restarts here later if needed."""
+        log = logging.getLogger("core")
+        while not self._stop_requested:
+            time.sleep(0.5)
+
+
+    # --------------------------- signal hooks --------------------------
+
+    def install_signal_handlers(self) -> None:
+        """Install signal handlers for graceful shutdown."""
+        log = logging.getLogger("core")
+
+        def _handler(signum, _frame):
+            log.info("Signal %s received, shutting down…", signum)
+            self._stop_requested = True
+
+        signal.signal(signal.SIGINT, _handler)
+        try:
+            signal.signal(signal.SIGTERM, _handler)
+        except (AttributeError, OSError):
+            # Not available on some platforms (e.g., Windows older Pythons)
+            pass
+
+
+# ------------------------------ Entrypoint -----------------------------
+
+def main(argv: list[str] | None = None) -> int:
+    """Main entrypoint for the VR Core application."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+    cfg = Config()
+    app = Core(cfg, argv)
+    app.install_signal_handlers()
+
+    try:
+        app.build()
+        app.start()
+        app.wait_forever()
+    except KeyboardInterrupt:
+        logging.getLogger("core").info("KeyboardInterrupt")
+    except Exception:  # pylint: disable=broad-except
+        logging.getLogger("core").exception("Fatal error in Core")
+        return 1
+    finally:
+        app.stop()
+
+    return 0
 
 
 if __name__ == "__main__":
-    Core()
+    raise SystemExit(main(sys.argv[1:]))
