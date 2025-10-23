@@ -5,3 +5,4 @@ test_eye_video/*
 venv
 build/
 .vscode/
+vr_core/main_core.py
