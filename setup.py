@@ -11,7 +11,7 @@ with open('requirements.txt') as f:
 
 setup(
     name="vr_core",
-    python_requires='==3.11',
+    python_requires='==3.11.*',
     version="0.1",
     packages=find_packages(),  # Automatically includes all folders with __init__.py
     install_requires=[
