@@ -20,8 +20,8 @@ from vr_core.health_monitor import HealthMonitor
 from vr_core.network.tcp_server import TCPServer
 from vr_core.network.comm_router import CommandDispatcher
 
-from vr_core.raspberry_perif.esp32 import ESP32
-from vr_core.raspberry_perif.gyroscope import Gyroscope
+from vr_core.raspberry_perif.esp32 import Esp32
+from vr_core.raspberry_perif.imu import Imu
 from vr_core.raspberry_perif.camera_manager import CameraManager
 
 from vr_core.eye_tracker.tracker_control import TrackerControl
@@ -61,10 +61,10 @@ class Core:
     def build(self):
         """Build and start all core modules."""
 
-        # tcp_server = TCPServer(
-        #     config=self.cfg,
-        #     send_q=self.queues.tcp_queue
-        # )
+        tcp_server = TCPServer(
+            config=self.cfg,
+            tcp_receive_q=self.queues.tcp_receive_q,
+        )
 
         # config.tracker_config.use_test_video = True  # Use saved video instead of live camera
         # if not config.tracker_config.use_test_video:

@@ -22,3 +22,14 @@ class MessageType(IntEnum):
     trackerPreview = 10
     eyePreview = 11
     eyeImage = 12
+
+
+class MessageFormat(IntEnum):
+    """Message formats for communication between RPI and Unity.
+
+    camelCase used for consistency with Unity definition.
+    """
+
+    json = 0
+    jpeg = 1
+    png = 2

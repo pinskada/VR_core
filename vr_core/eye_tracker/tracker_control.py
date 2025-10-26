@@ -9,10 +9,12 @@ import cv2
 import vr_core.module_list as module_list
 from vr_core.eye_tracker.frame_provider import FrameProvider
 from vr_core.eye_tracker.tracker_process import TrackerLauncher
-from vr_core.config import tracker_config
 from vr_core.eye_tracker.tracker_comm import QueueHandler
+from vr_core.config_service import config
+from vr_core.ports.interfaces import ITrackerService
 
-class TrackerControl:
+
+class TrackerControl(ITrackerService):
     def __init__(self, test_mode=False):  # Initializes all tracking components and command queues
         self.online = True  # Flag to indicate if the tracker is online
         module_list.tracker_center = self  # Register the eye tracker centre in the module list
@@ -21,6 +23,11 @@ class TrackerControl:
 
         self.test_mode = test_mode  # Flag to indicate if the module is in test mode
         self.setup_mode = False
+
+
+    def tracker_control(self, msg) -> None:
+        """Control the tracker module."""
+
 
     def is_online(self):
         """Check if the tracker is online."""

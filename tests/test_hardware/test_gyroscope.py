@@ -1,7 +1,7 @@
 import time
 import argparse
 from vr_core.config import gyroscope_config
-from vr_core.raspberry_perif.gyroscope import Gyroscope
+from vr_core.raspberry_perif.imu import Gyroscope
 
 def test_gyroscope_basic_readings(force_mock=False):
     print("=== Starting Gyroscope Test ===")

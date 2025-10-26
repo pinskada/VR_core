@@ -6,9 +6,10 @@ import os
 import math
 
 import vr_core.module_list as module_list
-from vr_core.config import gyroscope_config
+from vr_core.config_service import config
+from vr_core.ports.interfaces import IImuService
 
-class Gyroscope:
+class Imu(IImuService):
     """Gyroscope module for VR Core on Raspberry Pi."""
     def __init__(self, force_mock=False):
         self.online = True
@@ -117,6 +118,11 @@ class Gyroscope:
     def is_online(self):
         """Check if the gyroscope is online."""
         return self.online
+
+
+    def imu_cmd(self, msg) -> None:
+        """Send a command to the IMU sensor."""
+        print(f"[INFO] Gyroscope: Received IMU command: {msg}")
 
 
     # Check if I2C is enabled on the Raspberry Pi

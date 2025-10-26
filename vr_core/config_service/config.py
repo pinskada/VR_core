@@ -14,7 +14,7 @@ class Config:
       - get("imu.rate_hz") -> 200
     Thread-safe, updates happen in-place on dataclass instances.
     """
-    def __init__(self):
+    def __init__(self) -> None:
         self._lock = threading.RLock()
         self._root = RootConfig()
         self._subs_by_key: DefaultDict[
@@ -25,31 +25,31 @@ class Config:
 
     # --- direct accessors ---
     @property
-    def tcp(self):
+    def tcp(self) -> Any:
         """Direct access to TCP config."""
         return self._root.tcp
     @property
-    def tracker(self):
+    def tracker(self) -> Any:
         """Direct access to tracker config."""
         return self._root.tracker
     @property
-    def gaze(self):
+    def gaze(self) -> Any:
         """Direct access to gaze config."""
         return self._root.gaze
     @property
-    def camera(self):
+    def camera(self) -> Any:
         """Direct access to camera config."""
         return self._root.camera
     @property
-    def imu(self):
+    def imu(self) -> Any:
         """Direct access to IMU config."""
         return self._root.imu
     @property
-    def esp32(self):
+    def esp32(self) -> Any:
         """Direct access to ESP32 config."""
         return self._root.esp32
     @property
-    def health(self):
+    def health(self) -> Any:
         """Direct access to health config."""
         return self._root.health
 
@@ -115,7 +115,7 @@ class Config:
         with self._lock:
             self._subs_by_key[key].append(callback)
 
-        def _unsub():
+        def _unsub() -> None:
             with self._lock:
                 lst = self._subs_by_key.get(key, [])
                 if callback in lst:

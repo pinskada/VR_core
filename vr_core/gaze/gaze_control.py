@@ -1,12 +1,15 @@
-import vr_core.module_list as module_list
-from vr_core.config import tracker_config
-from vr_core.config import eye_processing_config
-from vr_core.gaze.gaze_calib import Calibration
-from vr_core.gaze.gaze_calc import MainProcessor
+"""Gaze control and preprocessing module for VR Core on Raspberry Pi."""
+
 import time
 import numpy as np
 
-class GazeControl:
+import vr_core.module_list as module_list
+from vr_core.config_service import config
+from vr_core.gaze.gaze_calib import Calibration
+from vr_core.gaze.gaze_calc import MainProcessor
+from vr_core.ports.interfaces import IGazeService
+
+class GazeControl(IGazeService):
     def __init__(self):
         self.online = True # Flag to indicate if the system is online or offline
 
@@ -20,6 +23,13 @@ class GazeControl:
         self.filtered_ipd = None # Placeholder for the filtered Interpupillary Distance (IPD) value
 
         self.print_ipd_state = 0 # Flag to indicate if the system should print the IPD state
+
+
+    def gaze_control(self, msg) -> None:
+        """
+        Control the gaze module.
+        """
+
 
     def get_relative_ipd(self, pupil_left, pupil_right):
         """

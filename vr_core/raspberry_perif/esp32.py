@@ -8,7 +8,7 @@ from vr_core.config import esp32_config
 import vr_core.module_list as module_list
 
 
-class ESP32:
+class Esp32:
     """ESP32 Peripheral Module."""
     def __init__(self, force_mock=False):
         self.online = True
