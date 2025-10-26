@@ -35,11 +35,14 @@ class TCPServer(BaseService, INetworkService):
 
 
     def _on_start(self) -> None:
+        """Set up server socket and wait for client connection."""
+        
         self._verify_static_ip()
 
         if not self._start_server():
             return
 
+        # Mark as ready
         self._ready.set()
 
 
@@ -47,7 +50,7 @@ class TCPServer(BaseService, INetworkService):
         while not self._stop.is_set():
 
             self._receive()
-            time.sleep(self.cfg.tcp.receive_loop_interval)
+            self._stop.wait(self.cfg.tcp.receive_loop_interval)
 
 
     def _on_stop(self) -> None:
@@ -241,7 +244,7 @@ class TCPServer(BaseService, INetworkService):
                     print("[ERROR] TCPServer: Max resend attempts reached; giving up.")
                     self.online = False
                     return
-                time.sleep(0.01)
+                self._stop.wait(0.01)
 
 
     def _encode_message(

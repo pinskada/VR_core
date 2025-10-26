@@ -4,38 +4,36 @@ from typing import Callable, Dict, Any
 from queue import Queue
 
 from vr_core.network.comm_contracts import MessageType
-from vr_core.raspberry_perif.imu import Imu
-from vr_core.gaze.gaze_control import GazeControl
-from vr_core.eye_tracker.tracker_control import TrackerControl
 from vr_core.config_service.config import Config
+from vr_core.ports.interfaces import IGazeService, ITrackerService, IImuService
 
 
 # --- Handlers ---
 
 def handle_imu_cmd(
     msg: Any,
-    imu: Imu
+    i_imu: IImuService
 ) -> None:
     """Handle IMU command messages."""
-    imu.imu_cmd(msg)
+    i_imu.imu_cmd(msg)
     print("Handling IMU command:", msg)
 
 
 def handle_gaze_control(
     msg: Any,
-    gaze_control: GazeControl
+    i_gaze_control: IGazeService
 ) -> None:
     """Handle gaze control messages."""
-    gaze_control.gaze_control(msg)
+    i_gaze_control.gaze_control(msg)
     print("Handling gaze control:", msg)
 
 
 def handle_tracker_control(
     msg: Any,
-    tracker_control: TrackerControl
+    i_tracker_control: ITrackerService
 ) -> None:
     """Handle tracker control messages."""
-    tracker_control.tracker_control(msg)
+    i_tracker_control.tracker_control(msg)
     print("Handling tracker control:", msg)
 
 
@@ -64,16 +62,17 @@ def handle_general_config(
 
 # --- Routing table factory ---
 def build_routing_table(
-    imu: Imu,
-    gaze_control: GazeControl,
-    tracker_control: TrackerControl,
+    i_imu: IImuService,
+    i_gaze_control: IGazeService,
+    i_tracker_control: ITrackerService,
     esp_cmd_q: Queue,
     config: Config,
 ) -> Dict[MessageType, Callable[[Any], None]]:
+    """Routing table mapping message types to handler functions."""
     return {
-        MessageType.imuSensor: lambda msg: handle_imu_cmd(msg, imu),
-        MessageType.gazeCalcControl: lambda msg: handle_gaze_control(msg, gaze_control),
-        MessageType.trackerControl: lambda msg: handle_tracker_control(msg, tracker_control),
+        MessageType.imuSensor: lambda msg: handle_imu_cmd(msg, i_imu),
+        MessageType.gazeCalcControl: lambda msg: handle_gaze_control(msg, i_gaze_control),
+        MessageType.trackerControl: lambda msg: handle_tracker_control(msg, i_tracker_control),
         MessageType.espConfig: lambda msg: handle_esp_config(msg, esp_cmd_q),
         MessageType.tcpConfig: lambda msg: handle_general_config(msg, config),
     }

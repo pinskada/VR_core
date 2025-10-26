@@ -18,7 +18,7 @@ from vr_core.ports.queues import CommQueues
 from vr_core.health_monitor import HealthMonitor
 
 from vr_core.network.tcp_server import TCPServer
-from vr_core.network.comm_router import CommandDispatcher
+from vr_core.network.comm_router import CommRouter
 
 from vr_core.raspberry_perif.esp32 import Esp32
 from vr_core.raspberry_perif.imu import Imu
