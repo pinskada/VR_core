@@ -2,6 +2,7 @@
 
 from typing import Callable, Dict, Any
 from queue import Queue
+import threading
 
 from vr_core.network.comm_contracts import MessageType
 from vr_core.config_service.config import Config
@@ -60,6 +61,15 @@ def handle_general_config(
         print(f"[ConfigHandler] Set {path} = {value}")
 
 
+def handle_config_ready(
+    msg: Any,
+    config_ready: threading.Event
+) -> None:
+    """Handle configuration ready messages."""
+    print("Configuration is ready:", msg)
+    config_ready.set()
+
+
 # --- Routing table factory ---
 def build_routing_table(
     i_imu: IImuService,
@@ -67,6 +77,7 @@ def build_routing_table(
     i_tracker_control: ITrackerService,
     esp_cmd_q: Queue,
     config: Config,
+    config_ready: threading.Event
 ) -> Dict[MessageType, Callable[[Any], None]]:
     """Routing table mapping message types to handler functions."""
     return {
@@ -75,4 +86,5 @@ def build_routing_table(
         MessageType.trackerControl: lambda msg: handle_tracker_control(msg, i_tracker_control),
         MessageType.espConfig: lambda msg: handle_esp_config(msg, esp_cmd_q),
         MessageType.tcpConfig: lambda msg: handle_general_config(msg, config),
+        MessageType.configReady: lambda msg: (handle_config_ready(msg, config_ready)),
     }

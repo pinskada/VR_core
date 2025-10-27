@@ -22,6 +22,7 @@ class MessageType(IntEnum):
     trackerPreview = 10
     eyePreview = 11
     eyeImage = 12
+    configReady = 13
 
 
 class MessageFormat(IntEnum):

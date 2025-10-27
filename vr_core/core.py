@@ -14,6 +14,8 @@ from typing import Dict, List
 from vr_core.base_service import BaseService
 from vr_core.config_service.config import Config
 from vr_core.ports.queues import CommQueues
+import vr_core.ports.signals as signals
+import vr_core.ports.interfaces as interfaces
 
 from vr_core.health_monitor import HealthMonitor
 
@@ -24,7 +26,7 @@ from vr_core.raspberry_perif.esp32 import Esp32
 from vr_core.raspberry_perif.imu import Imu
 from vr_core.raspberry_perif.camera_manager import CameraManager
 
-from vr_core.eye_tracker.tracker_control import TrackerControl
+from vr_core.eye_tracker.tracker_center import TrackerControl
 from vr_core.eye_tracker.tracker_comm import TrackerComm
 from vr_core.eye_tracker.tracker_process import TrackerProcess
 from vr_core.eye_tracker.frame_provider import FrameProvider
@@ -51,7 +53,13 @@ class Core:
 
         self.argv = argv or []
         self.cfg = cfg
+
         self.queues = CommQueues()
+        self.config_signals = signals.ConfigSignals()
+        self.comm_router_signals = signals.CommRouterSignals()
+        self.tracker_signals = signals.TrackerSignals()
+        self.eye_ready_signals = signals.EyeReadySignals()
+
         self.services: Dict[str, BaseService] = {}
         self._stop_requested = False
 
@@ -106,9 +114,9 @@ class Core:
                 timeout = self.cfg.tcp.connect_timeout
                 if timeout == -1:
                     timeout = float("inf")
-            else:
-                timeout = 5
-            if not svc.ready(timeout=timeout):
+                if not svc.ready(timeout=timeout) and not self.config_signals.config_ready.is_set():
+                    raise TimeoutError(f"Service '{name}' did not become ready in time")
+            elif not svc.ready(timeout=5):
                 raise TimeoutError(f"Service '{name}' did not become ready in time")
 
         log.info("All services started and ready.")

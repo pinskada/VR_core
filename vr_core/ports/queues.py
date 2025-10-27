@@ -17,26 +17,22 @@ class CommQueues:
     comm_router_q: PriorityQueue = field(default_factory=PriorityQueue)
 
 
-    # Tracker module queues
+    # Eye-tracker module queues
     tracker_cmd_l_q: multiprocessing.Queue = field(default_factory=multiprocessing.Queue)
     tracker_cmd_r_q: multiprocessing.Queue = field(default_factory=multiprocessing.Queue)
 
     tracker_rsp_l_q: multiprocessing.Queue = field(default_factory=multiprocessing.Queue)
     tracker_rsp_r_q: multiprocessing.Queue = field(default_factory=multiprocessing.Queue)
 
-    sync_q_l: multiprocessing.Queue = field(default_factory=multiprocessing.Queue)
-    sync_q_r: multiprocessing.Queue = field(default_factory=multiprocessing.Queue)
-
-    acknowledge_q_l: multiprocessing.Queue = field(default_factory=multiprocessing.Queue)
-    acknowledge_q_r: multiprocessing.Queue = field(default_factory=multiprocessing.Queue)
-
-
-    # Queue for sharing IPD data across Gaze module
-    ipd_q: queue.Queue = field(default_factory=queue.Queue)
+    tracker_health_q: queue.Queue = field(default_factory=queue.Queue)
 
 
     # Queue from sending computed tracker data from tracker module to gaze module
     tracker_data_q: queue.Queue = field(default_factory=queue.Queue)
+
+
+    # Queue for sharing IPD data across Gaze module
+    ipd_q: queue.Queue = field(default_factory=queue.Queue)
 
 
     # Peripheral device queues
