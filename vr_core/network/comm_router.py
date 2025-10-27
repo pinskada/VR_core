@@ -14,7 +14,7 @@ from vr_core.network.comm_contracts import MessageType
 import vr_core.network.routing_table as routing_table
 import vr_core.network.image_encoder as image_encoder
 from vr_core.ports.interfaces import IImuService, IGazeService, ITrackerService, INetworkService
-from vr_core.ports.signals import CommRouterSignals
+from vr_core.ports.signals import CommRouterSignals, EyeReadySignals
 
 
 class CommRouter(BaseService):
@@ -29,7 +29,8 @@ class CommRouter(BaseService):
         com_router_queue_q: PriorityQueue,
         tcp_receive_q: queue.Queue,
         esp_cmd_q: queue.Queue,
-        shm_signals: CommRouterSignals,
+        comm_router_s: CommRouterSignals,
+        sync_s: EyeReadySignals,
         config: Config
     ) -> None:
         super().__init__(name="CommRouter")
@@ -46,7 +47,8 @@ class CommRouter(BaseService):
         self.esp_cmd_q = esp_cmd_q
 
         # Initialize shared memory signals
-        self.shm_signals = shm_signals
+        self.comm_router_s = comm_router_s
+        self.sync_s = sync_s
 
         # Initialize config
         self.cfg = config
@@ -179,7 +181,7 @@ class CommRouter(BaseService):
         """If set, loads image from shared memory, encodes it, and sends it over TCP."""
 
         while not self._stop.is_set():
-            if not self.shm_signals.tcp_send_enabled.is_set():
+            if not self.comm_router_s.tcp_send_enabled.is_set():
                 if self.shm_connected:
                     self._disconnect_shm()
                 self._stop.wait(0.1)
@@ -189,18 +191,21 @@ class CommRouter(BaseService):
                 self._connect_shm()
                 continue
 
-            if self.shm_signals.shm_reconfig.is_set():
+            if self.comm_router_s.shm_reconfig.is_set():
                 # Reconfigure shared memory connection here if needed
                 self._reconfigure_shm()
-                self.shm_signals.shm_reconfig.clear()
+                self.comm_router_s.shm_reconfig.clear()
 
-            if not self.shm_signals.frame_ready.is_set():
+            if not self.comm_router_s.frame_ready.is_set():
                 self._stop.wait(0.01)
                 continue
             try:
                 self._tcp_send_shm_handler()
             finally:
-                self.shm_signals.frame_ready.clear()
+                self.comm_router_s.frame_ready.clear()
+                if self.comm_router_s.sync_frames.is_set():
+                    self.sync_s.left_eye_ready.set()
+                    self.sync_s.right_eye_ready.set()
 
 
     # ---------------- Handlers ----------------
