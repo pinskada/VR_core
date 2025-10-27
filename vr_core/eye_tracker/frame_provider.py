@@ -1,69 +1,81 @@
 """Frame Provider Module"""
 
 import time
+import queue
 from queue import Empty
 from multiprocessing.shared_memory import SharedMemory
 import numpy as np
 import cv2
-#import threading
 
-from vr_core.config import tracker_config
-import vr_core.module_list as module_list
+from vr_core.base_service import BaseService
+from vr_core.config_service.config import Config
+from vr_core.ports.signals import CommRouterSignals, EyeReadySignals, TrackerSignals
+from vr_core.raspberry_perif.camera_manager import CameraManager
 
 
-class FrameProvider:
+
+class FrameProvider(BaseService):
     """Handles video acquisition, cropping, and shared memory distribution"""
-    def __init__(self, test_mode=False):
-        self.online = True
-        self.shm_l = None
-        self.shm_r = None
+    def __init__(
+        self,
+        camera_manager: CameraManager,
+        comm_router_s: CommRouterSignals,
+        eye_ready_s: EyeReadySignals,
+        tracker_s: TrackerSignals,
+        tracker_cmd_l_q: queue.Queue,
+        tracker_cmd_r_q: queue.Queue,
+        config: Config,
+    ) -> None:
+        super().__init__(name="FrameProvider")
 
-        module_list.frame_provider = self  # Register the frame provider in the module list
-        self.use_test_video = tracker_config.use_test_video
+        self.camera_manager = camera_manager
 
-        self.test_mode = test_mode  # Flag for test mode
+        self.comm_router_s = comm_router_s
+        self.eye_ready_s = eye_ready_s
+        self.tracker_s = tracker_s
+
+        self.tracker_cmd_l_q = tracker_cmd_l_q
+        self.tracker_cmd_r_q = tracker_cmd_r_q
+
+        self.cfg = config
+
+        self.online = False
+        self.shm_left: SharedMemory | None = None
+        self.shm_right: SharedMemory | None = None
+
+        self.use_test_video = False
+        self.test_mode = False  # Flag for test mode
         self.frame_id = 0  # Incremented with each new frame
-        if module_list.queue_handler:
-            self.sync_queue_l, self.sync_queue_r = module_list.queue_handler.get_sync_queues()
-            self.acknowledge_queue_l, self.acknowledge_queue_r = module_list.queue_handler.get_ack_queues()
 
+
+    def _on_start(self) -> None:
         # Choose between test video or live camera
         if self.use_test_video:
             self.cv2 = cv2
             self.cap = cv2.VideoCapture(tracker_config.test_video_path)
-            if module_list.health_monitor:
-                module_list.health_monitor.status(
-                    "FrameProvider",
-                    "Using test video for frame capture."
-                )
+
             print("[INFO] FrameProvider: Using test video for frame capture.")
         else:
-            if module_list.cam_manager:
-                module_list.cam_manager.apply_config()
+            self.camera_manager.apply_config()
 
         # Capture a test frame to determine actual crop size
         if self.use_test_video:
             ret, test_frame = self.cap.read()
             if not ret:
-                if module_list.health_monitor:
-                    module_list.health_monitor.failure(
-                        "FrameProvider",
-                        "Failed to read test frame from video."
-                    )
                 self.online = False
                 raise RuntimeError("[ERROR] FrameProvider: Failed to read test frame from video.")
             test_frame = cv2.cvtColor(test_frame, cv2.COLOR_BGR2GRAY)
 
         else:
-            if module_list.cam_manager:
-                test_frame = module_list.cam_manager.capture_frame()
+
+            test_frame = self.camera_manager.capture_frame()
         #test_frame = test_frame.transpose(1,0)[:, :]
         mean_img = np.mean(test_frame)
 
         # Allocate shared memory for left and right eye frames
         self._allocate_memory(test_frame, crop_l_bool=True, crop_r_bool=True)
 
-    def run(self):
+    def _run(self) -> None:
         """Main loop for capturing and distributing frames."""
         try:
             while self.is_online():

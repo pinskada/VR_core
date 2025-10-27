@@ -1,7 +1,7 @@
 # test_tracker_center.py
 import unittest
 from unittest.mock import patch, MagicMock
-from vr_core.eye_tracker.tracker_control import TrackerCenter
+from vr_core.eye_tracker.tracker_center import TrackerCenter
 
 
 class TestTrackerCenter(unittest.TestCase):
