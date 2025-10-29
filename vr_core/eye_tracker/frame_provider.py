@@ -130,13 +130,10 @@ class FrameProvider(BaseService):
             test_frame = cv2.cvtColor(test_frame, cv2.COLOR_BGR2GRAY)
             test_frame_shape = test_frame.shape
 
-            self._allocate_memory(Eye.LEFT, test_frame_shape)
-            self._allocate_memory(Eye.RIGHT, test_frame_shape)
-
+            self._activate_shm(test_frame_shape)
         else:
             # Allocate shared memory for left and right eye frames
-            self._allocate_memory(Eye.LEFT)
-            self._allocate_memory(Eye.RIGHT)
+            self._activate_shm()
 
         self.frame_id = 0  # Incremented with each new frame
 
@@ -149,8 +146,13 @@ class FrameProvider(BaseService):
         while not self._stop.is_set():
             # Wait until frame provision is enabled
             if not self.provide_frames_s.is_set():
+                if self.shm_active.is_set():
+                    self._deactivate_shm()
                 self._stop.wait(0.1)
                 continue
+
+            if not self.shm_active.is_set():
+                self._activate_shm()
 
             # If holding frames due to config change, wait
             if self.hold_frames:
@@ -168,10 +170,7 @@ class FrameProvider(BaseService):
     def _on_stop(self) -> None:
         """Stops the FrameProvider and cleans up resources."""
         self.online = False
-        self.shm_active.clear()
-        self._close_consumer_shm()
-        self._clear_memory(Eye.LEFT)
-        self._clear_memory(Eye.RIGHT)
+        self._deactivate_shm()
 
         if self.use_test_video:
             self.video_capture.release()
@@ -264,7 +263,8 @@ class FrameProvider(BaseService):
             self.is_holding_frames.wait(self.cfg.tracker.frame_hold_timeout)
             self._validate_crop()
             self._copy_settings_to_local()
-            self._reallocate_memory()
+            self._deactivate_shm()
+            self._activate_shm()
             self.hold_frames = False
             self.is_holding_frames.clear()
 
@@ -275,6 +275,37 @@ class FrameProvider(BaseService):
         self.crop_l = self.cfg.tracker.crop_left
         self.crop_r = self.cfg.tracker.crop_right
         self.full_frame_shape = self.cfg.tracker.full_frame_resolution
+
+
+    def _activate_shm(
+        self,
+        test_shape: tuple[int, int] | None = None
+    ) -> None:
+        """Activates shared memory usage."""
+        # Allocate new shared memory
+        self._allocate_memory(Eye.LEFT, test_shape)
+        self._allocate_memory(Eye.RIGHT, test_shape)
+
+        # Notify EyeLoop trackers about new shared memory configuration
+        self._cmd_tracker_shm_reconfig(Eye.LEFT)
+        self._cmd_tracker_shm_reconfig(Eye.RIGHT)
+
+        # Signal that shared memory is active
+        self.shm_active.set()
+
+
+    def _deactivate_shm(self) -> None:
+        """Deactivates shared memory usage."""
+
+        # Signal to consumers that shared memory is being deactivated
+        self.shm_active.clear()
+
+        # Wait for consumers to close their shared memory references
+        self._close_consumer_shm()
+
+        # Only after all processes have released the shared memory, proceed
+        self._clear_memory(Eye.LEFT)
+        self._clear_memory(Eye.RIGHT)
 
 
     def _allocate_memory(
@@ -387,29 +418,6 @@ class FrameProvider(BaseService):
         if self.tracker_running_r_s.is_set():
             self.tracker_shm_is_closed_r_s.wait(self.cfg.tracker.memory_unlink_timeout)
             self.tracker_shm_is_closed_r_s.clear()
-
-
-    def _reallocate_memory(self) -> None:
-        """Reallocates shared memory for eye frames."""
-
-        self.shm_active.clear()
-
-        # Wait for consumers to close their shared memory references
-        self._close_consumer_shm()
-
-        # Only after all processes have released the shared memory, proceed
-        self._clear_memory(Eye.LEFT)
-        self._clear_memory(Eye.RIGHT)
-
-        # Allocate new shared memory
-        self._allocate_memory(Eye.LEFT)
-        self._allocate_memory(Eye.RIGHT)
-
-        # Notify EyeLoop trackers about new shared memory configuration
-        self._cmd_tracker_shm_reconfig(Eye.LEFT)
-        self._cmd_tracker_shm_reconfig(Eye.RIGHT)
-
-        self.shm_active.set()
 
 
     def _cmd_tracker_shm_reconfig(self, side: Eye) -> None:

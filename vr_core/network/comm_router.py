@@ -201,30 +201,44 @@ class CommRouter(BaseService):
         """If set, loads image from shared memory, encodes it, and sends it over TCP."""
 
         while not self._stop.is_set():
+            # If TCP sending is disabled, wait and continue
             if not self.tcp_send_enabled_s.is_set():
+                # If SHM is connected, but sending disabled, disconnect
+                if self.shm_connected:
+                    self._disconnect_shm()
+                    self.comm_shm_is_closed_s.set()
                 self._stop.wait(0.1)
                 continue
 
+            # If SHM is active and not connected, connect
             if self.shm_active_s.is_set():
                 if not self.shm_connected:
                     self._connect_shm()
+
+            # If SHM is not active and connected, disconnect
             else:
                 if self.shm_connected:
                     self._disconnect_shm()
                     self.comm_shm_is_closed_s.set()
                 continue
 
+            # If frame is not ready, wait and continue
             if not self.frame_ready_s.is_set():
                 self._stop.wait(0.05)
                 continue
+
+            # If ready, ack and send frame
             try:
                 self.frame_ready_s.clear()
                 self._tcp_send_shm_handler()
-            finally:
+
+                # If in camera preview mode, signal both eyes are ready
                 if self.sync_frames_s.is_set():
                     self.eye_ready_l_s.set()
                     self.eye_ready_r_s.set()
 
+            except Exception as e:  # pylint: disable=broad-except
+                print(f"[CommRouter] shm send handler error: {e}")
 
     # ---------------- Handlers ----------------
 
