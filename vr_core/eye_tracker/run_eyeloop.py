@@ -2,8 +2,23 @@
 
 import sys
 import time
+import multiprocessing as mp
+from multiprocessing.synchronize import Event as MpEvent
+import traceback
 
-def run_eyeloop(eye: str, importer_name: str, shm_name: str, blink_cal: str, command_queue, response_queue, sync_queue, acknowledge_queue, test_mode):
+from vr_core.eye_tracker.eyeloop_module.eyeloop.run_eyeloop import EyeLoop
+
+def run_eyeloop(
+    eye: str,
+    importer_name: str,
+    shm_name: str,
+    blink_cal: str,
+    tracker_cmd_q: mp.Queue,
+    tracker_resp_q: mp.Queue,
+    eye_ready_s: MpEvent,
+    tracker_shm_is_closed_s: MpEvent,
+    test_mode: bool = False,
+    ) -> None:
     """
     Launches the EyeLoop process from within a multiprocessing.Process context.
     Sets up sys.argv so EyeLoop's main() can parse CLI-style arguments,
@@ -15,31 +30,29 @@ def run_eyeloop(eye: str, importer_name: str, shm_name: str, blink_cal: str, com
         "--side", eye,
         "--importer", importer_name,
         "--sharedmem", shm_name,
-        "--auto_search", False,
+        "--auto_search", "false",
 
         #"--video", "test_video/test_video.mp4",
     ]
 
     if not test_mode:
-        from vr_core.eye_tracker.eyeloop_module.eyeloop.run_eyeloop import EyeLoop
         try:
             print(f"[INFO] run_eyeloop_process: Starting tracker for eye: {eye}.\n")
-            EyeLoop(sys.argv[1:], logger=None,
-                    command_queue=command_queue,
-                    response_queue=response_queue,
-                    sync_queue=sync_queue,
-                    acknowledge_queue=acknowledge_queue
-                    )
-
+            EyeLoop(
+                sys.argv[1:],
+                logger=None,
+                tracker_cmd_q=tracker_cmd_q,
+                response_queue=tracker_resp_q,
+                eye_ready_s=eye_ready_s,
+                tracker_shm_is_closed_s=tracker_shm_is_closed_s
+            )
         except Exception as e:
             print(f"[ERROR] run_eyeloop_process: EyeLoop process for eye {eye} crashed: {e}")
-            import traceback; traceback.print_exc()
+            traceback.print_exc()
     else:
         print("[INFO] run_eyeloop_process: Test mode: "
               f"EyeLoop process for eye {eye} would start here.")
         while True:
             # In test mode, we can simulate or mock the behavior of the EyeLoop process.
             # This is useful for unit tests where we don't want to start the actual process.
-            time.sleep(1)
-        # In test mode, we can simulate or mock the behavior of the EyeLoop process.
-        # This is useful for unit tests where we don't want to start the actual process.
+            time.sleep(1.0)
