@@ -35,7 +35,7 @@ class Tracker:
     png_compression: int = 3  # PNG compression level (0-9)
     sync_timeout: float = 2.0  # Timeout for EyeLoop response in seconds
     preview_fps: int = 20  # FPS for preview stream
-    handler_queue_timeout: float = 0.001  # Timeout for queue operations in seconds
+    resp_q_timeout: float = 0.001  # Timeout for queue operations in seconds
     provider_queue_timeout: float = 0.01  # Timeout for provider queue operations in seconds
     process_launch_time: float = 0.4  # Time to wait for the EyeLoop process to stabilize (in seconds)
     png_send_rate: int = 8
@@ -68,6 +68,8 @@ class Tracker:
     test_video_resolution: tuple[int, int] = (1920, 1080)
     # Number of channels in the test video, must be changed in the code if needed
     test_video_channels: int = 1
+
+    sync_buffer_size: int = 128  # Maximum number of frames to hold for synchronization
 
 
 @dataclass

@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from queue import PriorityQueue
-import multiprocessing
+import multiprocessing as mp
 import queue
 
 @dataclass
@@ -18,11 +18,11 @@ class CommQueues:
 
 
     # Eye-tracker module queues
-    tracker_cmd_l_q: multiprocessing.Queue = field(default_factory=multiprocessing.Queue)
-    tracker_cmd_r_q: multiprocessing.Queue = field(default_factory=multiprocessing.Queue)
+    tracker_cmd_l_q: mp.Queue = field(default_factory=mp.Queue)
+    tracker_cmd_r_q: mp.Queue = field(default_factory=mp.Queue)
 
-    tracker_rsp_l_q: multiprocessing.Queue = field(default_factory=multiprocessing.Queue)
-    tracker_rsp_r_q: multiprocessing.Queue = field(default_factory=multiprocessing.Queue)
+    tracker_rsp_l_q: mp.Queue = field(default_factory=mp.Queue)
+    tracker_rsp_r_q: mp.Queue = field(default_factory=mp.Queue)
 
     tracker_health_q: queue.Queue = field(default_factory=queue.Queue)
 

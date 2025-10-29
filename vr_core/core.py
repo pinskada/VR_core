@@ -27,7 +27,7 @@ from vr_core.raspberry_perif.imu import Imu
 from vr_core.raspberry_perif.camera_manager import CameraManager
 
 from vr_core.eye_tracker.tracker_center import TrackerControl
-from vr_core.eye_tracker.tracker_comm import TrackerComm
+from vr_core.eye_tracker.tracker_sync import TrackerComm
 from vr_core.eye_tracker.tracker_process import TrackerProcess
 from vr_core.eye_tracker.frame_provider import FrameProvider
 
@@ -58,7 +58,7 @@ class Core:
         self.config_signals = signals.ConfigSignals()
         self.comm_router_signals = signals.CommRouterSignals()
         self.tracker_signals = signals.TrackerSignals()
-        self.eye_ready_signals = signals.EyeReadySignals()
+        self.eye_ready_signals = signals.EyeTrackerSignals()
 
         self.services: Dict[str, BaseService] = {}
         self._stop_requested = False

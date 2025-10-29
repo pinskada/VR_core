@@ -11,7 +11,7 @@ import cv2
 import vr_core.module_list as module_list
 from vr_core.eye_tracker.frame_provider import FrameProvider
 from vr_core.eye_tracker.tracker_process import TrackerLauncher
-from vr_core.eye_tracker.tracker_comm import QueueHandler
+from vr_core.eye_tracker.tracker_sync import QueueHandler
 from vr_core.config_service import config
 from vr_core.ports.interfaces import ITrackerService
 

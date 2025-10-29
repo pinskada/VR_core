@@ -176,6 +176,16 @@ class TrackerProcess(BaseService, ITrackerService):
         if not proc:
             return
 
+
+        if side == "left":
+            self.tracker_cmd_q_l.put_nowait(
+                {"type": "close"},
+            )
+        elif side == "right":
+            self.tracker_cmd_q_r.put_nowait(
+                {"type": "close"},
+            )
+
         try:
             if proc.is_alive():
                 try:

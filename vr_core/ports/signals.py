@@ -24,17 +24,22 @@ class CommRouterSignals:
         self.comm_shm_is_closed = Event()
 
 
+class TrackerDataSignals:
+    """Signals for tracker data sharing."""
+
+    def __init__(self) -> None:
+        # Control for TrackerComm to send data to network
+        self.log_data = Event()
+        # Control for TrackerComm to send data to gaze module
+        self.provide_data = Event()
+
+
 class TrackerSignals:
     """Control signals for tracker module"""
 
     def __init__(self) -> None:
         # Control for FrameProvider to start/stop providing frames
         self.provide_frames = Event()
-
-        # Control for TrackerComm to send data to network
-        self.log_data = Event()
-        # Control for TrackerComm to send data to gaze module
-        self.provide_data = Event()
 
         # Info events about tracker state
         self.tracker_running_l = Event()
