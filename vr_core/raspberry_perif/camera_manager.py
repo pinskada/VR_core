@@ -2,7 +2,11 @@
 
 import sys
 #import time
+from typing import cast
+
 import cv2
+import numpy as np
+from numpy.typing import NDArray
 
 from vr_core.config import camera_manager_config
 import vr_core.module_list as module_list
@@ -85,7 +89,7 @@ class CameraManager:
         except (AttributeError, TypeError, ValueError, OSError) as e:
             print(f"[ERROR] CamManager: Failed to set controls: {e}")
 
-    def capture_frame(self):
+    def capture_frame(self) -> NDArray[np.uint8]:
         """ Capture a single frame from the camera."""
         self.frame_id += 1
         error = None
@@ -97,7 +101,11 @@ class CameraManager:
                 frame = request.make_array("main")
                 request.release()
 
-                frame = cv2.resize(frame, (int(camera_manager_config.width), int(camera_manager_config.height)), interpolation=cv2.INTER_LINEAR)
+                frame = cv2.resize(
+                    frame,
+                    (int(camera_manager_config.width), int(camera_manager_config.height)),
+                    interpolation=cv2.INTER_LINEAR
+                )
 
                 error = None
                 break
@@ -105,7 +113,7 @@ class CameraManager:
                 error = e
                 print(f"[ERROR] CameraManager: error taking frame: {e}")
 
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        frame = cast(NDArray[np.uint8], cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
 
 
         if error is not None:

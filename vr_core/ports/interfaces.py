@@ -30,6 +30,14 @@ class ITrackerService(ABC):
     def tracker_control(self, msg) -> None:
         """Control the tracker module."""
 
+    @abstractmethod
+    def start_tracker(self, test_mode: bool) -> None:
+        """Start the tracker."""
+
+    @abstractmethod
+    def stop_tracker(self) -> None:
+        """Stop the tracker."""
+
 
 class ICameraService(ABC):
     """Camera service interface."""

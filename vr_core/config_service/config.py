@@ -5,7 +5,7 @@ from typing import Any, Callable, List, DefaultDict, Tuple
 from collections import defaultdict
 
 from vr_core.config_service.config_modules import RootConfig
-
+import vr_core.config_service.config_modules as config_modules
 
 class Config:
     """
@@ -25,31 +25,31 @@ class Config:
 
     # --- direct accessors ---
     @property
-    def tcp(self) -> Any:
+    def tcp(self) -> config_modules.TCP:
         """Direct access to TCP config."""
         return self._root.tcp
     @property
-    def tracker(self) -> Any:
+    def tracker(self) -> config_modules.Tracker:
         """Direct access to tracker config."""
         return self._root.tracker
     @property
-    def gaze(self) -> Any:
+    def gaze(self) -> config_modules.Gaze:
         """Direct access to gaze config."""
         return self._root.gaze
     @property
-    def camera(self) -> Any:
+    def camera(self) -> config_modules.Camera:
         """Direct access to camera config."""
         return self._root.camera
     @property
-    def imu(self) -> Any:
+    def imu(self) -> config_modules.IMU:
         """Direct access to IMU config."""
         return self._root.imu
     @property
-    def esp32(self) -> Any:
+    def esp32(self) -> config_modules.ESP32:
         """Direct access to ESP32 config."""
         return self._root.esp32
     @property
-    def health(self) -> Any:
+    def health(self) -> config_modules.Health:
         """Direct access to health config."""
         return self._root.health
 

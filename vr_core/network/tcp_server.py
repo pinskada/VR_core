@@ -36,7 +36,7 @@ class TCPServer(BaseService, INetworkService):
 
     def _on_start(self) -> None:
         """Set up server socket and wait for client connection."""
-        
+
         self._verify_static_ip()
 
         if not self._start_server():

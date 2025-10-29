@@ -3,9 +3,12 @@
 from typing import Callable, Dict, Any, Optional
 from queue import PriorityQueue
 from multiprocessing.shared_memory import SharedMemory
+from multiprocessing.synchronize import Event as MpEvent
 import queue
 import json
 import threading
+from threading import Event
+
 import numpy as np
 
 from vr_core.base_service import BaseService
@@ -14,7 +17,7 @@ from vr_core.network.comm_contracts import MessageType
 import vr_core.network.routing_table as routing_table
 import vr_core.network.image_encoder as image_encoder
 from vr_core.ports.interfaces import IImuService, IGazeService, ITrackerService, INetworkService
-from vr_core.ports.signals import CommRouterSignals, EyeReadySignals
+from vr_core.ports.signals import CommRouterSignals, TrackerSignals, ConfigSignals
 
 
 class CommRouter(BaseService):
@@ -30,8 +33,9 @@ class CommRouter(BaseService):
         tcp_receive_q: queue.Queue,
         esp_cmd_q: queue.Queue,
         comm_router_s: CommRouterSignals,
-        sync_s: EyeReadySignals,
-        config: Config
+        tracker_signals: TrackerSignals,
+        config_signals: ConfigSignals,
+        config: Config,
     ) -> None:
         super().__init__(name="CommRouter")
 
@@ -47,8 +51,16 @@ class CommRouter(BaseService):
         self.esp_cmd_q = esp_cmd_q
 
         # Initialize shared memory signals
-        self.comm_router_s = comm_router_s
-        self.sync_s = sync_s
+        self.tcp_send_enabled_s: Event = comm_router_s.tcp_send_enabled
+        self.frame_ready_s: Event = comm_router_s.frame_ready
+        self.sync_frames_s: Event = comm_router_s.sync_frames
+        self.comm_shm_is_closed_s: Event = comm_router_s.comm_shm_is_closed
+
+        self.shm_active_s: MpEvent = tracker_signals.shm_active
+        self.eye_ready_l_s: MpEvent = tracker_signals.eye_ready_l
+        self.eye_ready_r_s: MpEvent = tracker_signals.eye_ready_r
+
+        self.config_ready_s: Event = config_signals.config_ready
 
         # Initialize config
         self.cfg = config
@@ -65,10 +77,15 @@ class CommRouter(BaseService):
         self.shm_left: SharedMemory | None = None
         self.shm_right: SharedMemory | None = None
 
+        self.memory_shape_l: tuple[int, int]
+        self.memory_shape_r: tuple[int, int]
+
         # SHM and online state
         self.shm_connected = False
         self.online = False
 
+
+# ---------- BaseService lifecycle ----------
 
     def _on_start(self) -> None:
         """Initialize routing table and mark as ready."""
@@ -77,8 +94,11 @@ class CommRouter(BaseService):
             i_gaze_control=self.i_gaze_control,
             i_tracker_control=self.i_tracker_control,
             esp_cmd_q=self.esp_cmd_q,
-            config=self.cfg
+            config=self.cfg,
+            config_ready=self.config_ready_s
         )
+
+        self._copy_settings_to_local()
 
         self.online = True
 
@@ -150,7 +170,7 @@ class CommRouter(BaseService):
                 print(f"[CommRouter] recv handler error for {msg_type}: {e}")
 
 
-    # ruff: noqa: F401,F841
+    # ruff: noqa: F841
     # pylint: disable=unused-variable
     def _tcp_send_loop(self) -> None:
         """Drains com_router_queue_q and sends messages to Unity via TCPServer."""
@@ -181,31 +201,29 @@ class CommRouter(BaseService):
         """If set, loads image from shared memory, encodes it, and sends it over TCP."""
 
         while not self._stop.is_set():
-            if not self.comm_router_s.tcp_send_enabled.is_set():
-                if self.shm_connected:
-                    self._disconnect_shm()
+            if not self.tcp_send_enabled_s.is_set():
                 self._stop.wait(0.1)
                 continue
 
-            if not self.shm_connected:
-                self._connect_shm()
+            if self.shm_active_s.is_set():
+                if not self.shm_connected:
+                    self._connect_shm()
+            else:
+                if self.shm_connected:
+                    self._disconnect_shm()
+                    self.comm_shm_is_closed_s.set()
                 continue
 
-            if self.comm_router_s.shm_reconfig.is_set():
-                # Reconfigure shared memory connection here if needed
-                self._reconfigure_shm()
-                self.comm_router_s.shm_reconfig.clear()
-
-            if not self.comm_router_s.frame_ready.is_set():
-                self._stop.wait(0.01)
+            if not self.frame_ready_s.is_set():
+                self._stop.wait(0.05)
                 continue
             try:
+                self.frame_ready_s.clear()
                 self._tcp_send_shm_handler()
             finally:
-                self.comm_router_s.frame_ready.clear()
-                if self.comm_router_s.sync_frames.is_set():
-                    self.sync_s.left_eye_ready.set()
-                    self.sync_s.right_eye_ready.set()
+                if self.sync_frames_s.is_set():
+                    self.eye_ready_l_s.set()
+                    self.eye_ready_r_s.set()
 
 
     # ---------------- Handlers ----------------
@@ -265,11 +283,11 @@ class CommRouter(BaseService):
             return
 
         left_image: np.ndarray = np.ndarray(
-            shape=self.cfg.tracker.memory_shape_L,
+            shape=self.memory_shape_l,
             dtype=np.uint8,
             buffer=self.shm_left.buf).copy()
         right_image: np.ndarray = np.ndarray(
-            shape=self.cfg.tracker.memory_shape_R,
+            shape=self.memory_shape_r,
             dtype=np.uint8,
             buffer=self.shm_right.buf).copy()
 
@@ -291,9 +309,16 @@ class CommRouter(BaseService):
 
     # --- SHM handling methods ---
 
+    def _copy_settings_to_local(self):
+        """Copies/binds memory shapes to local variables."""
+        self.memory_shape_l = self.cfg.tracker.memory_shape_l
+        self.memory_shape_r = self.cfg.tracker.memory_shape_r
+
+
     def _reconfigure_shm(self):
         """Reconnects to shared memory using a new configuration."""
         self._disconnect_shm()
+        self._copy_settings_to_local()
         self._connect_shm()
 
 

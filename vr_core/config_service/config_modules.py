@@ -20,11 +20,12 @@ class TCP:
     max_resend_attempts: int = 3      # Number of times to resend a message if not acknowledged
 
     # Timeout for establishing a connection, where -1 means no timeout (in seconds)
-    connect_timeout: int = 60
+    connect_timeout: float = 60
 
     max_packet_size: int = 0xFFFFFF  # Maximum allowed packet size
 
     restart_server_count: int = 1
+
 
 @dataclass
 class Tracker:
@@ -32,22 +33,24 @@ class Tracker:
     frame_provider_max_fps: int = 1000 # Maximum FPS for the frame provider
     jpeg_quality: int = 15  # JPEG encoding quality (0-100)
     png_compression: int = 3  # PNG compression level (0-9)
-    sync_timeout: int = 10  # Timeout for EyeLoop response in seconds
+    sync_timeout: float = 2.0  # Timeout for EyeLoop response in seconds
     preview_fps: int = 20  # FPS for preview stream
     handler_queue_timeout: float = 0.001  # Timeout for queue operations in seconds
     provider_queue_timeout: float = 0.01  # Timeout for provider queue operations in seconds
     process_launch_time: float = 0.4  # Time to wait for the EyeLoop process to stabilize (in seconds)
     png_send_rate: int = 8
 
-    crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.0, 1.0), (0.0, 0.5))  # Relative region (x1, x2, y1, y2) for the left eye
-    crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.0, 1.0), (0.5, 1.0))  # Relative region (x1, x2, y1, y2) for the right eye
+    crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.0, 0.5), (0.0, 1.0))  # Relative region (x1, x2, y1, y2) for the left eye
+    crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.5, 1.0), (0.0, 1.0))  # Relative region (x1, x2, y1, y2) for the right eye
 
     sharedmem_name_left: str = "eye_left_frame"  # Shared memory buffer name for left eye
     sharedmem_name_right: str = "eye_right_frame"  # Shared memory buffer name for right eye
     memory_dtype: str = "uint8"  # Data type for the shared memory buffer
-    memory_shape_L: list[int] = [960, 1080]  # Size of the shared memory buffer (height, width)
-    memory_shape_R: list[int] = [960, 1080]  # Size of the shared memory buffer (height, width)
-    full_frame_resolution: list[int] = [1920, 1080]  # Full frame resolution (height, width)
+    memory_shape_l: tuple[int, int] = (1080, 960)  # Size of the shared memory buffer (height, width)
+    memory_shape_r: tuple[int, int] = (1080, 960)  # Size of the shared memory buffer (height, width)
+    full_frame_resolution: tuple[int, int] = (1080, 1920)  # Full frame resolution (height, width)
+    memory_unlink_timeout: float = 3.0  # Time to wait for shared memory to be released (in seconds)
+    frame_hold_timeout: float = 2.0  # Time to wait for frame provider to release frames (in seconds)
 
     # Path to the blink calibration file
     blink_calibration_L: str = "blink_calibration/blink_calibration_cropL.npy"
@@ -57,7 +60,7 @@ class Tracker:
     importer_name: str = "shared_memory_importer"
 
     # Interval for health check of the eyeloop processes in seconds
-    eyeloop_health_check_interval: int = 3
+    health_check_interval: int = 3
 
     use_test_video: bool = False  # Use saved video instead of live camera
     test_video_path: str = "test_video/test_video.mp4"  # Path to test video

@@ -1,39 +1,56 @@
 """Siignals definitions."""
 
-import threading
-import multiprocessing
-
+from threading import Event
+import multiprocessing as mp
 
 class ConfigSignals:
     """Configuration service signals."""
 
     def __init__(self) -> None:
-        self.config_ready = threading.Event()  # set when initial config is loaded
+        self.config_ready = Event()  # set when initial config is loaded
 
 
 class CommRouterSignals:
     """Shared memory signals for tracker-networking communication."""
 
     def __init__(self) -> None:
-        self.tcp_send_enabled = threading.Event()   # external on/off switch
-        self.frame_ready = threading.Event()        # producer sets when it wrote a new frame
-        self.sync_frames = threading.Event()       # consumer sets the frame is processed
-        self.shm_reconfig = threading.Event()       # signal to reconfigure shared memory
+        # Enable/disable TCP sending of frames
+        self.tcp_send_enabled = Event()
+        # New frame is ready for CommRouter in shared memory
+        self.frame_ready = Event()
+        # Signal to CommRouter to sync frames, else just send latest
+        self.sync_frames = Event()
+        # Signal indicating that shm has been closed
+        self.comm_shm_is_closed = Event()
 
 
 class TrackerSignals:
     """Control signals for tracker module"""
 
     def __init__(self) -> None:
-        self.provide_frames = threading.Event()
-        self.log_data = threading.Event()
-        self.provide_data = threading.Event()
-        self.start_tracker = threading.Event()
-        self.stop_tracker = threading.Event()
+        # Control for FrameProvider to start/stop providing frames
+        self.provide_frames = Event()
 
-class EyeReadySignals:
-    """Signals indicating eye readiness for eye-tracking module"""
+        # Control for TrackerComm to send data to network
+        self.log_data = Event()
+        # Control for TrackerComm to send data to gaze module
+        self.provide_data = Event()
+
+        # Info events about tracker state
+        self.tracker_running_l = Event()
+        self.tracker_running_r = Event()
+
+        # Shared memory activity signal
+        self.shm_active = mp.Event()
+
+        # Signals indicating processed eye frame
+        self.eye_ready_l = mp.Event()
+        self.eye_ready_r = mp.Event()
+
+class EyeTrackerSignals:
+    """Signals indicating eye readiness for Eyeloop module"""
 
     def __init__(self) -> None:
-        self.left_eye_ready = multiprocessing.Event()
-        self.right_eye_ready = multiprocessing.Event()
+        # Signals indicating that shm has been closed
+        self.tracker_shm_is_closed_l = mp.Event()   # signal that shared memory is closed
+        self.tracker_shm_is_closed_r = mp.Event()   # signal that shared memory
