@@ -13,6 +13,7 @@ from vr_core.network.comm_contracts import MessageType
 from vr_core.base_service import BaseService
 from vr_core.config_service.config import Config
 from vr_core.ports.signals import TrackerDataSignals
+from vr_core.utilities.logger_setup import setup_logger
 
 
 class Eye(Enum):
@@ -56,6 +57,8 @@ class TrackerSync(BaseService):
     ) -> None:
         super().__init__(name="TrackerSync")
 
+        self.logger = setup_logger("TrackerSync")
+
         # Signal events for output data control
         self.log_data_s = tracker_data_s.log_data
         self.provide_data_s = tracker_data_s.provide_data
@@ -88,6 +91,8 @@ class TrackerSync(BaseService):
 
         self.online = False
 
+        self.logger.info("Service initialized.")
+
 
 # ---------- BaseService lifecycle ----------
 
@@ -111,6 +116,8 @@ class TrackerSync(BaseService):
         self.online = True
         self._ready.set()
 
+        self.logger.info("Service _ready is set.")
+
 
     def _run(self) -> None:
         """Main loop for the QueueHandler service."""
@@ -120,10 +127,13 @@ class TrackerSync(BaseService):
 
     def _on_stop(self) -> None:
         """Cleans up the QueueHandler service."""
+        self.logger.info("Service stopping.")
+
         self.online = False
         for t in (self._t_left, self._t_right):
             if t and t.is_alive():
                 t.join(timeout=0.5)
+                self.logger.info("Service %s stopped.", t.name)
 
 
 # ---------- Internals ----------
@@ -135,9 +145,12 @@ class TrackerSync(BaseService):
     ) -> None:
         """Loop to handle responses from EyeLoop processes."""
 
+        self.logger.info("Service %s started.", eye)
+
         while not self._stop.is_set():
             try:
                 msg = response_queue.get(timeout=self.cfg.tracker.resp_q_timeout)
+                self.logger.info("Received message from %s: %s", eye, msg.get("type"))
             except queue.Empty:
                 # Nothing to read this tick
                 continue
@@ -145,7 +158,7 @@ class TrackerSync(BaseService):
             try:
                 self._dispatch_message(msg, eye)
             except (KeyError, ValueError, TypeError) as e:
-                print(f"[WARN] TrackerSync: malformed message from {eye}: {e}")
+                self.logger.warning("Malformed message from %s: %s", eye, e)
 
 
     def _dispatch_message(
@@ -169,7 +182,7 @@ class TrackerSync(BaseService):
                     bit_map = message.get("bitmap")
 
                     if bit_map is None:
-                        print("[WARN] No bitmap in image_preview message.")
+                        self.logger.info("No bitmap in image_preview message.")
                         return
 
                     if isinstance(bit_map, (bytes, bytearray)):
@@ -185,9 +198,9 @@ class TrackerSync(BaseService):
                     payload = message.get("payload")
                     self.tracker_health_q.put((payload, eye))
                 case _:
-                    print("[WARN] TrackerSync: Missing 'payload' in message.")
+                    self.logger.info("Missing 'payload' in message.")
         else:
-            print(f"[WARN] TrackerSync: Unexpected message format: {type(message)}")
+            self.logger.warning("Unexpected message format: %s", type(message))
 
 
     def _try_sync(
@@ -202,7 +215,7 @@ class TrackerSync(BaseService):
         payload = data.get("payload")
         if frame_id is None or payload is None:
             # Can't sync without frame_id; drop or log
-            print("[WARN] TrackerSync dropping message without frame_id or payload")
+            self.logger.warning("Dropping message without frame_id or payload")
             return
 
         # Select buffer based on payload type
@@ -214,6 +227,7 @@ class TrackerSync(BaseService):
             lock = self._img_lock
         else:
             # if your enum could grow, be explicit so type-checkers know we return here
+            self.logger.error("Unexpected message_type: %s", message_type)
             raise ValueError(f"[ERROR] TrackerSync: Unexpected message_type: {message_type}")
 
         # Prevent concurrent access to the buffer
@@ -284,4 +298,4 @@ class TrackerSync(BaseService):
         for k in keys[:drop_n]:
             buf.pop(k, None)
 
-        print(f"[WARN] TrackerSync Trimmed sync buffer by {drop_n} entries.")
+        self.logger.warning("Trimmed sync buffer by %d entries.", drop_n)

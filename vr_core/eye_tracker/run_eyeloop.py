@@ -7,7 +7,11 @@ from multiprocessing.synchronize import Event as MpEvent
 import traceback
 
 from vr_core.eye_tracker.eyeloop_module.eyeloop.run_eyeloop import EyeLoop
+from vr_core.utilities.logger_setup import setup_logger
 
+logger = setup_logger("eyeloop_exe")
+
+# pylint: disable=unused-argument
 def run_eyeloop(
     eye: str,
     importer_name: str,
@@ -37,7 +41,7 @@ def run_eyeloop(
 
     if not test_mode:
         try:
-            print(f"[INFO] run_eyeloop_process: Starting tracker for eye: {eye}.\n")
+            logger.info("Starting tracker for eye: %s.", eye)
             EyeLoop(
                 sys.argv[1:],
                 command_queue=tracker_cmd_q,
@@ -46,12 +50,12 @@ def run_eyeloop(
                 tracker_shm_is_closed_signal=tracker_shm_is_closed_s,
                 logger=None,
             )
-        except Exception as e:
-            print(f"[ERROR] run_eyeloop_process: EyeLoop process for eye {eye} crashed: {e}")
+        except Exception as e:  # pylint: disable=broad-except
+            logger.error("EyeLoop process for eye %s crashed: %s", eye, e)
             traceback.print_exc()
     else:
-        print("[INFO] run_eyeloop_process: Test mode: "
-              f"EyeLoop process for eye {eye} would start here.")
+        logger.info("run_eyeloop_process: Test mode: "
+              "EyeLoop process for eye %s would start here.", eye)
         while True:
             # In test mode, we can simulate or mock the behavior of the EyeLoop process.
             # This is useful for unit tests where we don't want to start the actual process.

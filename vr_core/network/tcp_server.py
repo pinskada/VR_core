@@ -8,6 +8,7 @@ from vr_core.base_service import BaseService
 from vr_core.ports.interfaces import INetworkService
 from vr_core.config_service.config import Config
 from vr_core.network.comm_contracts import MessageType
+from vr_core.utilities.logger_setup import setup_logger
 
 class TCPServer(BaseService, INetworkService):
     """
@@ -21,6 +22,8 @@ class TCPServer(BaseService, INetworkService):
     ) -> None:
         super().__init__(name="TCPServer")
 
+        self.logger = setup_logger("TCPServer")
+
         self.cfg = config
         self.tcp_receive_q = tcp_receive_q
 
@@ -33,6 +36,8 @@ class TCPServer(BaseService, INetworkService):
 
         self._buf = bytearray()
 
+        self.logger.info("Service initialized.")
+
 
     def _on_start(self) -> None:
         """Set up server socket and wait for client connection."""
@@ -44,6 +49,7 @@ class TCPServer(BaseService, INetworkService):
 
         # Mark as ready
         self._ready.set()
+        self.logger.info("Service _ready is set.")
 
 
     def _run(self) -> None:
@@ -56,6 +62,8 @@ class TCPServer(BaseService, INetworkService):
     def _on_stop(self) -> None:
         """Signal threads to stop, close sockets, and join threads."""
         self.online = False
+
+        self.logger.info("Service is stopping.")
 
         # Close sockets to unblock accept/recv
         if self.client_conn:
@@ -89,16 +97,16 @@ class TCPServer(BaseService, INetworkService):
             test_sock.connect((self.cfg.tcp.google_dns, self.cfg.tcp.http_port))
             ip = test_sock.getsockname()[0]
         except OSError as e:
-            print(f"[WARN] TCPServer: IP check failed: {e}")
+            self.logger.warning("IP check failed: %s", e)
             return False
         finally:
             if test_sock:
                 test_sock.close()
 
         if ip.startswith(expected_prefix):
-            print(f"[INFO] TCPServer: IP OK: {ip}")
+            self.logger.info("IP OK: %s", ip)
             return True
-        print(f"[WARN] TCPServer: Unexpected IP {ip}, expected prefix {expected_prefix}")
+        self.logger.warning("Unexpected IP %s, expected prefix %s", ip, expected_prefix)
         return False
 
 
@@ -110,7 +118,7 @@ class TCPServer(BaseService, INetworkService):
         self.server_socket.listen(1)
         self.server_socket.settimeout(1.0)
 
-        print(f"[INFO] TCPServer: Waiting for Unity on {self.cfg.tcp.host}:{self.cfg.tcp.port}...")
+        self.logger.info("Waiting for Unity on %s:%d...", self.cfg.tcp.host, self.cfg.tcp.port)
         start = time.time()
         deadline = self.cfg.tcp.connect_timeout
         infinite_timeout = deadline == -1
@@ -124,7 +132,7 @@ class TCPServer(BaseService, INetworkService):
                 self.client_conn.settimeout(getattr(self.cfg.tcp, "recv_timeout", 0.1))
                 self.online = True
 
-                print(f"[INFO] TCPServer: Connected to {addr}")
+                self.logger.info("Connected to %s", addr)
 
                 return True
 
@@ -132,10 +140,12 @@ class TCPServer(BaseService, INetworkService):
                 if infinite_timeout:
                     continue
                 elif time.time() - start >= deadline:
+                    self.logger.warning("TCPServer: accept timeout before client connected")
                     raise RuntimeError("TCPServer: accept timeout before client connected") from e
                 continue
             except OSError as e:
                 # Bind/listen failed or socket got closed during shutdown
+                self.logger.error("TCPServer: accept failed: %s", e)
                 raise RuntimeError(f"TCPServer: accept failed: {e}") from e
 
         return False
@@ -149,7 +159,7 @@ class TCPServer(BaseService, INetworkService):
         try:
             chunk = self.client_conn.recv(self.cfg.tcp.recv_buffer_size)
             if not chunk:
-                print("[WARN] TCPServer: Connection closed by client.")
+                self.logger.warning("TCPServer: Connection closed by client.")
                 self.online = False
                 return
             self._buf.extend(chunk)
@@ -158,8 +168,7 @@ class TCPServer(BaseService, INetworkService):
             # No data this cycle — not an error. Let _run() continue.
             return
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError) as e:
-            print(f"[WARN] TCPServer: Receive error: {e}")
-            self.online = False
+            self.logger.warning("TCPServer: Receive error: %s", e)
 
 
     def _decode_message(self) -> None:
@@ -177,7 +186,9 @@ class TCPServer(BaseService, INetworkService):
 
             # sanity
             if payload_len <= 0 or payload_len > max_size:
-                print(f"[ERROR] TCPServer: Invalid payload length {payload_len}; clearing buffer.")
+                self.logger.error(
+                    "TCPServer: Invalid payload length %d; clearing buffer.",
+                    payload_len)
                 self._buf.clear()
                 return
 
@@ -194,7 +205,7 @@ class TCPServer(BaseService, INetworkService):
             try:
                 msg_type = MessageType(pkt_type)
             except ValueError:
-                print(f"[WARN] TCPServer: Unknown MessageType {pkt_type}, skipping packet.")
+                self.logger.warning("TCPServer: Unknown MessageType %d, skipping packet.", pkt_type)
                 consumed += total
                 continue
 
@@ -216,18 +227,18 @@ class TCPServer(BaseService, INetworkService):
         """Encode a payload and send it."""
 
         if not self.client_conn:
-            print("[WARN] TCPServer: tcp_send called but no client is connected.")
+            self.logger.warning("TCPServer: tcp_send called but no client is connected.")
             self.online = False
             return
 
         try:
             msg_type = MessageType(message_type)
         except ValueError:
-            print(f"[ERROR] TCPServer: unknown MessageType {message_type!r}")
+            self.logger.error("TCPServer: unknown MessageType %r", message_type)
             return
 
         if not isinstance(payload, (bytes, bytearray, memoryview)):
-            print("[ERROR] TCPServer: payload must be bytes-like.")
+            self.logger.error("TCPServer: payload must be bytes-like.")
             return
         body = bytes(payload)
 
@@ -239,9 +250,9 @@ class TCPServer(BaseService, INetworkService):
                     self.client_conn.sendall(packet)
                     return
             except OSError as e:
-                print(f"[WARN] TCPServer: Send error ({attempt+1}/{max_attempts}): {e}")
+                self.logger.warning("TCPServer: Send error (%d/%d): %s", attempt+1, max_attempts, e)
                 if attempt+1 >= max_attempts:
-                    print("[ERROR] TCPServer: Max resend attempts reached; giving up.")
+                    self.logger.error("TCPServer: Max resend attempts reached; giving up.")
                     self.online = False
                     return
                 self._stop.wait(0.01)
@@ -261,6 +272,9 @@ class TCPServer(BaseService, INetworkService):
 
         length = len(payload)
         if length > self.cfg.tcp.max_packet_size:
+            self.logger.error(
+                "TCPServer: Payload too large: %d > %d",
+                length, self.cfg.tcp.max_packet_size)
             raise ValueError("Payload too large.")
 
         header = bytes([int(message_type)]) + length.to_bytes(3, 'big')

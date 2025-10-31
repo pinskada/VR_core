@@ -16,6 +16,7 @@ from vr_core.base_service import BaseService
 from vr_core.config_service.config import Config
 from vr_core.ports.signals import CommRouterSignals, EyeTrackerSignals, TrackerSignals
 from vr_core.raspberry_perif.camera_manager import CameraManager
+from vr_core.utilities.logger_setup import setup_logger
 
 
 class Eye(Enum):
@@ -52,6 +53,8 @@ class FrameProvider(BaseService):
     ) -> None:
         super().__init__(name="FrameProvider")
 
+        self.logger = setup_logger("FrameProvider")
+
         self.i_camera_manager = i_camera_manager
 
         self.tcp_enabled_s: Event = comm_router_s.tcp_send_enabled
@@ -61,7 +64,7 @@ class FrameProvider(BaseService):
         self.provide_frames_s: Event = tracker_s.provide_frames
         self.tracker_running_l_s: Event = tracker_s.tracker_running_l
         self.tracker_running_r_s: Event = tracker_s.tracker_running_r
-        self.shm_active: MpEvent = tracker_s.shm_active
+        self.shm_active_s: MpEvent = tracker_s.shm_active
         self.left_eye_ready_s: MpEvent = tracker_s.eye_ready_l
         self.right_eye_ready_s: MpEvent = tracker_s.eye_ready_r
 
@@ -93,6 +96,8 @@ class FrameProvider(BaseService):
         self.use_test_video = False
         self.test_mode = False  # Flag for test mode
 
+        self.logger.info("FrameProvider initialized.")
+
 
 # ---------- BaseService lifecycle ----------
 
@@ -104,17 +109,17 @@ class FrameProvider(BaseService):
             path = Path(self.cfg.tracker.test_video_path)
 
             if not path.is_file():
-                print("[ERROR] FrameProvider: Test video not found: "
-                    f"{self.cfg.tracker.test_video_path}")
+                self.logger.error("Test video not found: %s",
+                                  self.cfg.tracker.test_video_path)
                 return
 
             self.video_capture = cv2.VideoCapture(self.cfg.tracker.test_video_path)
 
             if not self.video_capture.isOpened():
-                print(f"[ERROR] FrameProvider: Failed to open test video: {path}")
+                self.logger.error("Failed to open test video: %s", path)
                 return
 
-            print("[INFO] FrameProvider: Using test video for frame capture.")
+            self.logger.info("Using test video for frame capture.")
 
         self._validate_crop()
         self._copy_settings_to_local()
@@ -125,7 +130,7 @@ class FrameProvider(BaseService):
 
             if not ret:
                 self.online = False
-                print("[ERROR] FrameProvider: Failed to read from test video.")
+                self.logger.error("Failed to read from test video.")
                 return
 
             test_frame = cv2.cvtColor(test_frame, cv2.COLOR_BGR2GRAY)
@@ -136,6 +141,8 @@ class FrameProvider(BaseService):
         self.online = True
         self._ready.set()
 
+        self.logger.info("Service _ready is set.")
+
 
     def _run(self) -> None:
         """Main loop for capturing and distributing frames."""
@@ -145,13 +152,13 @@ class FrameProvider(BaseService):
             if not self.provide_frames_s.is_set():
 
                 # If shared memory is active but frame provision is disabled, deactivate it
-                if self.shm_active.is_set():
+                if self.shm_active_s.is_set():
                     self._deactivate_shm()
                 self._stop.wait(0.1)
                 continue
 
             # If shared memory is not active, activate it
-            if not self.shm_active.is_set():
+            if not self.shm_active_s.is_set():
                 self._activate_shm()
 
             # If holding frames due to config change, wait
@@ -160,6 +167,7 @@ class FrameProvider(BaseService):
                 # Signal that frames are being held (only once)
                 if not self.is_holding_frames.is_set():
                     self.is_holding_frames.set()
+                    self.logger.info("Holding frames due to config change.")
                 self._stop.wait(0.1)
                 continue
 
@@ -170,11 +178,14 @@ class FrameProvider(BaseService):
 
     def _on_stop(self) -> None:
         """Stops the FrameProvider and cleans up resources."""
+        self.logger.info("Service stopping.")
+
         self.online = False
         self._deactivate_shm()
 
         if self.use_test_video:
             self.video_capture.release()
+            self.logger.info("Test video released.")
 
 
     def is_online(self) -> bool:
@@ -191,12 +202,12 @@ class FrameProvider(BaseService):
         if self.use_test_video:
             ret, full_frame = self.video_capture.read()
             if full_frame is None:
-                print("[INFO] FrameProvider: End of video reached.")
+                self.logger.info("End of video reached.")
                 return
             full_frame = cv2.cvtColor(full_frame, cv2.COLOR_BGR2GRAY)
 
             if not ret:
-                print("[INFO] FrameProvider: End of test video or read error.")
+                self.logger.warning("End of test video or read error.")
                 self.online = False
                 return
         else:
@@ -219,7 +230,7 @@ class FrameProvider(BaseService):
                 buffer=self.shm_right.buf
             )[:] = right_frame
         except (ValueError, TypeError, MemoryError, BufferError) as e:
-            print(f"[ERROR] FrameProvider: Failed to write to shared memory: {e}")
+            self.logger.error("Failed to write to shared memory: %s", e)
             self.online = False
             return
 
@@ -228,12 +239,14 @@ class FrameProvider(BaseService):
 
         # Signal to CommRouter that a new frame is ready
         self.frame_ready_s.set()
+        self.logger.info("frame_ready_s set for frame ID %d", self.frame_id)
 
         # Put frame ID in sync queues for both EyeLoop processes
         if self.tracker_running_l_s.is_set():
             self.tracker_cmd_l_q.put({"frame_id": self.frame_id})
         if self.tracker_running_r_s.is_set():
             self.tracker_cmd_r_q.put({"frame_id": self.frame_id})
+        self.logger.info("tracker_cmd_l/r_q: frame ID %d sent.", self.frame_id)
 
 
     def _wait_for_sync(self) -> None:
@@ -245,12 +258,13 @@ class FrameProvider(BaseService):
 
         # Block until both EyeLoop processes confirm processing of current frame
         if not self.left_eye_ready_s.wait(self.cfg.tracker.sync_timeout):
-            print("[WARN] FrameProvider: Timeout waiting for left eye readiness.")
+            self.logger.warning("Timeout waiting for left eye readiness.")
         if not self.right_eye_ready_s.wait(self.cfg.tracker.sync_timeout):
-            print("[WARN] FrameProvider: Timeout waiting for right eye readiness.")
+            self.logger.warning("Timeout waiting for right eye readiness.")
 
         self.left_eye_ready_s.clear()
         self.right_eye_ready_s.clear()
+        self.logger.info("left/right_eye_ready_s signals cleared.")
 
     # pylint: disable=unused-argument
     def _on_config_changed(self, path: str, old_val: Any, new_val: Any) -> None:
@@ -261,13 +275,16 @@ class FrameProvider(BaseService):
             or path == "tracker.full_frame_resolution"
         ):
             self.hold_frames = True
+            self.logger.info("hold_frames flag set.")
             self.is_holding_frames.wait(self.cfg.tracker.frame_hold_timeout)
             self._validate_crop()
             self._copy_settings_to_local()
             self._deactivate_shm()
             self._activate_shm()
             self.hold_frames = False
+            self.logger.info("hold_frames flag cleared.")
             self.is_holding_frames.clear()
+            self.logger.info("Holding frames released after config change.")
 
 
     def _copy_settings_to_local(self) -> None:
@@ -276,6 +293,7 @@ class FrameProvider(BaseService):
         self.crop_l = self.cfg.tracker.crop_left
         self.crop_r = self.cfg.tracker.crop_right
         self.full_frame_shape = self.cfg.tracker.full_frame_resolution
+        self.logger.info("Local settings updated from config.")
 
 
     def _activate_shm(
@@ -287,7 +305,8 @@ class FrameProvider(BaseService):
         self._allocate_memory(Eye.RIGHT)
 
         # Signal that shared memory is active
-        self.shm_active.set()
+        self.shm_active_s.set()
+        self.logger.info("Shared memory activated.")
 
         # Notify EyeLoop trackers about new shared memory configuration
         self._cmd_tracker_shm_state()
@@ -297,7 +316,8 @@ class FrameProvider(BaseService):
         """Deactivates shared memory usage."""
 
         # Signal to consumers that shared memory is being deactivated
-        self.shm_active.clear()
+        self.shm_active_s.clear()
+        self.logger.info("shm_active_s cleared.")
 
         # Wait for consumers to close their shared memory references
         self._close_consumer_shm()
@@ -360,8 +380,8 @@ class FrameProvider(BaseService):
 
         except (FileNotFoundError, PermissionError, OSError, BufferError, ValueError) as e:
             self.online = False
-            print("[ERROR] FrameProvider: Failed to allocate shared memory "
-                  f"for {side_to_allocate} eyeframe: {e}")
+            self.logger.error("Failed to allocate shared memory for %s eyeframe: %s",
+                            side_to_allocate, e)
             return
 
         # Store shared memory reference and update config
@@ -375,8 +395,8 @@ class FrameProvider(BaseService):
                 # self.cfg.tracker.memory_shape_r = (memory_shape_x, memory_shape_y)
                 self.cfg.tracker.memory_shape_r = (memory_shape_y, memory_shape_x)
 
-        print(f"[INFO] FrameProvider: Allocated shared memory for "
-              f"{side_to_allocate} eye: {memory_name}")
+        self.logger.info("Allocated shared memory for %s eye: %s",
+                        side_to_allocate, memory_name)
 
 
     def _clear_memory(self, side_to_allocate: Eye) -> None:
@@ -392,13 +412,12 @@ class FrameProvider(BaseService):
             if shm is not None:
                 shm.close()
                 shm.unlink()
-                print(f"[INFO] FrameProvider: Cleaned shared memory for {side_to_allocate} eye.")
             else:
-                print("[WARN] FrameProvider: No shared memory to clean "
-                    f"for {side_to_allocate} eye.")
+                self.logger.warning("No shared memory to clean "
+                    "for %s eye.", side_to_allocate)
         except (FileNotFoundError, PermissionError, OSError, BufferError) as e:
-            print(f"[ERROR] FrameProvider: Failed to clean shared memory for "
-                  f"{side_to_allocate} eye: {e}")
+            self.logger.error("Failed to clean shared memory for "
+                "%s eye: %s", side_to_allocate, e)
 
 
     def _close_consumer_shm(self) -> None:
@@ -412,26 +431,26 @@ class FrameProvider(BaseService):
         # Signal CommRouter to close shared memory if TCP is enabled
         if self.tcp_enabled_s.is_set():
             if not self.comm_shm_is_closed_s.wait(self.cfg.tracker.memory_unlink_timeout):
-                print("[ERROR] FrameProvider: Timeout waiting for CommRouter "
+                self.logger.error("Timeout waiting for CommRouter "
                       "to close shared memory.")
 
         # Signal left EyeLoop tracker to close shared memory
         if self.tracker_running_l_s.is_set():
             if not self.tracker_shm_is_closed_l_s.wait(self.cfg.tracker.memory_unlink_timeout):
-                print("[ERROR] FrameProvider: Timeout waiting for left EyeLoop "
+                self.logger.error("Timeout waiting for left EyeLoop "
                       "tracker to close shared memory.")
 
         # Signal right EyeLoop tracker to close shared memory
         if self.tracker_running_r_s.is_set():
             if not self.tracker_shm_is_closed_r_s.wait(self.cfg.tracker.memory_unlink_timeout):
-                print("[ERROR] FrameProvider: Timeout waiting for right EyeLoop "
+                self.logger.error("Timeout waiting for right EyeLoop "
                       "tracker to close shared memory.")
 
 
     def _cmd_tracker_shm_state(self) -> None:
         """Sends command to EyeLoop tracker to reconfigure shared memory."""
 
-        if self.shm_active.is_set():
+        if self.shm_active_s.is_set():
             if self.tracker_running_l_s.is_set():
                 self.tracker_cmd_l_q.put({
                     "type": "shm_connect",
@@ -445,6 +464,10 @@ class FrameProvider(BaseService):
                     "frame_shape": self.cfg.tracker.memory_shape_r,
                     "frame_dtype": self.cfg.tracker.memory_dtype
                 })
+            self.logger.info("tracker_cmd_l/r_q: shm_connect sent"
+                             "with frame_shape=%s, frame_dtype=%s.",
+                             self.cfg.tracker.memory_shape_l,
+                             self.cfg.tracker.memory_dtype)
 
         else:
             if self.tracker_running_l_s.is_set():
@@ -456,6 +479,7 @@ class FrameProvider(BaseService):
                 self.tracker_cmd_r_q.put({
                     "type": "shm_detach",
                 })
+            self.logger.info("tracker_cmd_l/r_q: shm_detach sent.")
 
 
     def _validate_crop(self) -> None:
@@ -465,13 +489,13 @@ class FrameProvider(BaseService):
         (x0_r, x1_r), (y0_r, y1_r) = self.cfg.tracker.crop_right
 
         if x0_l < 0 or x1_l > 0.5 or y0_l < 0 or y1_l > 1 or x0_l > x1_l or y0_l > y1_l:
-            print(f"[WARN] FrameProvider: Invalid crop dimensions for left eye: "
-                  f"{self.cfg.tracker.crop_left}, resetting to default.")
+            self.logger.warning("Invalid crop dimensions for left eye: "
+                  "%s, resetting to default.", self.cfg.tracker.crop_left)
             self.cfg.set("tracker.crop_left", ((0, 0.5), (0, 1)))
 
         if x0_r < 0.5 or x1_r > 1 or y0_r < 0 or y1_r > 1 or x0_r > x1_r or y0_r > y1_r:
-            print("[WARN] FrameProvider: Invalid crop dimensions for right eye: "
-                  f"{self.cfg.tracker.crop_right}, resetting to default.")
+            self.logger.warning("Invalid crop dimensions for right eye: "
+                  "%s, resetting to default.", self.cfg.tracker.crop_right)
             self.cfg.set("tracker.crop_right", ((0.5, 1), (0, 1)))
 
 

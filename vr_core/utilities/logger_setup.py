@@ -17,7 +17,8 @@ def _project_root() -> Path:
 def setup_logger(name: str,
                  level=logging.INFO,
                  datefmt: str = "%H:%M:%S",
-                 per_process_file: bool = True) -> logging.Logger:
+                 per_process_file: bool = True
+) -> logging.Logger:
     """
     Create a logger that always writes to VR_core/logs, regardless of CWD.
     If per_process_file=True, appends the PID to avoid multi-process file clashes.

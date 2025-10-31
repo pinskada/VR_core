@@ -13,6 +13,8 @@ from typing import Dict, List
 
 from vr_core.base_service import BaseService
 from vr_core.config_service.config import Config
+from vr_core.utilities.logger_setup import setup_logger
+
 from vr_core.ports.queues import CommQueues
 import vr_core.ports.signals as signals
 import vr_core.ports.interfaces as interfaces
@@ -26,8 +28,8 @@ from vr_core.raspberry_perif.esp32 import Esp32
 from vr_core.raspberry_perif.imu import Imu
 from vr_core.raspberry_perif.camera_manager import CameraManager
 
-from vr_core.eye_tracker.tracker_center import TrackerControl
-from vr_core.eye_tracker.tracker_sync import TrackerComm
+from vr_core.eye_tracker.tracker_control import TrackerControl
+from vr_core.eye_tracker.tracker_sync import TrackerSync
 from vr_core.eye_tracker.tracker_process import TrackerProcess
 from vr_core.eye_tracker.frame_provider import FrameProvider
 
@@ -54,11 +56,15 @@ class Core:
         self.argv = argv or []
         self.cfg = cfg
 
+        self.logger = setup_logger("Core")
+
         self.queues = CommQueues()
         self.config_signals = signals.ConfigSignals()
         self.comm_router_signals = signals.CommRouterSignals()
         self.tracker_signals = signals.TrackerSignals()
         self.eye_ready_signals = signals.EyeTrackerSignals()
+
+        self.logger.info("All components initialized.")
 
         self.services: Dict[str, BaseService] = {}
         self._stop_requested = False
@@ -77,16 +83,16 @@ class Core:
         # config.tracker_config.use_test_video = True  # Use saved video instead of live camera
         # if not config.tracker_config.use_test_video:
         #     module_list.cam_manager = CameraManager()
-        time.sleep(0.5)
-        HealthMonitor()
-        time.sleep(0.5)
-        Gyroscope()
-        time.sleep(0.5)
-        ESP32(force_mock=True)
-        time.sleep(0.5)
-        #PreProcessor()
-        time.sleep(0.5)
-        CommandDispatcher()  # type: ignore # noqa: F841
+        # time.sleep(0.5)
+        # HealthMonitor()
+        # time.sleep(0.5)
+        # Gyroscope()
+        # time.sleep(0.5)
+        # ESP32(force_mock=True)
+        # time.sleep(0.5)
+        # #PreProcessor()
+        # time.sleep(0.5)
+        # CommandDispatcher()  # type: ignore # noqa: F841
 
         self.services = {}
 
@@ -96,18 +102,19 @@ class Core:
     def start(self) -> None:
         """ Start services in dependency order, waiting for readiness on each."""
 
-        log = logging.getLogger("core")
+        self.logger.info("Starting services.")
         if not self.services:
-            log.warning("No services registered. Did you forget to call build() or wire them?")
+            self.logger.warning("No services registered. "
+                "Did you forget to call build() or wire them?")
             return
 
         # Order listed in build()
         start_order: List[str] = list(self.services.keys())
-        log.info("Starting services in order: %s", " → ".join(start_order))
+        self.logger.info("Starting services in order: %s", " → ".join(start_order))
 
         for name in start_order:
             svc = self.services[name]
-            log.info("→ start %s", name)
+            self.logger.info("→ start %s", name)
             svc.start()
             # Wait for the service to declare readiness
             if name == "TCPServer":
@@ -119,28 +126,27 @@ class Core:
             elif not svc.ready(timeout=5):
                 raise TimeoutError(f"Service '{name}' did not become ready in time")
 
-        log.info("All services started and ready.")
+        self.logger.info("All services started and ready.")
 
 
     def stop(self):
         """Stop services in reverse order and join them."""
-        log = logging.getLogger("core")
         if not self.services:
             return
 
         stop_order = list(reversed(self.services.keys()))
-        log.info("Stopping services in reverse order: %s", " ← ".join(stop_order))
+        self.logger.info("Stopping services in reverse order: %s", " ← ".join(stop_order))
 
         # Request stop
         for name in stop_order:
             try:
-                log.info("→ stop %s", name)
+                self.logger.info("→ stop %s", name)
                 self.services[name].stop()
             except (RuntimeError, ValueError, OSError) as e:
                 # Common states: not started, already closed, socket already closed
-                log.warning("Benign stop error in %s: %s", name, e, exc_info=True)
+                self.logger.warning("Benign stop error in %s: %s", name, e, exc_info=True)
             except Exception:  # pylint: disable=broad-except
-                log.exception("Unexpected error calling stop() on %s", name)
+                self.logger.exception("Unexpected error calling stop() on %s", name)
 
         # Join
         for name in stop_order:
@@ -148,9 +154,9 @@ class Core:
             try:
                 svc.join(timeout=5)
             except (RuntimeError, ValueError) as e:
-                log.warning("Join error in %s: %s", name, e, exc_info=True)
+                self.logger.warning("Join error in %s: %s", name, e, exc_info=True)
             except Exception:  # pylint: disable=broad-except
-                log.exception("Unexpected exception joining %s", name)
+                self.logger.exception("Unexpected exception joining %s", name)
             else:
                 # No exception: verify thread actually stopped
                 if getattr(svc, "alive", None):
@@ -159,14 +165,14 @@ class Core:
                     except Exception:  # pylint: disable=broad-except
                         still_alive = False
                     if still_alive:
-                        log.error("%s did not stop within 5s (still alive).", name)
+                        self.logger.error("%s did not stop within 5s (still alive).", name)
 
-        log.info("All services stopped.")
+        self.logger.info("All services stopped.")
 
 
     def wait_forever(self):
         """Idle loop for the supervisor. Add supervision/restarts here later if needed."""
-        log = logging.getLogger("core")
+        self.logger.info("Waiting for services to stop...")
         while not self._stop_requested:
             time.sleep(0.5)
 
@@ -175,10 +181,9 @@ class Core:
 
     def install_signal_handlers(self) -> None:
         """Install signal handlers for graceful shutdown."""
-        log = logging.getLogger("core")
 
         def _handler(signum, _frame):
-            log.info("Signal %s received, shutting down…", signum)
+            self.logger.info("Signal %s received, shutting down…", signum)
             self._stop_requested = True
 
         signal.signal(signal.SIGINT, _handler)

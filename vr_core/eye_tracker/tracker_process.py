@@ -10,6 +10,7 @@ from vr_core.base_service import BaseService
 from vr_core.config_service.config import Config
 from vr_core.ports.signals import EyeTrackerSignals, TrackerSignals
 from vr_core.ports.interfaces import ITrackerService
+from vr_core.utilities.logger_setup import setup_logger
 
 
 TrackerState = Literal["idle","starting","running","stopping","error"]
@@ -28,6 +29,8 @@ class TrackerProcess(BaseService, ITrackerService):
         config: Config,
     ) -> None:
         super().__init__(name="TrackerProcess")
+
+        self.logger = setup_logger("TrackerProcess")
 
         self.tracker_cmd_q_l = tracker_cmd_q_l
         self.tracker_cmd_q_r = tracker_cmd_q_r
@@ -56,6 +59,8 @@ class TrackerProcess(BaseService, ITrackerService):
 
         self.online = False
 
+        self.logger.info("Service initialized.")
+
 
 # ---------- BaseService lifecycle ----------
 
@@ -64,6 +69,7 @@ class TrackerProcess(BaseService, ITrackerService):
 
         self.online = True
         self._ready.set()
+        self.logger.info("Service _ready is set.")
 
 
     def _run(self) -> None:
@@ -76,6 +82,7 @@ class TrackerProcess(BaseService, ITrackerService):
 
     def _on_stop(self) -> None:
         """Stops the Eyeloop processes."""
+        self.logger.info("Service stopping.")
         self.online = False
         self.stop_tracker()
 
@@ -84,12 +91,14 @@ class TrackerProcess(BaseService, ITrackerService):
 
     def start_tracker(
         self,
-        test_mode: bool
+        test_mode: bool = False
     ) -> None:
         """Starts the tracker processes."""
 
+        self.logger.info("Starting tracker processes.")
+
         if self.tracker_state in ("starting","running"):
-            print(f"[Tracker] start requested but already {self.tracker_state}.")
+            self.logger.warning("Start requested but process already %s.", self.tracker_state)
             return
 
         self.tracker_state = "starting"
@@ -113,12 +122,12 @@ class TrackerProcess(BaseService, ITrackerService):
             )
             self.proc_left.start()
             self.running_left = True
-            print(f"[Tracker] Left EyeLoop started (pid={self.proc_left.pid}).")
+            self.logger.info("Left EyeLoop started (pid=%d).", self.proc_left.pid)
         except (OSError, RuntimeError) as e:
             self.running_left = False
             self.tracker_state = "error"
             self.last_error = f"start left failed: {e!r}"
-            print("[ERROR] TrackerLauncher: Failed to initialize left Eyeloop processes.")
+            self.logger.error("Failed to initialize left Eyeloop processes.")
             return
 
         # Right
@@ -139,12 +148,12 @@ class TrackerProcess(BaseService, ITrackerService):
             )
             self.proc_right.start()
             self.running_right = True
-            print(f"[Tracker] Right EyeLoop started (pid={self.proc_right.pid}).")
+            self.logger.info("Right EyeLoop started (pid=%d).", self.proc_right.pid)
         except (OSError, RuntimeError) as e:
             self.running_right = False
             self.tracker_state = "error"
             self.last_error = f"start right failed: {e!r}"
-            print("[ERROR] TrackerLauncher: Failed to initialize right Eyeloop processes.")
+            self.logger.error("Failed to initialize right Eyeloop processes.")
             self._terminate_side("left")
             return
 
@@ -153,8 +162,10 @@ class TrackerProcess(BaseService, ITrackerService):
 
     def stop_tracker(self) -> None:
         """Stops the tracker processes."""
+        self.logger.info("Stopping tracker processes.")
+
         if self.tracker_state in ("idle","stopping"):
-            print(f"[WARN] TrackerLauncher: stop requested but already {self.tracker_state}.")
+            self.logger.warning("Stop requested but already %s.", self.tracker_state)
             return
 
         self.tracker_state = "stopping"
@@ -191,25 +202,28 @@ class TrackerProcess(BaseService, ITrackerService):
                 try:
                     proc.terminate()
                 except (ProcessLookupError, PermissionError, OSError) as e:
-                    print(f"[Tracker] {side} terminate() ignored: {e}")
+                    self.logger.warning("%s process terminate() ignored: %s", side, e)
 
                 try:
                     proc.join(timeout=1.0)
                 except AssertionError as e:
-                    print(f"[Tracker] {side} join() skipped (not fully started?): {e}")
+                    self.logger.warning("%s process join() skipped (not fully started?): %s",
+                        side, e)
         except AssertionError as e:
-            print(f"[Tracker] {side} is_alive() not valid (never started?): {e}")
+            self.logger.warning("%s process is_alive() not valid (never started?): %s", side, e)
         finally:
             if side == "left":
                 self.proc_left = None
                 self.running_left = False
                 if hasattr(self.eye_ready_l, "clear"):
                     self.eye_ready_l.clear()
+                    self.logger.info("eye_ready_l cleared.")
             else:
                 self.proc_right = None
                 self.running_right = False
                 if hasattr(self.eye_ready_r, "clear"):
                     self.eye_ready_r.clear()
+                    self.logger.info("eye_ready_r cleared.")
 
 
     # ruff: noqa: F841
@@ -220,12 +234,12 @@ class TrackerProcess(BaseService, ITrackerService):
         if self.proc_left and self.running_left and not self.proc_left.is_alive():
             self.running_left = False
             self.last_error = "left process died"
-            print("[Tracker] Left EyeLoop process died.")
+            self.logger.error("Left EyeLoop process died.")
 
         if self.proc_right and self.running_right and not self.proc_right.is_alive():
             self.running_right = False
             self.last_error = "right process died"
-            print("[Tracker] Right EyeLoop process died.")
+            self.logger.error("Right EyeLoop process died.")
 
         if self.tracker_state == "running" and not (self.running_left and self.running_right):
             # degraded or stopped unexpectedly

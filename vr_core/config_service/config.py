@@ -6,6 +6,8 @@ from collections import defaultdict
 
 from vr_core.config_service.config_modules import RootConfig
 import vr_core.config_service.config_modules as config_modules
+from vr_core.utilities.logger_setup import setup_logger
+
 
 class Config:
     """
@@ -21,6 +23,7 @@ class Config:
             str,
             List[Callable[[str, Any, Any], None]]
         ] = defaultdict(list)
+        self.logger = setup_logger("Config")
 
 
     # --- direct accessors ---
@@ -93,6 +96,7 @@ class Config:
                     elif v in ("0", "false", "no", "off"):
                         new = False
                     else:
+                        self.logger.error("Config: cannot parse bool from '%s'", value)
                         raise ValueError(f"cannot parse bool from '{value}'")
                 elif target_type is int and isinstance(value, str) and value.isdigit():
                     new = int(value)
@@ -104,8 +108,8 @@ class Config:
                     new = target_type(value)
 
             except (ValueError, TypeError) as e:
-                print(f"Config: failed to set {path} to {value!r} "
-                    f"(expected {target_type.__name__}): {e}")
+                self.logger.error("Failed to set %s to %r (expected %s): %s",
+                    path, value, target_type.__name__, e)
                 return
             if new == old:
                 return
@@ -153,7 +157,7 @@ class Config:
             try:
                 cb(path, old_val, new_val)
             except (RuntimeError, ValueError, TypeError) as e:
-                print(f"Config notify: subscriber {cb.__name__} failed: {e}")
+                self.logger.error("Notify subscriber %s failed: %s", cb.__name__, e)
 
 
     def _traverse(
@@ -166,6 +170,7 @@ class Config:
         parts = path.split(".")
 
         if len(parts) < 2:
+            self.logger.error("Config: invalid path '%s'", path)
             raise ValueError("Use dotted path like 'camera.exposure'")
 
         node = self._root

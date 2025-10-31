@@ -9,6 +9,7 @@ from vr_core.base_service import BaseService
 from vr_core.config_service.config import Config
 from vr_core.ports.signals import CommRouterSignals, TrackerDataSignals, TrackerSignals
 from vr_core.ports.interfaces import ITrackerService
+from vr_core.utilities.logger_setup import setup_logger
 
 
 class TrackerControl(BaseService, ITrackerService):
@@ -37,6 +38,8 @@ class TrackerControl(BaseService, ITrackerService):
 
         super().__init__("TrackerControl")
 
+        self.logger = setup_logger("TrackerControl")
+
         self.com_router_queue_q = com_router_queue_q
         self.tracker_cmd_l_q = tracker_cmd_l_q
         self.tracker_cmd_r_q = tracker_cmd_r_q
@@ -56,6 +59,8 @@ class TrackerControl(BaseService, ITrackerService):
 
         self.online = False
 
+        self.logger.info("Service _ready is set.")
+
 
 # ---------- BaseService lifecycle ----------
 
@@ -63,6 +68,8 @@ class TrackerControl(BaseService, ITrackerService):
         """ Start the tracker module. """
         self.online = True
         self._ready.set()
+
+        self.logger.info("Service set ready.")
 
 
     def _run(self) -> None:
@@ -85,47 +92,71 @@ class TrackerControl(BaseService, ITrackerService):
 
         match cmd_type:
             case "offline":
-                pass
+                self._set_offline_mode()
             case "camera_preview":
-                pass
+                self._camera_preview_mode()
             case "tracker_preview":
-                pass
+                self._tracker_preview_mode()
             case "online":
-                pass
+                self._online_mode()
             case _:
-                print(f"Unknown tracker control command: {cmd_type}")
+                self.logger.error("Unknown tracker control command: %s", cmd_type)
 
 
 # ---------- Mode setters ----------
 
     def _set_offline_mode(self) -> None:
         """Sets the tracker module to offline mode."""
+
+        self.logger.info("Setting tracker to offline mode.")
+
         self.provide_frames_s.clear()
+        self.logger.info("provide_frames_s cleared.")
         self.stop_tracker()
         self.log_data_s.clear()
+        self.logger.info("log_data_s cleared.")
         self.provide_data_s.clear()
+        self.logger.info("provide_data_s cleared.")
         self.sync_frames_s.clear()
+        self.logger.info("sync_frames_s cleared.")
         self.tcp_send_enabled_s.clear()
+        self.logger.info("tcp_send_enabled_s cleared.")
 
 
     def _camera_preview_mode(self) -> None:
         """Sets the tracker module to camera preview mode."""
+
+        self.logger.info("Setting tracker to camera preview mode.")
+
         self.provide_frames_s.set()
+        self.logger.info("provide_frames_s set.")
         self.sync_frames_s.set()
+        self.logger.info("sync_frames_s set.")
         self.stop_tracker()
         self.log_data_s.set()
+        self.logger.info("log_data_s set.")
         self.provide_data_s.clear()
+        self.logger.info("provide_data_s cleared.")
         self.tcp_send_enabled_s.set()
+        self.logger.info("tcp_send_enabled_s set.")
 
 
     def _tracker_preview_mode(self) -> None:
         """Sets the tracker module to eye-tracker preview mode."""
+
+        self.logger.info("Setting tracker to eye-tracker preview mode.")
+
         self.provide_frames_s.set()
-        self.start_tracker(test_mode=True)
+        self.logger.info("provide_frames_s set.")
+        self.start_tracker()
         self.log_data_s.set()
+        self.logger.info("log_data_s set.")
         self.provide_data_s.clear()
+        self.logger.info("provide_data_s cleared.")
         self.sync_frames_s.clear()
+        self.logger.info("sync_frames_s cleared.")
         self.tcp_send_enabled_s.clear()
+        self.logger.info("tcp_send_enabled_s cleared.")
 
         if (self.tracker_running_l_s.wait(self.cfg.tracker.sync_timeout) and
             self.tracker_running_r_s.wait(self.cfg.tracker.sync_timeout)):
@@ -135,12 +166,20 @@ class TrackerControl(BaseService, ITrackerService):
 
     def _online_mode(self) -> None:
         """Sets the tracker module to online mode."""
+
+        self.logger.info("Setting tracker to online mode.")
+
         self.provide_frames_s.set()
-        self.start_tracker(test_mode=False)
+        self.logger.info("provide_frames_s set.")
+        self.start_tracker()
         self.log_data_s.set()
+        self.logger.info("log_data_s set.")
         self.provide_data_s.set()
+        self.logger.info("provide_data_s set.")
         self.sync_frames_s.clear()
+        self.logger.info("sync_frames_s cleared.")
         self.tcp_send_enabled_s.clear()
+        self.logger.info("tcp_send_enabled_s cleared.")
 
         if (self.tracker_running_l_s.wait(self.cfg.tracker.sync_timeout) and
             self.tracker_running_r_s.wait(self.cfg.tracker.sync_timeout)):
@@ -154,6 +193,7 @@ class TrackerControl(BaseService, ITrackerService):
         """
         Updates Eyeloop whether to send preview.
         """
+
         self.tracker_cmd_l_q.put(
         {
             "type": "config",
@@ -166,6 +206,7 @@ class TrackerControl(BaseService, ITrackerService):
             "param": "preview",
             "value": send_preview
         })
+        self.logger.info("tracker_cmd_l_q: Prompted preview : %s", send_preview)
 
 
     def update_eyeloop_autosearch(self, autosearch: bool) -> None:
@@ -185,6 +226,7 @@ class TrackerControl(BaseService, ITrackerService):
             "param": "auto_search",
             "value": autosearch
         })
+        self.logger.info("tracker_cmd_l_q: Prompted auto_search : %s", autosearch)
 
 
     # pylint: disable=unused-argument
@@ -192,6 +234,7 @@ class TrackerControl(BaseService, ITrackerService):
         """Handle configuration changes."""
         (_, field) = self._split_path(path)
         self._send_config_to_eyeloop(field, new_val)
+        self.logger.info("tracker_cmd_l_q: Prompted config change for %s: %s", field, new_val)
 
 
     def _set_eyeloop_config(self) -> None:
@@ -201,6 +244,7 @@ class TrackerControl(BaseService, ITrackerService):
         for path, value in eyeloop_config.items():
             (_, field) = self._split_path(path)
             self._send_config_to_eyeloop(field, value)
+        self.logger.info("Sent full eyeloop configuration to EyeLoop processes.")
 
 
     def _send_config_to_eyeloop(

@@ -6,6 +6,7 @@ import struct
 import cv2
 import numpy as np
 
+from vr_core.utilities.logger_setup import setup_logger
 
 # ---- Protocol constants  ----
 # FrameHeader: 1 byte (image count)
@@ -15,6 +16,9 @@ import numpy as np
 MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5 MB max per image
 
 Codec = Literal["jpeg", "png"]
+
+logger = setup_logger("ImageEncoder")
+
 
 def encode_images_packet(
     items: Iterable[Tuple[int, np.ndarray]],
@@ -45,14 +49,17 @@ def encode_images_packet(
     # Normalize and encode
     for eye_id, img in items:
         if not isinstance(eye_id, int) or not 0 <= eye_id <= 255:
+            logger.error("EyeID must fit in 1 byte (0..255). Got: %s", eye_id)
             raise ValueError(f"EyeID must fit in 1 byte (0..255). Got: {eye_id}")
         if img is None:
+            logger.error("Image is None.")
             raise ValueError("Image is None.")
 
         # Ensure uint8 or bool format
         if img.dtype == np.bool_:
             img = img.astype(np.uint8) * 255  # True→255, False→0
         elif img.dtype != np.uint8:
+            logger.error("Unsupported dtype: %s", img.dtype)
             raise ValueError(f"Unsupported dtype: {img.dtype}")
 
         # Determine width/height and channel handling
@@ -71,6 +78,7 @@ def encode_images_packet(
             if not color_is_bgr:
                 img_to_encode = cv2.cvtColor(img_to_encode, cv2.COLOR_RGB2BGR)
         else:
+            logger.error("Unsupported image shape: %s", img.shape)
             raise ValueError(f"Unsupported image shape: {img.shape}")
 
         # Encode
@@ -88,22 +96,30 @@ def encode_images_packet(
                 [int(cv2.IMWRITE_PNG_COMPRESSION), int(png_compression)]
             )
         else:
+            logger.error("Unsupported codec: %s", codec)
             raise ValueError("codec must be 'jpeg' or 'png'")
 
         if not encode_ok:
+            logger.error("cv2.imencode failed for eye_id %s", eye_id)
             raise RuntimeError("cv2.imencode failed")
 
         data = buf.tobytes()
         size = len(data)
         if size <= 0:
+            logger.error("Encoded image is empty for eye_id %s", eye_id)
             raise RuntimeError("Encoded image is empty")
         if size > MAX_IMAGE_SIZE:
+            logger.error(
+                "Encoded image size %d exceeds limit %d for eye_id %s",
+                size, MAX_IMAGE_SIZE, eye_id
+            )
             raise ValueError(f"Encoded image size {size} exceeds limit {MAX_IMAGE_SIZE}")
 
         prepared.append((eye_id, (w, h), data))
 
     count = len(prepared)
     if not 0 <= count <= 255:
+        logger.error("Image count must fit in 1 byte (0..255). Got: %s", count)
         raise ValueError(f"Image count must fit in 1 byte (0..255). Got: {count}")
 
     # Build payload

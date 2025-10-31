@@ -31,7 +31,7 @@ class ITrackerService(ABC):
         """Control the tracker module."""
 
     @abstractmethod
-    def start_tracker(self, test_mode: bool) -> None:
+    def start_tracker(self, test_mode: bool = False) -> None:
         """Start the tracker."""
 
     @abstractmethod
