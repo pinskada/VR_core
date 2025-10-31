@@ -40,11 +40,11 @@ def run_eyeloop(
             print(f"[INFO] run_eyeloop_process: Starting tracker for eye: {eye}.\n")
             EyeLoop(
                 sys.argv[1:],
-                logger=None,
-                tracker_cmd_q=tracker_cmd_q,
+                command_queue=tracker_cmd_q,
                 response_queue=tracker_resp_q,
-                eye_ready_s=eye_ready_s,
-                tracker_shm_is_closed_s=tracker_shm_is_closed_s
+                eye_ready_signal=eye_ready_s,
+                tracker_shm_is_closed_signal=tracker_shm_is_closed_s,
+                logger=None,
             )
         except Exception as e:
             print(f"[ERROR] run_eyeloop_process: EyeLoop process for eye {eye} crashed: {e}")

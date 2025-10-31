@@ -2,6 +2,8 @@
 
 import queue
 import multiprocessing as mp
+from typing import Any
+from typing import Tuple
 
 from vr_core.base_service import BaseService
 from vr_core.config_service.config import Config
@@ -50,6 +52,7 @@ class TrackerControl(BaseService, ITrackerService):
         self.tracker_running_r_s = tracker_signals.tracker_running_r
 
         self.cfg = config
+        self._unsubscribe = config.subscribe("eyeloop", self._on_config_changed)
 
         self.online = False
 
@@ -126,6 +129,7 @@ class TrackerControl(BaseService, ITrackerService):
 
         if (self.tracker_running_l_s.wait(self.cfg.tracker.sync_timeout) and
             self.tracker_running_r_s.wait(self.cfg.tracker.sync_timeout)):
+            self._set_eyeloop_config()
             self.prompt_preview(True)
 
 
@@ -140,12 +144,13 @@ class TrackerControl(BaseService, ITrackerService):
 
         if (self.tracker_running_l_s.wait(self.cfg.tracker.sync_timeout) and
             self.tracker_running_r_s.wait(self.cfg.tracker.sync_timeout)):
+            self._set_eyeloop_config()
             self.prompt_preview(False)
 
 
 # ---------- Helpers ----------
 
-    def prompt_preview(self, send_preview):
+    def prompt_preview(self, send_preview: bool) -> None:
         """
         Updates Eyeloop whether to send preview.
         """
@@ -163,7 +168,7 @@ class TrackerControl(BaseService, ITrackerService):
         })
 
 
-    def update_eyeloop_autosearch(self, autosearch):
+    def update_eyeloop_autosearch(self, autosearch: bool) -> None:
         """
         Updates the EyeLoop process with the new autosearch configuration.
         """
@@ -180,3 +185,69 @@ class TrackerControl(BaseService, ITrackerService):
             "param": "auto_search",
             "value": autosearch
         })
+
+
+    # pylint: disable=unused-argument
+    def _on_config_changed(self, path: str, old_val: Any, new_val: Any) -> None:
+        """Handle configuration changes."""
+        (_, field) = self._split_path(path)
+        self._send_config_to_eyeloop(field, new_val)
+
+
+    def _set_eyeloop_config(self) -> None:
+        """Sends the current configuration to both EyeLoop processes."""
+        eyeloop_config = self.cfg.eyeloop.__dict__
+
+        for path, value in eyeloop_config.items():
+            (_, field) = self._split_path(path)
+            self._send_config_to_eyeloop(field, value)
+
+
+    def _send_config_to_eyeloop(
+        self,
+        field: str,
+        value: Any
+    ) -> None:
+        """Sends the current configuration to both EyeLoop processes."""
+        if field == "auto_search":
+            self.tracker_cmd_l_q.put(
+            {
+                "type": "config",
+                "param": field,
+                "value": value
+            })
+            self.tracker_cmd_r_q.put(
+            {
+                "type": "config",
+                "param": field,
+                "value": value
+            })
+        elif "left" in field:
+            self.tracker_cmd_l_q.put(
+            {
+                "type": "config",
+                "param": field,
+                "value": value
+            })
+        elif "right" in field:
+            self.tracker_cmd_r_q.put(
+            {
+                "type": "config",
+                "param": field,
+                "value": value
+            })
+        else:
+            print(f"[WARN] TrackerControl: Unknown configuration for field: {field}")
+
+
+    def _split_path(self, path: str) -> Tuple[str, str]:
+        """Splits a dotted path with 2 strings into section and field."""
+        parts = path.split(".")
+
+        if len(parts) != 2:
+            raise ValueError("Use dotted path like 'camera.exposure'")
+
+        section = parts[0]
+        field = parts[1]
+
+        return section, field

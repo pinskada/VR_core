@@ -52,6 +52,10 @@ class Config:
     def health(self) -> config_modules.Health:
         """Direct access to health config."""
         return self._root.health
+    @property
+    def eyeloop(self) -> config_modules.Eyeloop:
+        """Direct access to eyeloop config."""
+        return self._root.eyeloop
 
 
     #-- get/set API ---
@@ -76,30 +80,38 @@ class Config:
 
         with self._lock:
             obj, attr = self._traverse(path)
-            # light type coerce to the current field's type (keeps it simple)
-            current = getattr(obj, attr)
+            old = getattr(obj, attr)
+            target_type = type(old)
+
+            new: Any
             try:
-                target_type = type(current)
                 # handle bool specially because bool("0") is True
                 if target_type is bool and isinstance(value, str):
                     v = value.strip().lower()
                     if v in ("1", "true", "yes", "on"):
-                        value = True
+                        new = True
                     elif v in ("0", "false", "no", "off"):
-                        value = False
-                else:
-                    if target_type is int and isinstance(value, str) and value.isdigit():
-                        value = int(value)
-                    elif target_type in (int, float) and isinstance(value, str):
-                        value = target_type(float(value))  # e.g., "120" -> 120
+                        new = False
                     else:
-                        value = target_type(value)
+                        raise ValueError(f"cannot parse bool from '{value}'")
+                elif target_type is int and isinstance(value, str) and value.isdigit():
+                    new = int(value)
+                elif target_type in (int, float) and isinstance(value, str):
+                    new = target_type(float(value))
+                elif target_type is str:
+                    new = str(value)
+                else:
+                    new = target_type(value)
 
-                setattr(obj, attr, value)
+            except (ValueError, TypeError) as e:
+                print(f"Config: failed to set {path} to {value!r} "
+                    f"(expected {target_type.__name__}): {e}")
+                return
+            if new == old:
+                return
+            setattr(obj, attr, new)
 
-            except (ValueError, TypeError, AttributeError) as e:
-                print(f"Config: failed to set {path} to {value} (type {type(value)}): {e}")
-
+        self._notify(path, old, new)
 
     # --- subscribe API ---
     def subscribe(

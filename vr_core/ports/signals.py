@@ -59,3 +59,4 @@ class EyeTrackerSignals:
         # Signals indicating that shm has been closed
         self.tracker_shm_is_closed_l = mp.Event()   # signal that shared memory is closed
         self.tracker_shm_is_closed_r = mp.Event()   # signal that shared memory
+

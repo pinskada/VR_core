@@ -7,6 +7,8 @@ import threading
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
+import numpy as np
+
 from vr_core.network.comm_contracts import MessageType
 from vr_core.base_service import BaseService
 from vr_core.config_service.config import Config
@@ -162,7 +164,23 @@ class TrackerSync(BaseService):
                 case "eye_data":
                     self._try_sync(message, eye, MessageType.trackerData)
                 case "image_preview":
-                    self._try_sync(message, eye, MessageType.trackerPreview)
+                    height = int(message.get("height", 0))
+                    width = int(message.get("width", 0))
+                    bit_map = message.get("bitmap")
+
+                    if bit_map is None:
+                        print("[WARN] No bitmap in image_preview message.")
+                        return
+
+                    if isinstance(bit_map, (bytes, bytearray)):
+                        bit_array = np.frombuffer(bit_map, dtype=np.uint8)
+                    else:
+                        bit_array = np.array(bit_map, dtype=np.uint8)
+
+                    # Convert bit map to uint8 numpy array
+                    eye_mask = np.unpackbits(bit_array)[:height*width].reshape((height, width))
+
+                    self._try_sync(eye_mask, eye, MessageType.trackerPreview)
                 case "health":
                     payload = message.get("payload")
                     self.tracker_health_q.put((payload, eye))

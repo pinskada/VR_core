@@ -84,6 +84,7 @@ class FrameProvider(BaseService):
         self.crop_l: tuple[tuple[float, float], tuple[float, float]]
         self.crop_r: tuple[tuple[float, float], tuple[float, float]]
         self.full_frame_shape: tuple[int, int]
+        self.test_frame_shape: tuple[int, int]
 
         self.video_capture: Any
 
@@ -118,8 +119,8 @@ class FrameProvider(BaseService):
         self._validate_crop()
         self._copy_settings_to_local()
 
-        # Capture a test frame to determine actual crop size
         if self.use_test_video:
+            # Capture a test frame to determine actual crop size
             ret, test_frame = self.video_capture.read()
 
             if not ret:
@@ -128,12 +129,7 @@ class FrameProvider(BaseService):
                 return
 
             test_frame = cv2.cvtColor(test_frame, cv2.COLOR_BGR2GRAY)
-            test_frame_shape = test_frame.shape
-
-            self._activate_shm(test_frame_shape)
-        else:
-            # Allocate shared memory for left and right eye frames
-            self._activate_shm()
+            self.test_frame_shape = test_frame.shape
 
         self.frame_id = 0  # Incremented with each new frame
 
@@ -144,18 +140,23 @@ class FrameProvider(BaseService):
     def _run(self) -> None:
         """Main loop for capturing and distributing frames."""
         while not self._stop.is_set():
+
             # Wait until frame provision is enabled
             if not self.provide_frames_s.is_set():
+
+                # If shared memory is active but frame provision is disabled, deactivate it
                 if self.shm_active.is_set():
                     self._deactivate_shm()
                 self._stop.wait(0.1)
                 continue
 
+            # If shared memory is not active, activate it
             if not self.shm_active.is_set():
                 self._activate_shm()
 
             # If holding frames due to config change, wait
             if self.hold_frames:
+
                 # Signal that frames are being held (only once)
                 if not self.is_holding_frames.is_set():
                     self.is_holding_frames.set()
@@ -279,19 +280,17 @@ class FrameProvider(BaseService):
 
     def _activate_shm(
         self,
-        test_shape: tuple[int, int] | None = None
     ) -> None:
         """Activates shared memory usage."""
         # Allocate new shared memory
-        self._allocate_memory(Eye.LEFT, test_shape)
-        self._allocate_memory(Eye.RIGHT, test_shape)
-
-        # Notify EyeLoop trackers about new shared memory configuration
-        self._cmd_tracker_shm_reconfig(Eye.LEFT)
-        self._cmd_tracker_shm_reconfig(Eye.RIGHT)
+        self._allocate_memory(Eye.LEFT)
+        self._allocate_memory(Eye.RIGHT)
 
         # Signal that shared memory is active
         self.shm_active.set()
+
+        # Notify EyeLoop trackers about new shared memory configuration
+        self._cmd_tracker_shm_state()
 
 
     def _deactivate_shm(self) -> None:
@@ -311,14 +310,15 @@ class FrameProvider(BaseService):
     def _allocate_memory(
         self,
         side_to_allocate: Eye,
-        test_shape: tuple[int, int] | None = None
     ) -> None:
         """Allocates shared memory for eye frames based on current crop settings."""
 
         # Extract full frame dimensions
-        if test_shape is not None:
-            frame_height, frame_width = test_shape
+        if self.use_test_video:
+            # Use test frame dimensions
+            frame_height, frame_width = self.test_frame_shape
         else:
+            # Use configured full frame dimensions
             frame_height, frame_width = self.full_frame_shape
 
         # Determine memory name and crop based on eye side
@@ -402,46 +402,60 @@ class FrameProvider(BaseService):
 
 
     def _close_consumer_shm(self) -> None:
-        """Closes shared memory in consumer processes."""
+        """Closes shared memory in consumer processes.
+
+        On Windows, shared memory segments are not released until all
+        processes have closed their references. On the RPI memory will close automatically.
+        This method signals the consumer processes to close their shared memory references.
+        """
 
         # Signal CommRouter to close shared memory if TCP is enabled
         if self.tcp_enabled_s.is_set():
-            self.comm_shm_is_closed_s.wait(self.cfg.tracker.memory_unlink_timeout)
-            self.comm_shm_is_closed_s.clear()
+            if not self.comm_shm_is_closed_s.wait(self.cfg.tracker.memory_unlink_timeout):
+                print("[ERROR] FrameProvider: Timeout waiting for CommRouter "
+                      "to close shared memory.")
 
         # Signal left EyeLoop tracker to close shared memory
         if self.tracker_running_l_s.is_set():
-            self.tracker_shm_is_closed_l_s.wait(self.cfg.tracker.memory_unlink_timeout)
-            self.tracker_shm_is_closed_l_s.clear()
+            if not self.tracker_shm_is_closed_l_s.wait(self.cfg.tracker.memory_unlink_timeout):
+                print("[ERROR] FrameProvider: Timeout waiting for left EyeLoop "
+                      "tracker to close shared memory.")
 
         # Signal right EyeLoop tracker to close shared memory
         if self.tracker_running_r_s.is_set():
-            self.tracker_shm_is_closed_r_s.wait(self.cfg.tracker.memory_unlink_timeout)
-            self.tracker_shm_is_closed_r_s.clear()
+            if not self.tracker_shm_is_closed_r_s.wait(self.cfg.tracker.memory_unlink_timeout):
+                print("[ERROR] FrameProvider: Timeout waiting for right EyeLoop "
+                      "tracker to close shared memory.")
 
 
-    def _cmd_tracker_shm_reconfig(self, side: Eye) -> None:
+    def _cmd_tracker_shm_state(self) -> None:
         """Sends command to EyeLoop tracker to reconfigure shared memory."""
 
-        match side:
-            case Eye.LEFT:
-                if self.tracker_running_l_s.is_set():
-                    self.tracker_cmd_l_q.put({
-                        "type": "shm_reconfig",
-                        "shape": self.cfg.tracker.memory_shape_l
-                    })
-                else:
-                    print("[WARN] FrameProvider: Cannot send shm_reconfig to left EyeLoop "
-                          "tracker, it is not running.")
-            case Eye.RIGHT:
-                if self.tracker_running_r_s.is_set():
-                    self.tracker_cmd_r_q.put({
-                        "type": "shm_reconfig",
-                        "shape": self.cfg.tracker.memory_shape_r
-                    })
-                else:
-                    print("[WARN] FrameProvider: Cannot send shm_reconfig to right EyeLoop "
-                          "tracker, it is not running.")
+        if self.shm_active.is_set():
+            if self.tracker_running_l_s.is_set():
+                self.tracker_cmd_l_q.put({
+                    "type": "shm_connect",
+                    "frame_shape": self.cfg.tracker.memory_shape_l,
+                    "frame_dtype": self.cfg.tracker.memory_dtype
+                })
+
+            if self.tracker_running_r_s.is_set():
+                self.tracker_cmd_r_q.put({
+                    "type": "shm_connect",
+                    "frame_shape": self.cfg.tracker.memory_shape_r,
+                    "frame_dtype": self.cfg.tracker.memory_dtype
+                })
+
+        else:
+            if self.tracker_running_l_s.is_set():
+                self.tracker_cmd_l_q.put({
+                    "type": "shm_detach",
+                })
+
+            if self.tracker_running_r_s.is_set():
+                self.tracker_cmd_r_q.put({
+                    "type": "shm_detach",
+                })
 
 
     def _validate_crop(self) -> None:

@@ -81,7 +81,6 @@ class CommRouter(BaseService):
         self.memory_shape_r: tuple[int, int]
 
         # SHM and online state
-        self.shm_connected = False
         self.online = False
 
 
@@ -119,6 +118,8 @@ class CommRouter(BaseService):
             daemon=True
         )
 
+        self.comm_shm_is_closed_s.set()
+
         self._t_recv.start()
         self._t_send.start()
         self._t_shm.start()
@@ -136,7 +137,7 @@ class CommRouter(BaseService):
         """Signal threads to stop, close sockets, and join threads."""
         self.online = False
 
-        if self.shm_connected:
+        if not self.comm_shm_is_closed_s.is_set():
             self._disconnect_shm()
 
         # Join workers (best-effort)
@@ -201,25 +202,25 @@ class CommRouter(BaseService):
         """If set, loads image from shared memory, encodes it, and sends it over TCP."""
 
         while not self._stop.is_set():
+
             # If TCP sending is disabled, wait and continue
             if not self.tcp_send_enabled_s.is_set():
-                # If SHM is connected, but sending disabled, disconnect
-                if self.shm_connected:
+
+                # If SHM is not closed, but sending disabled, disconnect
+                if not self.comm_shm_is_closed_s.is_set():
                     self._disconnect_shm()
-                    self.comm_shm_is_closed_s.set()
                 self._stop.wait(0.1)
                 continue
 
             # If SHM is active and not connected, connect
             if self.shm_active_s.is_set():
-                if not self.shm_connected:
+                if self.comm_shm_is_closed_s.is_set():
                     self._connect_shm()
 
             # If SHM is not active and connected, disconnect
             else:
-                if self.shm_connected:
+                if not self.comm_shm_is_closed_s.is_set():
                     self._disconnect_shm()
-                    self.comm_shm_is_closed_s.set()
                 continue
 
             # If frame is not ready, wait and continue
@@ -338,7 +339,7 @@ class CommRouter(BaseService):
 
     def _connect_shm(self):
         """Establish connection to shared memory."""
-        if self.shm_connected:
+        if not self.comm_shm_is_closed_s.is_set():
             print("[CommRouter] SHM already connected.")
             return
 
@@ -355,12 +356,12 @@ class CommRouter(BaseService):
             return
 
         self.shm_left, self.shm_right = shm_left, shm_right
-        self.shm_connected = True
+        self.comm_shm_is_closed_s.clear()
 
 
     def _disconnect_shm(self):
         """Disconnect from shared memory."""
-        if not self.shm_connected:
+        if self.comm_shm_is_closed_s.is_set():
             print("[CommRouter] SHM not connected; cannot disconnect.")
             return
 
@@ -376,4 +377,4 @@ class CommRouter(BaseService):
         else:
             print("[CommRouter] SHM right was already None.")
 
-        self.shm_connected = False
+        self.comm_shm_is_closed_s.set()

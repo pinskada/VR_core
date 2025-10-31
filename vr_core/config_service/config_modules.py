@@ -49,7 +49,7 @@ class Tracker:
     memory_shape_l: tuple[int, int] = (1080, 960)  # Size of the shared memory buffer (height, width)
     memory_shape_r: tuple[int, int] = (1080, 960)  # Size of the shared memory buffer (height, width)
     full_frame_resolution: tuple[int, int] = (1080, 1920)  # Full frame resolution (height, width)
-    memory_unlink_timeout: float = 3.0  # Time to wait for shared memory to be released (in seconds)
+    memory_unlink_timeout: float = 10.0  # Time to wait for shared memory to be released (in seconds)
     frame_hold_timeout: float = 2.0  # Time to wait for frame provider to release frames (in seconds)
 
     # Path to the blink calibration file
@@ -158,6 +158,22 @@ class Health:
 
 
 @dataclass
+class Eyeloop:
+    """Eyeloop configuration settings."""
+    auto_search: bool = True  # Enable or disable auto-search for the pupil
+    left_threshold: int = 50  # Threshold for pupil detection in the left eye
+    right_threshold: int = 50  # Threshold for pupil detection in the right eye
+    left_blur_size: int = 5  # Size of the blur applied to the image
+    right_blur_size: int = 5  # Size of the blur applied to the image
+    left_min_radius: int = 10  # Minimum radius for pupil detection
+    right_min_radius: int = 10  # Minimum radius for pupil detection
+    left_max_radius: int = 60  # Maximum radius for pupil detection
+    right_max_radius: int = 60  # Maximum radius for pupil detection
+    left_search_step: int = 5  # Step size for searching the pupil
+    right_search_step: int = 5  # Step size for searching the pupil
+
+
+@dataclass
 class RootConfig:
     """Root configuration holding all modules."""
     tcp: TCP = field(default_factory=TCP)
@@ -167,3 +183,4 @@ class RootConfig:
     imu: IMU = field(default_factory=IMU)
     esp32: ESP32 = field(default_factory=ESP32)
     health: Health = field(default_factory=Health)
+    eyeloop: Eyeloop = field(default_factory=Eyeloop)
