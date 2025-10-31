@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vr_core.network.comm_contracts import MessageType
 
@@ -43,7 +44,7 @@ class ICameraService(ABC):
     """Camera service interface."""
 
     @abstractmethod
-    def capture_frame(self, msg) -> np.ndarray:
+    def capture_frame(self) -> NDArray[np.uint8]:
         """Capture a frame from the camera."""
 
 

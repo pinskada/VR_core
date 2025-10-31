@@ -98,7 +98,10 @@ class Camera:
     exposure_time: int = 10000  # In microseconds
     analogue_gain: float = 2.0  # Brightness boost
     af_mode: int = 0  # 0 = manual, 1 = auto
+    buffer_count: int = 2  # Number of buffers for the camera
 
+    capture_timeout_ms: int = 200  # Timeout for capturing a frame (in milliseconds)
+    reconfig_interval: float = 5.0  # Time between config checks (in seconds)
     capture_retries: int = 3  # Number of attempts to capture a frame
 
 
