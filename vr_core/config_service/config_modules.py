@@ -144,12 +144,14 @@ class ESP32:
     baudrate: int = 115200  # Baud rate for the serial connection
     timeout: float = 1  # Timeout for the serial connection (in seconds)
 
-    handshake_attempts: int = 3  # Number of attempts to perform the handshake
-    handshake_interval_inner: float = 1  # Interval between handshake attempts (in seconds)
-    handshake_interval_outer: float = 5  # Interval between outer handshake attempts (in seconds)
-    handshake_message: str = "STATUS"  # Handshake message to send to ESP32
-    handshake_response: str = "ONLINE"  # Expected response from ESP32 after handshake
+    esp_boot_interval: float = 2.0  # Time to wait for ESP32 to boot (in seconds)
 
+    handshake_attempts: int = 3  # Number of attempts to perform the handshake
+    handshake_interval: float = 1  # Interval between handshake attempts (in seconds)
+    handshake_message: str = "PING"  # Handshake message to send to ESP32
+    handshake_response: str = "PONG"  # Expected response from ESP32 after handshake
+
+    cmd_queue_timeout: float = 0.1  # Timeout for command queue operations (in seconds)
     send_attempts: int = 3  # Number of attempts to send the focal distance
 
 

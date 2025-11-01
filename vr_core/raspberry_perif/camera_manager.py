@@ -124,7 +124,7 @@ class CameraManager(BaseService, ICameraService):
         self.logger.info("Stopping service.")
         self.online = False
         self._stop_camera()
-
+        self._unsubscribe()
 
     def is_online(self):
         """ Check if the camera is online."""

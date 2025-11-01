@@ -187,6 +187,9 @@ class FrameProvider(BaseService):
             self.video_capture.release()
             self.logger.info("Test video released.")
 
+        self._unsubscribe()
+ 
+
 
     def is_online(self) -> bool:
         """Check if the FrameProvider is online."""

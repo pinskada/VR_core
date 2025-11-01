@@ -60,3 +60,12 @@ class EyeTrackerSignals:
         self.tracker_shm_is_closed_l = mp.Event()   # signal that shared memory is closed
         self.tracker_shm_is_closed_r = mp.Event()   # signal that shared memory
 
+
+class TestModeSignals:
+    """Signals for test mode operation."""
+
+    def __init__(self) -> None:
+        # Signal to indicate test mode is active
+        self.esp_mock_mode = Event()
+        self.imu_mock_mode = Event()
+        self.camera_mock_mode = Event()

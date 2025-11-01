@@ -1,159 +1,183 @@
 """ESP32 Peripheral Module"""
 
 import os
-import time
-import threading
+from threading import Event
+import queue
+from typing import Optional, Any
 
-from vr_core.config import esp32_config
-import vr_core.module_list as module_list
+try:
+    import serial  # type: ignore  # pylint: disable=import-error
+except ImportError:  # ImportError on dev machines without pyserial
+    serial = None  # type: ignore
+
+from vr_core.config_service.config import Config
+from vr_core.base_service import BaseService
+from vr_core.utilities.logger_setup import setup_logger
 
 
-class Esp32:
+class Esp32(BaseService):
     """ESP32 Peripheral Module."""
-    def __init__(self, force_mock=False):
-        self.online = True
+    def __init__(
+        self,
+        esp_cmd_q: queue.Queue,
+        esp_mock_mode: Event,
+        config: Config
+    ) -> None:
+        super().__init__("ESP32")
 
-        module_list.esp32 = self  # Register the ESP32 in the module list
+        self.logger = setup_logger("ESP32")
 
-        # Import the ESP32 configuration
-        self.port = esp32_config.port
-        self.baudrate = esp32_config.baudrate
-        self.timeout = esp32_config.timeout
-        self.mock_mode = force_mock
-        self.serial_conn = None
+        self.esp_cmd_q = esp_cmd_q
 
-        if not self.mock_mode:
+        self.cfg = config
+        self._unsubscribe = config.subscribe(
+            "ESP32",
+            self._on_config_changed
+        )
+
+        self.esp_mock_mode = esp_mock_mode
+
+        self.serial_conn: Optional[Any] = None
+        self.online = False
+
+        self.logger.info("Service initialized.")
+
+
+# ---------- BaseService lifecycle ----------
+    def _on_start(self) -> None:
+        """Initialize ESP32 serial connection."""
+
+        if not self.esp_mock_mode.is_set():
+            if not os.path.exists(self.cfg.esp32.port): # Check if the serial port exists
+                self.logger.error("Serial port not found.")
+                raise RuntimeError("ESP32 serial port not found")
+            elif serial is None:
+                self.logger.error("pyserial not installed. " \
+                    "Run 'pip install pyserial' or enable mock mode.")
+                raise RuntimeError("pyserial not installed")
+
             try:
-                import serial # type: ignore
-            except ImportError as e:
-                if module_list.health_monitor:
-                    module_list.health_monitor.failure("ESP32", f"pyserial not available {e}")
+                # Initialize the serial connection
+                self.serial_conn = serial.Serial(
+                    port=self.cfg.esp32.port,
+                    baudrate=self.cfg.esp32.baudrate,
+                    timeout=self.cfg.esp32.timeout
+                )
+
+                self._stop.wait(self.cfg.esp32.esp_boot_interval)  # Let ESP32 boot/reset
+
+                if self._perform_handshake():
+                    self.logger.info("Serial connection established on %s; %d.",
+                        self.cfg.esp32.port, self.cfg.esp32.baudrate)
                 else:
-                    print("[WARN] ESP32: No HealthMonitor available for failure updates.")
-                print(f"[ERROR] ESP32: pyserial not available: {e}")
-                self.online = False
+                    self.logger.error("Failed to perform handshake with ESP32.")
+                    raise RuntimeError("ESP32 handshake failed")
+
+            except serial.SerialException as e:
+                self.logger.error("Serial error: %s.", e)
+                raise RuntimeError("ESP32 serial connection failed") from e
 
         # Check for mock mode
-        if self.mock_mode:
-            self.online = True
-            if module_list.health_monitor:
-                module_list.health_monitor.status("ESP32", "Mock mode active")
-            else:
-                print("[WARN] ESP32: No HealthMonitor available for failure updates.")
-            print("[INFO] ESP32: MOCK MODE ACTIVE — Serial writes will be simulated.")
-            return
-        elif not os.path.exists(self.port): # Check if the serial port exists
-            if module_list.health_monitor:
-                module_list.health_monitor.failure("ESP32", "Serial port not found")
-            else:
-                print("[WARN] ESP32: No HealthMonitor available for failure updates.")
-            print("[ERROR] ESP32: Serial port not found.")
-            self.online = False
-            return
+        else:
+            self.logger.info("Running in mock mode; skipping serial connection.")
 
-        try:
-            # Initialize the serial connection
-            self.serial_conn = serial.Serial(
-                port=self.port,
-                baudrate=self.baudrate,
-                timeout=self.timeout
-            )
+        self.online = True
 
-            time.sleep(2)  # Let ESP32 boot/reset
-            print(f"[INFO] ESP32: Serial connection established on {self.port}; {self.baudrate}.")
-            self.thread = threading.Thread(target=self._perform_handshake, daemon=True)
-            self.thread.start()  # Start the handshake thread
+        self._ready.set()
+        self.logger.info("ESP32 service is ready.")
 
-        except serial.SerialException as e:
-            if module_list.health_monitor:
-                module_list.health_monitor.failure("ESP32", "Serial connection error")
-            else:
-                print("[WARN] ESP32: No HealthMonitor available for failure updates.")
-            print(f"[ERROR] ESP32: Serial error: {e}.")
-            self.online = False
+    def _run(self) -> None:
+        """Main service loop."""
+        while not self._stop.is_set():
+            self._cmd_queue()
 
-    def is_online(self):
-        """Check if the ESP32 is online."""
-        return self.online
 
-    def _perform_handshake(self):
+    def _on_stop(self) -> None:
+        """Cleanup resources."""
+        self.logger.info("Stopping service.")
+        self.online = False
+
+        if self.serial_conn and hasattr(self.serial_conn, "is_open") and self.serial_conn.is_open:
+            self.serial_conn.close()
+        else:
+            self.logger.warning("Serial connection already closed or was never opened.")
+
+        self._unsubscribe()
+
+
+# ---------- Internals ----------
+
+    def _perform_handshake(self) -> bool:
         """Perform a handshake with the ESP32 to ensure it's ready."""
 
-        while True:
-            error = None
+        if not self.serial_conn:
+            self.logger.error("Serial connection not initialized.")
+            return False
 
-            for _ in range(esp32_config.handshake_attempts):
+        for _ in range(self.cfg.esp32.handshake_attempts):
 
-                try:
-                    # Send the handshake message in a byte format
-                    self.serial_conn.write((esp32_config.handshake_message + "\n").encode("utf-8"))
-                    print(f"[INFO] ESP32: Sent handshake: {esp32_config.handshake_message}")
+            try:
 
-                    # Wait for a response from the ESP32
-                    response = self.serial_conn.readline().decode("utf-8").strip()
-                    print(f"[INFO] ESP32: Handshake response: {response}")
+                # Send the handshake message in a byte format
+                self.serial_conn.write((self.cfg.esp32.handshake_message + "\n").encode("utf-8"))
 
-                    # Check if the response matches the expected response
-                    if response == esp32_config.handshake_response:
-                        self.online = True
-                        error = None
-                        print("[INFO] ESP32: Handshake successful. ESP32 is ready.")
-                        break
-                    else:
-                        print("[WARN] ESP32: Handshake failed. Expected:"
-                            f" {esp32_config.handshake_response}, Received: {response}."
-                        )
-                        error = f"Expected: {esp32_config.handshake_response}, Received: {response}"
-                except (OSError, UnicodeDecodeError) as e:
-                    # Catch specific errors that can occur during serial I/O and decoding
-                    error = e
-                # Wait before retrying the handshake
-                time.sleep(esp32_config.handshake_interval_inner)
+                # Wait for a response from the ESP32
+                response = self.serial_conn.readline().decode("utf-8").strip()
 
-            if error is not None:
-                if module_list.health_monitor:
-                    module_list.health_monitor.failure("ESP32", f"Handshake error: {error}")
+                # Check if the response matches the expected response
+                if response == self.cfg.esp32.handshake_response:
+                    return True
                 else:
-                    print("[WARN] ESP32: No HealthMonitor available for failure updates.")
-                self.online = False
-                print(f"[ERROR] ESP32: Handshake failed: {error}.")
-                break
+                    self.logger.warning("Handshake failed. Expected:"
+                        " %s, Received: %s.",
+                        self.cfg.esp32.handshake_response, response
+                    )
+            except (OSError, UnicodeDecodeError) as e:
+                # Catch specific errors that can occur during serial I/O and decoding
+                self.logger.warning("Handshake error: %s.", e)
+            # Wait before retrying the handshake
+            self._stop.wait(self.cfg.esp32.handshake_interval)
 
-            # Handshake successful; report and stop retrying
-            if module_list.health_monitor:
-                module_list.health_monitor.status("ESP32", "Handshake successful")
+        self.logger.error("Handshake failed.")
+        return False
+
+
+    def _cmd_queue(self) -> None:
+        """Process commands from the command queue."""
+
+        try:
+            message = self.esp_cmd_q.get(timeout=self.cfg.esp32.cmd_queue_timeout)
+            if isinstance(message, float):
+                self._send_gaze_distance(message)
             else:
-                print("[WARN] ESP32: No HealthMonitor available for failure updates.")
-            print("[INFO] ESP32: Handshake completed successfully.")
-            break
+                self.logger.warning("Unknown command received in ESP32 queue: %s", message)
+        except queue.Empty:
+            return
 
-    def send_gaze_distance(self, distance_mm: float):
+
+    def _send_gaze_distance(self, distance_mm: float):
         """Send the gaze distance to the ESP32."""
 
-        # Create the message to send
+        # Parse the message to send
         message = f"{distance_mm:.2f}\n"
 
         # Fake the message for mock mode
-        if self.mock_mode:
-            print(f"[INFO] ESP32: Would send gaze distance: {message.strip()}")
+        if self.esp_mock_mode.is_set():
+            self.logger.info("Would send gaze distance: %s", message.strip())
             return
 
         try:
+            if not self.serial_conn:
+                self.logger.error("Serial connection not initialized.")
+                return
             self.serial_conn.write(message.encode('utf-8'))
-            print(f"[INFO] ESP32: Sent gaze distance: {message.strip()}")
+            self.logger.info("Sent gaze distance: %s", message.strip())
         except (OSError, AttributeError) as e:
             # OSError covers low-level I/O errors from the serial port,
             # AttributeError covers cases where serial_conn is None or missing methods.
-            print(f"[WARN] ESP32: Error during UART write: {e}")
+            self.logger.warning("Error during UART write: %s", e)
 
-    def close(self):
-        """Close the serial connection."""
 
-        if self.mock_mode:
-            print("[INFO] ESP32: Mock mode — no connection to close.")
-            return
-
-        if self.serial_conn and self.serial_conn.is_open:
-            self.serial_conn.close()
-            self.online = False
-            print("[INFO] ESP32: Serial connection closed.")
+    #  pylint: disable=unused-argument
+    def _on_config_changed(self, path: str, old_val: Any, new_val: Any) -> None:
+        """Handle configuration changes."""

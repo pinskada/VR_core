@@ -81,6 +81,8 @@ class TrackerControl(BaseService, ITrackerService):
     def _on_stop(self) -> None:
         """ Stop the tracker module. """
         self.online = False
+        self._unsubscribe()
+        self.logger.info("Service stopped.")
 
 
 # ---------- Public APIs ----------
