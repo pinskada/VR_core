@@ -24,6 +24,7 @@ class MessageType(IntEnum):
     eyeImage = 12
     configReady = 13
     trackerData = 14
+    ipdPreview = 15
 
 
 class MessageFormat(IntEnum):

@@ -83,10 +83,18 @@ class Gaze:
     std_threshold: float = 0.01
     # Threshold for gyroscope data to determine if the system should trust the data
     gyro_threshold: int = 5
-    compensation_factor: int = 1
+    gyro_thr_high: int = 15  # High threshold for gyro to untrust tracker
+    gyro_thr_low: int = 7    # Low threshold for gyro to trust tracker
+    settle_time_s: float = 0.2  # Time to wait after untrusting before trusting again (in seconds)
 
-    model_params: Any = None  # Model parameters for the inverse model (to be set during calibration)
+    compensation_factor: int = 1
+    tracker_data_timeout: float = 0.05  # Timeout for receiving tracker data (in seconds)
+    ipd_queue_timeout: float = 0.01  # Timeout for receiving IPD data (in seconds)
+
+    # Model parameters for the inverse model (to be set during calibration)
+    model_params: Any = None 
     corrected_model_params: Any = None
+
 
 @dataclass
 class Camera:

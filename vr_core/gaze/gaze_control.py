@@ -1,29 +1,95 @@
 """Gaze control and preprocessing module for VR Core on Raspberry Pi."""
 
-import time
+import queue
+from queue import Queue, PriorityQueue
+from threading import Event
+from typing import Any
+
 import numpy as np
 
-import vr_core.module_list as module_list
-from vr_core.config_service import config
-from vr_core.gaze.gaze_calib import Calibration
-from vr_core.gaze.gaze_calc import MainProcessor
+from vr_core.base_service import BaseService
+from vr_core.config_service.config import Config
 from vr_core.ports.interfaces import IGazeService
+from vr_core.ports.signals import GazeSignals
+from vr_core.network.comm_contracts import MessageType
+from vr_core.utilities.logger_setup import setup_logger
 
-class GazeControl(IGazeService):
-    def __init__(self):
-        self.online = True # Flag to indicate if the system is online or offline
 
-        module_list.pre_processor = self
+class GazeControl(BaseService, IGazeService):
+    """Gaze control and preprocessing module for VR Core on Raspberry Pi."""
 
-        self.health_monitor = module_list.health_monitor # Needed for health monitoring
+    def __init__(
+        self,
+        tracker_data_q: Queue,
+        ipd_q: Queue,
+        comm_router_q: PriorityQueue,
+        gaze_signals: GazeSignals,
+        imu_send_to_gaze_signal: Event,
+        config: Config,
+        ) -> None:
+
+        super().__init__("GazeControl")
+        self.logger = setup_logger("GazeControl")
+
+        self.tracker_data_q = tracker_data_q
+        self.ipd_q = ipd_q
+        self.comm_router_q = comm_router_q
+
+        self.gaze_calib_s = gaze_signals.gaze_calib_signal
+        self.gaze_calc_s = gaze_signals.gaze_calc_signal
+        self.ipd_to_tcp_s = gaze_signals.ipd_to_tcp_signal
+
+        self.imu_send_to_gaze_signal = imu_send_to_gaze_signal
+
+        self.cfg = config
+        self._unsubscribe = config.subscribe("tracker", self._on_config_changed)
+        self._unsubscribe = config.subscribe("gaze", self._on_config_changed)
+
+        self.crop_left: float
+        self.crop_right: float
+        self.full_frame_width: int
+        self.full_frame_height: int
+
+        self.online = False # Flag to indicate if the system is online or offline
+
+        self.logger.info("Service initialized.")
 
         self.calibration = False # Flag to indicate if the system should send data to the calibration handler
         self.process = False # Flag to indicate if the system should send data to the main processor
 
-        self.filtered_ipd = None # Placeholder for the filtered Interpupillary Distance (IPD) value
+        self.filtered_ipd: float # Placeholder for the filtered Interpupillary Distance (IPD) value
 
         self.print_ipd_state = 0 # Flag to indicate if the system should print the IPD state
 
+
+# ---------- BaseService lifecycle ----------
+
+    def _on_start(self) -> None:
+        """Service start logic."""
+        self.online = True
+        self._ready.set()
+
+        self.logger.info("Service set ready.")
+
+
+    def _run(self) -> None:
+        """Run the gaze control service."""
+
+        while not self._stop.is_set():
+            pass
+
+
+    def _on_stop(self):
+        """Service stop logic."""
+        self.online = False
+        self.logger.info("Service stopping.")
+
+
+    def is_online(self):
+        return self.online
+
+
+# ---------- Public APIs ----------
 
     def gaze_control(self, msg) -> None:
         """
@@ -31,69 +97,73 @@ class GazeControl(IGazeService):
         """
 
 
-    def get_relative_ipd(self, pupil_left, pupil_right):
+# ---------- Internals ----------
+
+    def _unqueue_eye_data(self):
+        """
+        Unqueue eye data from the tracker data queue.
+        """
+
+        try:
+            eye_data = self.tracker_data_q.get(timeout=self.cfg.gaze.tracker_data_timeout)
+            (pupil_left, pupil_right) = eye_data
+
+            if pupil_left is not None and pupil_right is not None:
+                self._get_relative_ipd(pupil_left, pupil_right)
+
+        except queue.Empty:
+            pass
+
+
+    def _get_relative_ipd(self, pupil_left, pupil_right):
         """
         Get relative ipd of the eye data.
         """
 
         # Extract pupil centers
-        x_left, y_left = pupil_left['pupil'][0][0], pupil_left['pupil'][0][1]
-        x_right, y_right = pupil_right['pupil'][0][0], pupil_right['pupil'][0][1]
-
-        crop_left = tracker_config.crop_left  # Relative region (x1, x2, y1, y2) for the left eye, by default (0.0, 0.5), (0.0, 1.0)
-        crop_right = tracker_config.crop_right  # Relative region (x1, x2, y1, y2) for the right eye, by default (0.5, 1.0), (0.0, 1.0)
-
-        full_frame_width, full_frame_height = tracker_config.full_frame_resolution # Full frame resolution (height, width), likely 1920x1080
+        x_left = pupil_left['pupil'][0][0]
+        y_left = pupil_left['pupil'][0][1]
+        x_right = pupil_right['pupil'][0][0]
+        y_right = pupil_right['pupil'][0][1]
 
         # Calculate the full frame coordinates of the pupil centers
-        full_x_left = crop_left[0][0] * full_frame_width + x_left
-        full_y_left = crop_left[1][0] * full_frame_height + y_left
+        full_x_left = self.crop_left[0][0] * self.full_frame_width + x_left
+        full_y_left = self.crop_left[1][0] * self.full_frame_height + y_left
 
-        full_x_right = crop_right[0][0] * full_frame_width + x_right
-        full_y_right = crop_right[1][0] * full_frame_height + y_right
+        full_x_right = self.crop_right[0][0] * self.full_frame_width + x_right
+        full_y_right = self.crop_right[1][0] * self.full_frame_height + y_right
 
         # Calculate the Interpupillary Distance (IPD) in pixels
         ipd_px = np.linalg.norm([full_x_left - full_x_right, full_y_left - full_y_right])
 
-        relative_ipd = ipd_px / full_frame_width # Normalize the IPD to the full frame width
+        relat_ipd = ipd_px / self.full_frame_width # Normalize the IPD to the full frame width
 
-        relative_ipd = self.filter_ipd(relative_ipd) # Apply filtering to the IPD value
+        relat_filt_ipd = self._filter_ipd(relat_ipd) # Apply filtering to the IPD value
 
         self.print_ipd_state += 1 # Increment the print IPD state counter
 
-        # Print the IPD state if the flag is set
-        if self.print_ipd_state == eye_processing_config.print_ipd_state:
-            print(f"[INFO] PreProcessor: Relative IPD = {relative_ipd}")
-            self.health_monitor.status("PreProcessor", f"Relative IPD = {relative_ipd}")
-            self.print_ipd_state = 1
+        if self.ipd_to_tcp_s.is_set():
+            # Send the relative filtered IPD to the TCP module
+            self.comm_router_q.put((6, MessageType.ipdPreview, relat_filt_ipd))
 
-        if self.calibration == True and module_list.calibration_handler is not None:
-            try:
-                self.calibration.get_ipd(relative_ipd) # Get the IPD from the eye data
-            except Exception as e:
-                self.health_monitor.failure("PreProcessor", f"Attempted to get IPD, even though the CalibrationHandler is not initialised: {e}")
-                print(f"[ERROR] PreProcessor: Attempted to get IPD, even though the CalibrationHandler is not initialised: {e}")
-
-        elif self.process == True and module_list.main_processor is not None:
-            try:
-                module_list.main_processor.process_eye_data(relative_ipd)  # Process the eye data
-            except Exception as e:
-                self.health_monitor.failure("PreProcessor", f"Attempted to process eye data, even though the MainProcessor is not initialised: {e}")
-                print(f"[ERROR] PreProcessor: Attempted to process eye data, even though the MainProcessor is not initialised: {e}")
-        else:
-            pass
+        if self.gaze_calib_s.is_set() or self.gaze_calc_s.is_set():
+            # Send the IPD to either calibration or main processing module
+            self.ipd_q.put(relat_filt_ipd)
 
 
-    def filter_ipd(self, new_ipd):
+    def _filter_ipd(self, new_ipd: float) -> float:
         if self.filtered_ipd is None:
             # First value, no smoothing yet
             self.filtered_ipd = new_ipd
         else:
-            self.filtered_ipd = eye_processing_config.filter_alpha * new_ipd + (1 - eye_processing_config.filter_alpha) * self.filtered_ipd
+            self.filtered_ipd = (
+                self.cfg.gaze.filter_alpha * new_ipd + 
+                (1 - self.cfg.gaze.filter_alpha) * self.filtered_ipd
+            )
         return self.filtered_ipd
 
 
-    def start_processing(self):
+    def _start_processing(self):
         """
         Start processing the eye data.
         """
@@ -101,24 +171,22 @@ class GazeControl(IGazeService):
         if self.process:
             print("[WARN] PreProcessor: Processing already started.")
             return
-        self.health_monitor.status("PreProcessor", "Starting processing.")
         print("[INFO] PreProcessor: Starting processing.")
         module_list.main_processor = MainProcessor()
         self.process = True
 
 
-    def stop_processing(self):
+    def _stop_processing(self):
         """
         Stop processing the eye data.
         """
 
-        self.health_monitor.status("PreProcessor", "Stopping processing.")
         print("[INFO] PreProcessor: Stopping processing.")
         module_list.main_processor = None
         self.process = False
 
 
-    def start_calibration(self):
+    def _start_calibration(self):
         """
         Start calibration of the eye data.
         """
@@ -126,22 +194,31 @@ class GazeControl(IGazeService):
         if self.calibration:
             print("[WARN] PreProcessor: Calibration already started.")
             return
-        self.health_monitor.status("PreProcessor", "Starting calibration.")
         print("[INFO] PreProcessor: Starting calibration.")
         module_list.calibration_handler = Calibration()
         self.calibration = True
 
 
-    def stop_calibration(self):
+    def _stop_calibration(self):
         """
         Stop calibration of the eye data.
         """
 
-        self.health_monitor.status("PreProcessor", "Stopping calibration.")
         print("[INFO] PreProcessor: Stopping calibration.")
         module_list.calibration_handler = None
         self.calibration = False
 
 
-    def is_online(self):
-        return self.online
+    def _copy_config_to_locals(self):
+        """
+        Copy configuration settings to local variables.
+        """
+
+        self.crop_left = self.cfg.tracker.crop_left
+        self.crop_right = self.cfg.tracker.crop_right
+        self.full_frame_width, self.full_frame_height = self.cfg.tracker.full_frame_resolution
+
+
+    # pylint: disable=unused-argument
+    def _on_config_changed(self, path: str, old_val: Any, new_val: Any) -> None:
+        """Handle configuration changes."""

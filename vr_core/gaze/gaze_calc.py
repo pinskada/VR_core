@@ -1,77 +1,156 @@
-import vr_core.module_list as module_list 
-from vr_core.config import tracker_config
-from vr_core.config import eye_processing_config
-from vr_core.gaze.models import inverse_model
+"""Gaze calculation module."""
+
+from queue import Queue, PriorityQueue
+import queue
 import time
 
-class GazeCalc:
-    def __init__(self):
-        self.online = True # Flag to indicate if the system is online or offline
+from vr_core.base_service import BaseService
+from vr_core.config_service.config import Config
+from vr_core.ports.signals import GazeSignals
+from vr_core.utilities.logger_setup import setup_logger
+from vr_core.gaze.models import inverse_model
 
-        module_list.main_processor = self
 
-        self.health_monitor = module_list.health_monitor # Needed for health monitoring
-        self.esp32 = module_list.esp32 # Needed for sending data to stepper motor
-        self.tcp_server = module_list.tcp_server # Needed for sending data to the unity client
+class GazeCalc(BaseService):
+    """Gaze calculation module."""
+    def __init__(
+        self,
+        ipd_q: Queue,
+        esp_cmd_q: Queue,
+        comm_router_q: PriorityQueue,
+        gyro_mag_q: Queue,
+        gaze_signals: GazeSignals,
+        config: Config,
+    ) -> None:
+        super().__init__("GazeCalc")
+        self.logger = setup_logger("GazeCalc")
+
+        self.ipd_q = ipd_q
+        self.esp_cmd_q = esp_cmd_q
+        self.comm_router_q = comm_router_q
+        self.gyro_mag_q = gyro_mag_q
+
+        self.gaze_calc_s = gaze_signals.gaze_calc_signal
+        self.gaze_to_tcp_signal = gaze_signals.gaze_to_tcp_signal
+
+        self.cfg = config
+
+        # Flag to indicate if the tracker is trusted or not based on gyroscope data
+        self.trust_tracker: bool
+
+        self._untrust_until = 0.0
+
+        self.online = False # Flag to indicate if the system is online or offline
+
+        self.logger.info("Service initialized.")
+
 
         self.print_model_error = False # Flag to indicate if the model error should be printed
 
-        self.trust_tracker = True # Flag to indicate if the tracker is trusted or not based on gyroscope data
-
-        self.trust_eye_data = [] # Indicates if the eye data is trusted or not based on gyroscope data
-
-    def process_eye_data(self, ipd):
-        """
-        Process the eye data.
-        """
-
-        if eye_processing_config.model_params and eye_processing_config.corrected_model_params and self.print_model_error:
-            self.health_monitor.failure("MainProcessor", "Model not loaded, cannot process eye data.")
-            print("[WARN] MainProcessor: Model not loaded, cannot process eye data.")
-            self.print_model_error = False
-            return
-
-        self.print_model_error = False
-
-        self.model_real = eye_processing_config.model_params
-        self.model_corrected = eye_processing_config.corrected_model_params
 
 
-        distance_real = inverse_model.predict(ipd, self.model_real)
-        distance_corrected = inverse_model.predict(ipd, self.model_corrected)
+# ---------- BaseService lifecycle ----------
 
-        if self.trust_tracker:
-            try:
-                self.tcp_server.send(distance_real, data_type='JSON', priority='medium') # Send the gaze distance to the Unity client
-            except Exception as e:
-                self.health_monitor.failure("MainProcessor", f"Error sending data to Unity: {e}")
-                print(f"[ERROR] MainProcessor: Error sending data to Unity: {e}")
+    def _on_start(self):
+        """Handle service start."""
 
-            try:
-                self.esp32.send_gaze_distance(distance_corrected) # Send the gaze distance to the ESP32
-            except Exception as e:
-                self.health_monitor.failure("MainProcessor", f"Error sending data to ESP32: {e}")
-                print(f"[ERROR] MainProcessor: Error sending data to ESP32: {e}")
+        self.online = True
+        self.trust_tracker = True
+        self._ready.set()
+        self.logger.info("Service started.")
 
-    def gyro_handler(self, input_gyro_data):
-        """
-        Update trust based on gyroscope rotation speed.
-        gyro_data: (x_rotation, y_rotation, z_rotation) in deg/s
-        """
-        x_rotation = input_gyro_data.get("x")
-        y_rotation = input_gyro_data.get("y")
-        z_rotation = input_gyro_data.get("z")
 
-        total_rotation = (x_rotation**2 + y_rotation**2 + z_rotation**2)**0.5
+    def _run(self):
+        """Main service loop."""
 
-        if total_rotation > self.gyro_threshold:
-            self.trust_tracker = False
-            print(f"[DEBUG] Gyro rotation speed: {total_rotation:.2f} deg/sec | Trust: {self.trust_tracker}")
-        else:
-            self.trust_tracker = True
+        while not self._stop.is_set():
+            if self.gaze_calc_s.is_set():
+                self._dequeue_gyro()
+                self._dequeue_ipd()
+            self._stop.wait(self.cfg.gaze.ipd_queue_timeout)
+
+
+    def _on_stop(self):
+        """Handle service stop."""
+
+        self.online = False
+        self.logger.info("Service stopped.")
 
 
     def is_online(self):
         return self.online
 
 
+# ---------- Internals ----------
+
+    def _dequeue_gyro(self):
+        """Dequeue gyroscope data."""
+
+        try:
+            imu_data = self.gyro_mag_q.get_nowait()
+            if imu_data:
+                gyro_data = imu_data.get("gyro")
+                if gyro_data:
+                    self._gyro_handler(gyro_data)
+        except queue.Empty:
+            return
+
+
+    def _dequeue_ipd(self):
+        """Dequeue IPD data."""
+
+        try:
+            ipd = self.ipd_q.get_nowait()
+            if ipd:
+                self._process_eye_data(ipd)
+        except queue.Empty:
+            return
+
+
+    def _process_eye_data(self, ipd: float):
+        """
+        Process the eye data.
+        """
+
+        if not self.cfg.gaze.model_params:
+            self.logger.error("Model parameters not set. Cannot process eye data.")
+            return
+
+        if self.trust_tracker:
+
+            # Calculate distance using the inverse model
+            gaze_distance = inverse_model.predict(ipd, self.cfg.gaze.model_params)
+
+            if self.gaze_to_tcp_signal.is_set():
+                # Send the gaze distance over tcp
+                self.comm_router_q.put(gaze_distance)
+
+            # Send the gaze distance to the ESP32
+            self.esp_cmd_q.put(gaze_distance)
+
+
+    def _gyro_handler(self, input_gyro_data):
+        """
+        Update trust based on gyroscope rotation speed.
+        gyro_data: (x_rotation, y_rotation, z_rotation) in deg/s
+        """
+
+        now = time.time()
+
+        x_rotation = input_gyro_data.get("x")
+        y_rotation = input_gyro_data.get("y")
+        z_rotation = input_gyro_data.get("z")
+
+        # Calculate total rotation speed
+        total_rotation = (x_rotation**2 + y_rotation**2 + z_rotation**2)**0.5
+
+        # Update trust based on thresholds
+        if total_rotation > self.cfg.gaze.gyro_thr_high:
+            # Disable tracker trust if rotation exceeds high threshold
+            self.trust_tracker = False
+            # Set the time until the tracker can be trusted again
+            self._untrust_until = now + self.cfg.gaze.settle_time_s
+
+        # Re-enable tracker trust if rotation is below low threshold and settle time has passed
+        elif total_rotation < self.cfg.gaze.gyro_thr_low and now >= self._untrust_until:
+            self.trust_tracker = True
