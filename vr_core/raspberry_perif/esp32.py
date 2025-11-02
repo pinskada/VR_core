@@ -84,7 +84,7 @@ class Esp32(BaseService):
         self.online = True
 
         self._ready.set()
-        self.logger.info("ESP32 service is ready.")
+        self.logger.info("Service is ready.")
 
     def _run(self) -> None:
         """Main service loop."""

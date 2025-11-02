@@ -1,147 +1,178 @@
 """Gyroscope module for VR Core on Raspberry Pi."""
 
-import threading
-import time
 import os
 import math
+import time
+from queue import Queue, PriorityQueue
+from threading import Event
+from typing import Any
 
-import vr_core.module_list as module_list
-from vr_core.config_service import config
-from vr_core.ports.interfaces import IImuService
+import smbus2
 
-class Imu(IImuService):
+from vr_core.base_service import BaseService
+from vr_core.config_service.config import Config
+from vr_core.ports.signals import IMUSignals
+from vr_core.utilities.logger_setup import setup_logger
+from vr_core.network.comm_contracts import MessageType
+
+
+class Imu(BaseService):
     """Gyroscope module for VR Core on Raspberry Pi."""
-    def __init__(self, force_mock=False):
-        self.online = True
+    def __init__(
+        self,
+        comm_router_q: PriorityQueue,
+        gyro_mag_q: Queue,
+        imu_signals: IMUSignals,
+        config: Config,
+        imu_mock_mode: Event,
+        ) -> None:
 
-        module_list.gyroscope = self  # Register the gyroscope in the module list
+        super().__init__("IMU")
+        self.logger = setup_logger("IMU")
+
+        self.comm_router_q = comm_router_q
+        self.gyro_mag_q = gyro_mag_q
+
+        self.imu_send_over_tcp_s = imu_signals.imu_send_over_tcp
+        self.imu_send_to_gaze_s = imu_signals.imu_send_to_gaze
+
+        self.cfg = config
+        self._unsubscribe = config.subscribe("IMU",
+            self._on_config_changed
+        )
+
+        self.bus: smbus2.SMBus
+
+        self.x_offset: float
+        self.y_offset: float
+        self.z_offset: float
+
         self.mock_angle = 0.0
-        self.mock_mode = force_mock
-        self.calibration = True
-        self.calib_buffer_x = []
-        self.calib_buffer_y = []
-        self.calib_buffer_z = []
-        self.x_ofset = 0
-        self.y_ofset = 0
-        self.z_ofset = 0
+        self.mock_mode = imu_mock_mode
 
-        if self.mock_mode:
-            # If mock mode is enabled, we don't need to check for hardware availability
-            if module_list.health_monitor:
-                module_list.health_monitor.status("Gyroscope", "Mock mode active")
-            else:
-                print("[INFO] Gyroscope: Health monitor not available.")
-            print("[INFO] Gyroscope: Mock mode active — simulating gyro values")
-            self.online = True
-            try:
-                # Create a thread to run the gyroscope data reading
-                self.run_thread = threading.Thread(target=self.run)
-                self.run_thread.start()  # Start the thread to read gyro data
-                print("[INFO] Gyroscope: Thread have initialised.")
-            except (RuntimeError, OSError) as e:
-                print(f"[ERROR] Gyroscope: Thread did not initialise: {e}")
+        self.online = False
+
+        self.logger.info("Service initialized.")
+
+
+
+# ---------- BaseService lifecycle ----------
+
+    def _on_start(self) -> None:
+        """Initialize the gyroscope sensor."""
+
+        if not self.mock_mode.is_set():
+            if self._ensure_i2c_enabled() is False:
+                raise RuntimeError("I2C not enabled")
+            self._init_imu()
+            self._calibrate_gyro()
         else:
-            try:
-                if self.ensure_i2c_enabled() is False:
-                    print("[ERROR] Gyroscope: I2C not enabled. Exiting.")
-                    if module_list.health_monitor:
-                        module_list.health_monitor.failure("Gyroscope", "I2C not enabled")
-                    else:
-                        print("[INFO] Gyroscope: Health monitor not available.")
-                    self.online = False
-                    return
+            self.logger.info("Running in mock mode; skipping IMU initialization.")
 
-                import smbus2 # type: ignore # Import the smbus2 library for I2C communication
-
-                # I2C bus number (1 for Raspberry Pi 3 and later)
-                self.bus = smbus2.SMBus(gyroscope_config.bus_num)
-
-                # --- Initialize LSM6DS33 (gyro + accel) ---
-                # Enable Gyroscope: 104 Hz, 2000 dps full scale
-                # CTRL2_G: ODR = 104 Hz, FS = ±2000 dps
-                self.bus.write_byte_data(gyroscope_config.addr_gyr_acc, 0x11, 0x4C)
-
-                # CTRL1_XL: ODR = 104 Hz, FS = ±2g
-                #self.bus.write_byte_data(gyroscope_config.addr_gyr_acc, 0x11, 0x40)
-
-                # Enable Accelerometer: 104 Hz, ±2g full scale
-                # CTRL1_XL: ODR = 104 Hz, FS = ±2g
-                self.bus.write_byte_data(gyroscope_config.addr_gyr_acc, 0x10, 0x4C)
-
-                # --- Initialize LIS3MDL (magnetometer) ---
-                # Enable Magnetometer: Ultra-high performance, 80 Hz
-
-                # CTRL_REG1: Temp disable, Ultra-high perf, 80 Hz
-                self.bus.write_byte_data(gyroscope_config.addr_mag, 0x20, 0x7E)
-                # CTRL_REG2: Full scale ±4 gauss
-                self.bus.write_byte_data(gyroscope_config.addr_mag, 0x21, 0x60)
-                # CTRL_REG3: Continuous-conversion mode
-                self.bus.write_byte_data(gyroscope_config.addr_mag, 0x22, 0x00)
-                # CTRL_REG4: Ultra-high perf on Z
-                self.bus.write_byte_data(gyroscope_config.addr_mag, 0x23, 0x0C)
-
-                #CTRL1_XL = 0x10 → Accelerometer config: 104Hz, ±2g, 400Hz bandwidth
-                self.bus.write_byte_data(gyroscope_config.addr_gyr_acc, 0x10, 0x40)
-
-                # CTRL9_XL = 0x18 → Enable all accel axes
-                # XEN_XL | YEN_XL | ZEN_XL
-                self.bus.write_byte_data(gyroscope_config.addr_gyr_acc, 0x18, 0x38)
-
-                # CTRL3_C = 0x12 → Enable BDU (Block Data Update)
-                # BDU = 1, IF_INC = 1
-                self.bus.write_byte_data(gyroscope_config.addr_gyr_acc, 0x12, 0x44)
-
-                self.online = True  # Set online status to True
-                # Create a thread to run the gyroscope data reading
-                self.run_thread = threading.Thread(target=self.run)
-                self.run_thread.start() # Start the thread to read gyro data
-
-                print("[INFO] Gyroscope: Gyro initialized")
-
-            except OSError as e:
-                if module_list.health_monitor:
-                    module_list.health_monitor.failure("Gyroscope", "Initialisation error")
-                else:
-                    print("[INFO] Gyroscope: Health monitor not available.")
-                print(f"[ERROR] Gyroscope: Error initializing: {e}")
-                self.online = False
-                return
+        self.online = True
+        self._ready.set()
+        self.logger.info("Service is ready.")
 
 
-    def stop(self):
+    def _run(self) -> None:
+        """Start the gyroscope data reading loop."""
+        while not self._stop.is_set():
+            self._process_imu()
+            self._stop.wait(self.cfg.imu.update_rate)  # Sleep for the specified update rate
+
+
+    def _on_stop(self) -> None:
         """Stop the gyroscope thread."""
 
         self.online = False
-        print("[INFO] Gyroscope: Stopped")
+        self.logger.info("Service stopped.")
 
 
-    def is_online(self):
-        """Check if the gyroscope is online."""
-        return self.online
+# ------------- Internals -------------
 
-
-    def imu_cmd(self, msg) -> None:
-        """Send a command to the IMU sensor."""
-        print(f"[INFO] Gyroscope: Received IMU command: {msg}")
-
-
-    # Check if I2C is enabled on the Raspberry Pi
-    def ensure_i2c_enabled(self):
+    def _ensure_i2c_enabled(self) -> bool:
         """Check if I2C is enabled on the Raspberry Pi."""
 
         if not os.path.exists("/dev/i2c-1"):
-            print("[ERROR] Gyroscope: I2C not detected.")
-            print("[INFO] Gyroscope: Run 'sudo raspi-config' > Interface Options > I2C > Enable")
+            self.logger.error("I2C interface not found.")
+            self.logger.info("Run 'sudo raspi-config' > Interface Options > I2C > Enable")
             return False
         else:
             return True
 
 
-    def read_gyro(self):
+    def _init_imu(self) -> None:
+        """Initialize the IMU sensor."""
+
+        try:
+            # I2C bus number
+            self.bus = smbus2.SMBus(self.cfg.imu.bus_num)
+
+            # --- Initialize LSM6DS33 (gyro + accel) ---
+            # Enable Gyroscope: 104 Hz, 2000 dps full scale
+            # CTRL2_G: ODR = 104 Hz, FS = ±2000 dps
+            self.bus.write_byte_data(self.cfg.imu.addr_gyr_acc, 0x11, 0x4C)
+
+            # TODO: Check which setting is correct
+
+            # CTRL1_XL: ODR = 104 Hz, FS = ±2g
+            #self.bus.write_byte_data(self.cfg.imu.addr_gyr_acc, 0x11, 0x40)
+
+            # Enable Accelerometer: 104 Hz, ±2g full scale
+            # CTRL1_XL: ODR = 104 Hz, FS = ±2g
+            self.bus.write_byte_data(self.cfg.imu.addr_gyr_acc, 0x10, 0x4C)
+
+            # --- Initialize LIS3MDL (magnetometer) ---
+            # Enable Magnetometer: Ultra-high performance, 80 Hz
+
+            # CTRL_REG1: Temp disable, Ultra-high perf, 80 Hz
+            self.bus.write_byte_data(self.cfg.imu.addr_mag, 0x20, 0x7E)
+            # CTRL_REG2: Full scale ±4 gauss
+            self.bus.write_byte_data(self.cfg.imu.addr_mag, 0x21, 0x60)
+            # CTRL_REG3: Continuous-conversion mode
+            self.bus.write_byte_data(self.cfg.imu.addr_mag, 0x22, 0x00)
+            # CTRL_REG4: Ultra-high perf on Z
+            self.bus.write_byte_data(self.cfg.imu.addr_mag, 0x23, 0x0C)
+
+            #CTRL1_XL = 0x10 → Accelerometer config: 104Hz, ±2g, 400Hz bandwidth
+            self.bus.write_byte_data(self.cfg.imu.addr_gyr_acc, 0x10, 0x40)
+
+            # CTRL9_XL = 0x18 → Enable all accel axes
+            # XEN_XL | YEN_XL | ZEN_XL
+            self.bus.write_byte_data(self.cfg.imu.addr_gyr_acc, 0x18, 0x38)
+
+            # CTRL3_C = 0x12 → Enable BDU (Block Data Update)
+            # BDU = 1, IF_INC = 1
+            self.bus.write_byte_data(self.cfg.imu.addr_gyr_acc, 0x12, 0x44)
+
+        except OSError as e:
+            self.logger.error("Failed to initialize IMU sensor: %s.", e)
+            raise RuntimeError("Failed to initialize IMU sensor.") from e
+
+
+    def _calibrate_gyro(self) -> None:
+        """Calibrate the gyroscope sensor."""
+
+        calib_buffer_x: list[float] = []
+        calib_buffer_y: list[float] = []
+        calib_buffer_z: list[float] = []
+
+        for _ in range(self.cfg.imu.calib_buffer_size):
+            gyro_data = self._read_gyro() # Get the gyroscope data
+            calib_buffer_x.append(gyro_data["x"])
+            calib_buffer_y.append(gyro_data["y"])
+            calib_buffer_z.append(gyro_data["z"])
+
+        self.x_offset = sum(calib_buffer_x) / len(calib_buffer_x)
+        self.y_offset = sum(calib_buffer_y) / len(calib_buffer_y)
+        self.z_offset = sum(calib_buffer_z) / len(calib_buffer_z)
+
+
+    def _read_gyro(self) -> dict[str, float]:
         """Read gyroscope data."""
 
         # Create synthetic data if in mock mode
-        if self.mock_mode:
+        if self.mock_mode.is_set():
             self.mock_angle += 0.1
             return {
                 'x': round(25.0 * math.sin(self.mock_angle), 2),
@@ -151,23 +182,23 @@ class Imu(IImuService):
 
         # Read the gyroscope data from the I2C bus
         def read_word(reg):
-            low = self.bus.read_byte_data(gyroscope_config.addr_gyr_acc, reg)
-            high = self.bus.read_byte_data(gyroscope_config.addr_gyr_acc, reg+1)
+            low = self.bus.read_byte_data(self.cfg.imu.addr_gyr_acc, reg)
+            high = self.bus.read_byte_data(self.cfg.imu.addr_gyr_acc, reg+1)
             val = (high << 8) + low
             return val if val < 32768 else val - 65536
 
         return {
-            'x': read_word(gyroscope_config.gyro_reg_out_x) * gyroscope_config.scale_factor,
-            'y': read_word(gyroscope_config.gyro_reg_out_y) * gyroscope_config.scale_factor,
-            'z': read_word(gyroscope_config.gyro_reg_out_z) * gyroscope_config.scale_factor,
+            'x': read_word(self.cfg.imu.gyro_reg_out_x) * self.cfg.imu.scale_factor,
+            'y': read_word(self.cfg.imu.gyro_reg_out_y) * self.cfg.imu.scale_factor,
+            'z': read_word(self.cfg.imu.gyro_reg_out_z) * self.cfg.imu.scale_factor,
         }
 
 
-    def read_accel(self):
+    def _read_accel(self) -> dict[str, float]:
         """Read accelerometer data."""
 
         # Create synthetic data if in mock mode
-        if self.mock_mode:
+        if self.mock_mode.is_set():
             self.mock_angle += 0.1
             return {
                 'x': round(25.0 * math.sin(self.mock_angle), 2),
@@ -176,22 +207,22 @@ class Imu(IImuService):
             }
 
         def read_word(reg):
-            low = self.bus.read_byte_data(gyroscope_config.addr_gyr_acc, reg)
-            high = self.bus.read_byte_data(gyroscope_config.addr_gyr_acc, reg+1)
+            low = self.bus.read_byte_data(self.cfg.imu.addr_gyr_acc, reg)
+            high = self.bus.read_byte_data(self.cfg.imu.addr_gyr_acc, reg+1)
             val = (high << 8) + low
             return val if val < 32768 else val - 65536
 
         return {
-            'x': read_word(gyroscope_config.acc_reg_out_x),  # OUTX_L_XL
-            'y': read_word(gyroscope_config.acc_reg_out_y),  # OUTY_L_XL
-            'z': read_word(gyroscope_config.acc_reg_out_z),  # OUTZ_L_XL
+            'x': read_word(self.cfg.imu.acc_reg_out_x),  # OUTX_L_XL
+            'y': read_word(self.cfg.imu.acc_reg_out_y),  # OUTY_L_XL
+            'z': read_word(self.cfg.imu.acc_reg_out_z),  # OUTZ_L_XL
         }
 
 
-    def read_mag(self):
+    def _read_mag(self) -> dict[str, float]:
         """Read magnetometer data."""
         # Create synthetic data if in mock mode
-        if self.mock_mode:
+        if self.mock_mode.is_set():
             self.mock_angle += 0.1
             return {
                 'x': round(25.0 * math.sin(self.mock_angle), 2),
@@ -200,87 +231,67 @@ class Imu(IImuService):
             }
 
         def read_word(reg):
-            low = self.bus.read_byte_data(gyroscope_config.addr_mag, reg)
-            high = self.bus.read_byte_data(gyroscope_config.addr_mag, reg+1)
+            low = self.bus.read_byte_data(self.cfg.imu.addr_mag, reg)
+            high = self.bus.read_byte_data(self.cfg.imu.addr_mag, reg+1)
             val = (high << 8) + low
             return val if val < 32768 else val - 65536
 
         return {
-            'x': read_word(gyroscope_config.mag_reg_out_x),
-            'y': read_word(gyroscope_config.mag_reg_out_y),
-            'z': read_word(gyroscope_config.mag_reg_out_z),
+            'x': read_word(self.cfg.imu.mag_reg_out_x),
+            'y': read_word(self.cfg.imu.mag_reg_out_y),
+            'z': read_word(self.cfg.imu.mag_reg_out_z),
         }
 
 
-    def run(self):
-        """Continuously read gyroscope data and send it over TCP."""
-        error = None
-        failure_count = 0
-        print_count = 0
-        calib_count = 0
-        while self.online:
+    def _process_imu(self):
+        """Continuously read IMU data and send it over TCP and/or to gaze module."""
 
-            if self.calibration:
-                gyro_data = self.read_gyro() # Get the gyroscope data
-                self.calib_buffer_x.append(gyro_data.get("x"))
-                self.calib_buffer_y.append(gyro_data.get("y"))
-                self.calib_buffer_z.append(gyro_data.get("z"))
+        retry_attempt = 0
 
+        for _ in range(self.cfg.imu.retry_attempts):
+            try:
+                # Read sensor data
+                gyro_data = self._read_gyro()
+                accel_data = self._read_accel()
+                mag_data = self._read_mag()
+                timestamp = time.time()
 
-                calib_count += 1
+                # Apply calibration offsets
+                if not self.mock_mode.is_set():
+                    gyro_data['x'] -= self.x_offset
+                    gyro_data['y'] -= self.y_offset
+                    gyro_data['z'] -= self.z_offset
 
-                if calib_count >= gyroscope_config.calib_buffer_size:
-                    self.calibration = False
+                data = {
+                    "gyro": gyro_data,
+                    "accel": accel_data,
+                    "mag": mag_data,
+                    "timestamp": timestamp
+                }
 
-                    self.x_ofset = sum(self.calib_buffer_x) / len(self.calib_buffer_x)
-                    self.y_ofset = sum(self.calib_buffer_y) / len(self.calib_buffer_y)
-                    self.z_ofset = sum(self.calib_buffer_z) / len(self.calib_buffer_z)
-            else:
-                try:
-                    gyro_data = self.read_gyro() # Get the gyroscope data
-                    accel_data = self.read_accel() # Get the accelerometer data
-                    mag_data = self.read_mag() # Get the magnetometer data
+                if self.imu_send_over_tcp_s.is_set():
+                    # Send data via TCP
+                    self.comm_router_q.put((
+                        1,
+                        MessageType.imuSensor,
+                        data
+                        ))
 
-                    gyro_data['x'] -= self.x_ofset
-                    gyro_data['y'] -= self.y_ofset
-                    gyro_data['z'] -= self.z_ofset
+                if self.imu_send_to_gaze_s.is_set():
+                    self.gyro_mag_q.put(data)
 
-                    data = {"gyro": gyro_data,
-                            "accel": accel_data,
-                            "mag": mag_data} # Combine the data into a single dictionary
-                    if module_list.tcp_server:
-                        module_list.tcp_server.send(
-                        {
-                            "type": "9dof",
-                            "data": data
-                        }, data_type="JSON", priority="high")
-                        error = None
-                    else:
-                        print("[WARN] Gyroscope: No TCP sender available. Skipping data send.")
+                break
 
-                    if module_list.main_processor:
-                        module_list.main_processor.gyro_handler(gyro_data)
-                    else:
-                        print("[INFO] Gyroscope: Main processor not available.")
+            except (OSError, IOError, ConnectionError, ValueError, AttributeError) as e:
+                # Catch expected I/O / networking / value / attribute errors explicitly
+                retry_attempt += 1
+                self.logger.warning("Failed sending message: %s", e)
 
-                except (OSError, IOError, ConnectionError, ValueError, AttributeError) as e:
-                    # Catch expected I/O / networking / value / attribute errors explicitly
-                    failure_count += 1
-                    error = e
-                    print(f"[ERROR] Gyroscope: Failed sending message: {e}")
-
-                print_count += 1
-                if print_count == 10:
-                    #print("[INFO] Gyroscope: Data sent:", data)
-                    print_count = 0
-
-                if error is not None and failure_count >= gyroscope_config.retry_attempts:
-                    if module_list.health_monitor:
-                        module_list.health_monitor.failure("Gyroscope", "Error reading gyro data")
-                    else:
-                        print("[INFO] Gyroscope: Health monitor not available.")
+                if retry_attempt >= self.cfg.imu.retry_attempts:
                     self.online = False
-                    print(f"[ERROR] Gyroscope: Error reading gyro data {error}.")
-                    break
+                    self.logger.error("Max retry attempts reached. Skipping this IMU read.")
+                    raise RuntimeError("Max retry attempts reached for IMU processing.") from e
 
-            time.sleep(gyroscope_config.update_rate)  # Sleep for the specified update rate
+    #  pylint: disable=unused-argument
+    def _on_config_changed(self, path: str, old_val: Any, new_val: Any) -> None:
+        """Handle configuration changes."""

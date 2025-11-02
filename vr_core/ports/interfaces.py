@@ -46,11 +46,3 @@ class ICameraService(ABC):
     @abstractmethod
     def capture_frame(self) -> NDArray[np.uint8]:
         """Capture a frame from the camera."""
-
-
-class IImuService(ABC):
-    """IMU service interface."""
-
-    @abstractmethod
-    def imu_cmd(self, msg) -> None:
-        """Send a command to the IMU sensor."""

@@ -61,6 +61,15 @@ class EyeTrackerSignals:
         self.tracker_shm_is_closed_r = mp.Event()   # signal that shared memory
 
 
+class IMUSignals:
+    """Signals for IMU service."""
+
+    def __init__(self) -> None:
+        # Signal to indicate new IMU data is available
+        self.imu_send_over_tcp = Event()
+        self.imu_send_to_gaze = Event()
+
+
 class TestModeSignals:
     """Signals for test mode operation."""
 
