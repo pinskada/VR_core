@@ -45,10 +45,6 @@ class GazeCalc(BaseService):
         self.logger.info("Service initialized.")
 
 
-        self.print_model_error = False # Flag to indicate if the model error should be printed
-
-
-
 # ---------- BaseService lifecycle ----------
 
     def _on_start(self):
