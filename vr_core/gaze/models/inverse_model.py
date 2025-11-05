@@ -1,7 +1,8 @@
 """Inverse model for gaze estimation."""
 
 import math
-from scipy.optimize import curve_fit
+# Stubs for scipy not existing in the moment of creation
+from scipy.optimize import curve_fit  # type: ignore
 
 def fit(distances, ipds):
     """
@@ -41,7 +42,7 @@ def safe_predict(ipd, model_params, eps=1e-6):
 
     denom = ipd - b
     if denom < eps:
-        denom = eps 
+        denom = eps
 
     d = a / denom
     if not math.isfinite(d):
