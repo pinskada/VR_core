@@ -4,10 +4,13 @@ import os
 import math
 import time
 from queue import Queue, PriorityQueue
-from threading import Event
 from typing import Any
+import platform
 
-import smbus2
+try:
+    import smbus2
+except ImportError:  # ImportError on dev machines without smbus2
+    smbus2 = None  # type: ignore
 
 from vr_core.base_service import BaseService
 from vr_core.config_service.config import Config
@@ -24,7 +27,7 @@ class Imu(BaseService):
         gyro_mag_q: Queue,
         imu_signals: IMUSignals,
         config: Config,
-        imu_mock_mode: Event,
+        imu_mock_mode: bool = False,
         ) -> None:
 
         super().__init__("IMU")
@@ -41,7 +44,7 @@ class Imu(BaseService):
             self._on_config_changed
         )
 
-        self.bus: smbus2.SMBus
+        self.bus: Any = None
 
         self.x_offset: float
         self.y_offset: float
@@ -63,7 +66,11 @@ class Imu(BaseService):
 
         self.imu_send_over_tcp_s.set()
 
-        if not self.mock_mode.is_set():
+        if platform.system() != "Linux":
+            self.logger.info("Non-Linux system detected; forcing mock mode.")
+            self.mock_mode = True
+
+        if not self.mock_mode:
             if self._ensure_i2c_enabled() is False:
                 raise RuntimeError("I2C not enabled")
             self._init_imu()
@@ -105,6 +112,10 @@ class Imu(BaseService):
 
     def _init_imu(self) -> None:
         """Initialize the IMU sensor."""
+
+        if smbus2 is None:
+            self.logger.error("smbus2 not installed. Run 'pip install smbus2' or enable mock mode.")
+            raise RuntimeError("smbus2 not installed")
 
         try:
             # I2C bus number
@@ -174,7 +185,7 @@ class Imu(BaseService):
         """Read gyroscope data."""
 
         # Create synthetic data if in mock mode
-        if self.mock_mode.is_set():
+        if self.mock_mode:
             self.mock_angle += 0.1
             return {
                 'x': round(25.0 * math.sin(self.mock_angle), 2),
@@ -200,7 +211,7 @@ class Imu(BaseService):
         """Read accelerometer data."""
 
         # Create synthetic data if in mock mode
-        if self.mock_mode.is_set():
+        if self.mock_mode:
             self.mock_angle += 0.1
             return {
                 'x': round(25.0 * math.sin(self.mock_angle), 2),
@@ -224,7 +235,7 @@ class Imu(BaseService):
     def _read_mag(self) -> dict[str, float]:
         """Read magnetometer data."""
         # Create synthetic data if in mock mode
-        if self.mock_mode.is_set():
+        if self.mock_mode:
             self.mock_angle += 0.1
             return {
                 'x': round(25.0 * math.sin(self.mock_angle), 2),
@@ -259,7 +270,7 @@ class Imu(BaseService):
                 timestamp = time.time()
 
                 # Apply calibration offsets
-                if not self.mock_mode.is_set():
+                if not self.mock_mode:
                     gyro_data['x'] -= self.x_offset
                     gyro_data['y'] -= self.y_offset
                     gyro_data['z'] -= self.z_offset

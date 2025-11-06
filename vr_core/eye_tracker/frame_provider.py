@@ -3,7 +3,7 @@
 from multiprocessing.shared_memory import SharedMemory
 from multiprocessing.synchronize import Event as MpEvent
 import multiprocessing as mp
-from typing import Any
+from typing import Any, Optional
 from threading import Event
 from enum import Enum
 from pathlib import Path
@@ -15,7 +15,7 @@ import cv2
 from vr_core.base_service import BaseService
 from vr_core.config_service.config import Config
 from vr_core.ports.signals import CommRouterSignals, EyeTrackerSignals, TrackerSignals
-from vr_core.raspberry_perif.camera_manager import CameraManager
+from vr_core.ports.interfaces import ICameraService
 from vr_core.utilities.logger_setup import setup_logger
 
 
@@ -43,7 +43,7 @@ class FrameProvider(BaseService):
 
     def __init__(
         self,
-        i_camera_manager: CameraManager,
+        i_camera_manager: ICameraService,
         comm_router_s: CommRouterSignals,
         eye_tracker_s: EyeTrackerSignals,
         tracker_s: TrackerSignals,
@@ -78,8 +78,8 @@ class FrameProvider(BaseService):
         self._unsubscribe = config.subscribe("tracker", self._on_config_changed)
 
         self.online = False
-        self.shm_left: SharedMemory
-        self.shm_right: SharedMemory
+        self.shm_left: Optional[SharedMemory] = None
+        self.shm_right: Optional[SharedMemory] = None
 
         self.hold_frames: bool = False
         self.is_holding_frames: Event = Event()
@@ -218,6 +218,11 @@ class FrameProvider(BaseService):
         # Crop left and right regions from the full frame
         left_frame = self._crop(full_frame, self.crop_l)
         right_frame = self._crop(full_frame, self.crop_r)
+
+        if self.shm_left is None or self.shm_right is None:
+            self.logger.error("Shared memory not allocated.")
+            self.online = False
+            return
 
         try:
             # Write cropped frames to shared memory

@@ -4,6 +4,7 @@ from queue import Queue, PriorityQueue
 import queue
 import time
 
+from vr_core.network.comm_contracts import MessageType
 from vr_core.base_service import BaseService
 from vr_core.config_service.config import Config
 from vr_core.ports.signals import GazeSignals
@@ -119,7 +120,7 @@ class GazeCalc(BaseService):
 
             if self.gaze_to_tcp_signal.is_set():
                 # Send the gaze distance over tcp
-                self.comm_router_q.put(gaze_distance)
+                self.comm_router_q.put((8, MessageType.gazeData, gaze_distance))
 
             # Send the gaze distance to the ESP32
             self.esp_cmd_q.put(gaze_distance)

@@ -18,7 +18,8 @@ class TCPServer(BaseService, INetworkService):
     def __init__(
         self,
         config: Config,
-        tcp_receive_q: queue.Queue
+        tcp_receive_q: queue.Queue,
+        mock_mode: bool = False,
     ) -> None:
         super().__init__(name="TCPServer")
 
@@ -26,6 +27,8 @@ class TCPServer(BaseService, INetworkService):
 
         self.cfg = config
         self.tcp_receive_q = tcp_receive_q
+
+        self.mock_mode = mock_mode
 
         self.online = False
 
@@ -41,11 +44,11 @@ class TCPServer(BaseService, INetworkService):
 
     def _on_start(self) -> None:
         """Set up server socket and wait for client connection."""
+        if not self.mock_mode:
+            self._verify_static_ip()
 
-        self._verify_static_ip()
-
-        if not self._start_server():
-            return
+            if not self._start_server():
+                return
 
         # Mark as ready
         self._ready.set()

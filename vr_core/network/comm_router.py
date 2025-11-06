@@ -103,7 +103,6 @@ class CommRouter(BaseService):
         )
 
         self._copy_settings_to_local()
-
         self.online = True
 
         # Start worker threads
@@ -131,7 +130,7 @@ class CommRouter(BaseService):
 
         self._ready.set()
 
-        self.logger.info("Service _ready is set.")
+        self.logger.info("Service is ready.")
 
 
     def _run(self) -> None:

@@ -44,11 +44,11 @@ def setup_logger(name: str,
     fh.setLevel(level)
     fh.setFormatter(formatter)
 
-    ch = logging.StreamHandler()
-    ch.setLevel(level)
-    ch.setFormatter(formatter)
+    # ch = logging.StreamHandler()
+    # ch.setLevel(level)
+    # ch.setFormatter(formatter)
 
     logger.setLevel(level)
     logger.addHandler(fh)
-    logger.addHandler(ch)
+    # logger.addHandler(ch)
     return logger

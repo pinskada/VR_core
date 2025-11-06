@@ -1,7 +1,6 @@
 """ESP32 Peripheral Module"""
 
 import os
-from threading import Event
 import queue
 from typing import Optional, Any
 
@@ -20,8 +19,8 @@ class Esp32(BaseService):
     def __init__(
         self,
         esp_cmd_q: queue.Queue,
-        esp_mock_mode: Event,
-        config: Config
+        config: Config,
+        esp_mock_mode: bool = False,
     ) -> None:
         super().__init__("ESP32")
 
@@ -47,7 +46,7 @@ class Esp32(BaseService):
     def _on_start(self) -> None:
         """Initialize ESP32 serial connection."""
 
-        if not self.esp_mock_mode.is_set():
+        if not self.esp_mock_mode:
             if not os.path.exists(self.cfg.esp32.port): # Check if the serial port exists
                 self.logger.error("Serial port not found.")
                 raise RuntimeError("ESP32 serial port not found")
@@ -162,7 +161,7 @@ class Esp32(BaseService):
         message = f"{distance_mm:.2f}\n"
 
         # Fake the message for mock mode
-        if self.esp_mock_mode.is_set():
+        if self.esp_mock_mode:
             self.logger.info("Would send gaze distance: %s", message.strip())
             return
 

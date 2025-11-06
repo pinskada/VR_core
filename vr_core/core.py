@@ -10,6 +10,7 @@ import time
 import logging
 import signal
 from typing import Dict, List
+from threading import Event
 
 from vr_core.base_service import BaseService
 from vr_core.config_service.config import Config
@@ -17,7 +18,6 @@ from vr_core.utilities.logger_setup import setup_logger
 
 from vr_core.ports.queues import CommQueues
 import vr_core.ports.signals as signals
-import vr_core.ports.interfaces as interfaces
 
 from vr_core.network.tcp_server import TCPServer
 from vr_core.network.comm_router import CommRouter
@@ -36,12 +36,7 @@ from vr_core.gaze.gaze_calib import GazeCalib
 from vr_core.gaze.gaze_calc import GazeCalc
 from vr_core.gaze.gaze_preprocess import GazePreprocess
 
-
-print("===== DEBUG INFO =====")
-print("PYTHONPATH:", os.environ.get("PYTHONPATH"))
-print("VIRTUAL_ENV:", os.environ.get("VIRTUAL_ENV"))
-print("SYS PATH:", sys.path)
-print("======================")
+from vr_core.mock_modules.mock_camera import MockCamera
 
 
 class Core:
@@ -68,9 +63,14 @@ class Core:
 
         self.logger.info("All components initialized.")
 
-        self.services: Dict[str, BaseService | Config] = {}
-        self._stop_requested = False
+        self.services: Dict[str, BaseService] = {}
+        self._stop_requested = Event()
 
+        self.tcp_mock_mode = True
+        self.config_mock_mode = True
+        self.esp_mock_mode = True
+        self.imu_mock_mode = True
+        self.camera_mock_mode = True
 
     # -------- build: construct everything & inject dependencies --------
 
@@ -78,19 +78,24 @@ class Core:
         """Build and start all core modules."""
 
         config = Config(
-            config_ready_s=self.config_signals.config_ready_s
+            config_ready_s=self.config_signals.config_ready_s,
+            mock_mode=self.config_mock_mode,
         )
 
         tcp_server = TCPServer(
             config=config,
             tcp_receive_q=self.queues.tcp_receive_q,
+            mock_mode=self.tcp_mock_mode,
         )
         camera_manager = CameraManager(
             config=config,
         )
+        mock_camera = MockCamera(
+            config=config,
+        )
         esp32 = Esp32(
             esp_cmd_q=self.queues.esp_cmd_q,
-            esp_mock_mode=self.test_signals.esp_mock_mode,
+            esp_mock_mode=self.esp_mock_mode,
             config=config,
         )
         imu = Imu(
@@ -98,7 +103,7 @@ class Core:
             gyro_mag_q=self.queues.gyro_mag_q,
             imu_signals=self.imu_signals,
             config=config,
-            imu_mock_mode=self.test_signals.imu_mock_mode,
+            imu_mock_mode=self.imu_mock_mode,
         )
         tracker_sync = TrackerSync(
             tracker_data_s=self.tracker_data_signals,
@@ -110,7 +115,7 @@ class Core:
             config=config,
         )
         frame_provider = FrameProvider(
-            i_camera_manager=camera_manager,
+            i_camera_manager=mock_camera,
             comm_router_s=self.comm_router_signals,
             eye_tracker_s=self.eye_ready_signals,
             tracker_s=self.tracker_signals,
@@ -211,24 +216,28 @@ class Core:
 
         # Order listed in build()
         start_order: List[str] = list(self.services.keys())
-        self.logger.info("Starting services in order: %s", " → ".join(start_order))
+        self.logger.info("Starting services in order: %s", " -> ".join(start_order))
 
         # Wait for the service to declare readiness
         for name in start_order:
             svc = self.services[name]
-            self.logger.info("→ start %s", name)
+            self.logger.info("-> start %s", name)
 
-            if name == "TCPServer":
+            if name == "TCPServer" or name == "ConfigService":
                 # TCP server needs longer timeout since client may take time to connect
                 timeout = 60
                 #timeout = float("inf")
-
-                if not svc.ready(timeout=timeout):
-                    raise TimeoutError(f"Service '{name}' did not become ready in time")
             else:
-                svc.start()
-                if not svc.ready(timeout=5):
-                    raise TimeoutError(f"Service '{name}' did not become ready in time")
+                timeout = 5
+
+            svc.start()
+            status = self._wait_ready_or_stop(svc, timeout=timeout)
+
+            if status == "stopped":
+                self.logger.warning("Startup interrupted during %s; stopping…", name)
+                return
+            if status == "timeout":
+                raise TimeoutError(f"Service '{name}' did not become ready in time: {timeout}s")
 
         self.logger.info("All services started and ready.")
 
@@ -239,12 +248,12 @@ class Core:
             return
 
         stop_order = list(reversed(self.services.keys()))
-        self.logger.info("Stopping services in reverse order: %s", " ← ".join(stop_order))
+        self.logger.info("Stopping services in reverse order: %s", " <- ".join(stop_order))
 
         # Request stop
         for name in stop_order:
             try:
-                self.logger.info("→ stop %s", name)
+                self.logger.info("-> stop %s", name)
                 self.services[name].stop()
             except (RuntimeError, ValueError, OSError) as e:
                 # Common states: not started, already closed, socket already closed
@@ -255,6 +264,9 @@ class Core:
         # Join
         for name in stop_order:
             svc = self.services[name]
+            if not svc.ready(timeout=0):
+                self.logger.info("Service %s not started, skipping stop.", name)
+                continue
             try:
                 svc.join(timeout=5)
             except (RuntimeError, ValueError) as e:
@@ -277,8 +289,38 @@ class Core:
     def wait_forever(self):
         """Idle loop for the supervisor. Add supervision/restarts here later if needed."""
         self.logger.info("Waiting for services to stop...")
-        while not self._stop_requested:
-            time.sleep(0.5)
+        try:
+            while not self._stop_requested.is_set():
+                time.sleep(0.5)
+        except KeyboardInterrupt:
+            # If SIGINT wasn’t caught by our handler, catch the raw KeyboardInterrupt
+            self.logger.info("KeyboardInterrupt received, shutting down…")
+            self._stop_requested.set()
+
+
+    # --------------------------- helpers ---------------------------
+
+    def _wait_ready_or_stop(self, svc: BaseService, timeout: float | None) -> str:
+        """Wait until a service is ready; return 'ready', 'stopped', or 'timeout'."""
+        slice_s = 0.05
+        deadline = None if timeout is None else time.monotonic() + timeout
+
+        while True:
+            if self._stop_requested.is_set():
+                return "stopped"
+
+            # compute remaining time if any
+            if deadline is None:
+                chunk = slice_s
+            else:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return "timeout"
+                chunk = min(slice_s, remaining)
+
+            # wait a short slice on the service's ready Event
+            if svc.ready(timeout=chunk):
+                return "ready"
 
 
     # --------------------------- signal hooks --------------------------
@@ -288,7 +330,7 @@ class Core:
 
         def _handler(signum, _frame):
             self.logger.info("Signal %s received, shutting down…", signum)
-            self._stop_requested = True
+            self._stop_requested.set()
 
         signal.signal(signal.SIGINT, _handler)
         try:
@@ -296,6 +338,9 @@ class Core:
         except (AttributeError, OSError):
             # Not available on some platforms (e.g., Windows older Pythons)
             pass
+
+        if os.name == "nt" and hasattr(signal, "SIGBREAK"):
+            signal.signal(signal.SIGBREAK, _handler)
 
 
 # ------------------------------ Entrypoint -----------------------------

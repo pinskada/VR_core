@@ -20,12 +20,15 @@ class Config(BaseService):
     """
     def __init__(
         self,
-        config_ready_s: threading.Event
+        config_ready_s: threading.Event,
+        mock_mode: bool = False,
     ) -> None:
         super().__init__(name="Config")
         self.logger = setup_logger("Config")
 
         self.config_ready_s = config_ready_s
+
+        self.mock_mode = mock_mode
 
         self._lock = threading.RLock()
         self._root = RootConfig()
@@ -40,7 +43,8 @@ class Config(BaseService):
 
     def _on_start(self) -> None:
         """Start the config service."""
-        self.config_ready_s.wait(timeout=float("inf"))
+        if not self.mock_mode:
+            self.config_ready_s.wait(timeout=float("inf"))
 
         self._ready.set()
         self.logger.info("Service is ready.")
