@@ -14,7 +14,7 @@ from vr_core.network.comm_contracts import MessageType
 from vr_core.utilities.logger_setup import setup_logger
 
 
-class GazeControl(BaseService):
+class GazePreprocess(BaseService):
     """Gaze control and preprocessing module for VR Core on Raspberry Pi."""
 
     def __init__(
@@ -79,6 +79,7 @@ class GazeControl(BaseService):
     def _on_stop(self):
         """Service stop logic."""
         self.online = False
+        self._unsubscribe()
         self.logger.info("Service stopping.")
 
 
@@ -130,6 +131,11 @@ class GazeControl(BaseService):
         if self.ipd_to_tcp_s.is_set():
             # Send the relative filtered IPD to the TCP module
             self.comm_router_q.put((6, MessageType.ipdPreview, relat_filt_ipd))
+
+        if self.gaze_calib_s.is_set() and self.gaze_calc_s.is_set():
+            self.logger.warning("Both gaze calibration and calculation signals are set, " \
+            "skipping IPD processing.")
+            return
 
         if self.gaze_calib_s.is_set() or self.gaze_calc_s.is_set():
             # Send the IPD to either calibration or main processing module

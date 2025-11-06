@@ -8,11 +8,11 @@ from typing import Tuple
 from vr_core.base_service import BaseService
 from vr_core.config_service.config import Config
 from vr_core.ports.signals import CommRouterSignals, TrackerDataSignals, TrackerSignals
-from vr_core.ports.interfaces import ITrackerService
+from vr_core.ports.interfaces import ITrackerService, ITrackerControl
 from vr_core.utilities.logger_setup import setup_logger
 
 
-class TrackerControl(BaseService, ITrackerService):
+class TrackerControl(BaseService, ITrackerControl):
     """Tracker control service.
 
     Controls starting/stopping the tracker module and handles incoming control messages.
@@ -33,6 +33,7 @@ class TrackerControl(BaseService, ITrackerService):
         comm_router_signals: CommRouterSignals,
         tracker_data_signals: TrackerDataSignals,
         tracker_signals: TrackerSignals,
+        i_tracker_process: ITrackerService,
         config: Config
     ) -> None:
 
@@ -53,6 +54,8 @@ class TrackerControl(BaseService, ITrackerService):
         self.provide_frames_s = tracker_signals.provide_frames
         self.tracker_running_l_s = tracker_signals.tracker_running_l
         self.tracker_running_r_s = tracker_signals.tracker_running_r
+
+        self.i_tracker_process = i_tracker_process
 
         self.cfg = config
         self._unsubscribe = config.subscribe("eyeloop", self._on_config_changed)
@@ -114,7 +117,7 @@ class TrackerControl(BaseService, ITrackerService):
 
         self.provide_frames_s.clear()
         self.logger.info("provide_frames_s cleared.")
-        self.stop_tracker()
+        self.i_tracker_process.stop_tracker()
         self.log_data_s.clear()
         self.logger.info("log_data_s cleared.")
         self.provide_data_s.clear()
@@ -134,7 +137,7 @@ class TrackerControl(BaseService, ITrackerService):
         self.logger.info("provide_frames_s set.")
         self.sync_frames_s.set()
         self.logger.info("sync_frames_s set.")
-        self.stop_tracker()
+        self.i_tracker_process.stop_tracker()
         self.log_data_s.set()
         self.logger.info("log_data_s set.")
         self.provide_data_s.clear()
@@ -150,7 +153,7 @@ class TrackerControl(BaseService, ITrackerService):
 
         self.provide_frames_s.set()
         self.logger.info("provide_frames_s set.")
-        self.start_tracker()
+        self.i_tracker_process.start_tracker()
         self.log_data_s.set()
         self.logger.info("log_data_s set.")
         self.provide_data_s.clear()
@@ -173,7 +176,7 @@ class TrackerControl(BaseService, ITrackerService):
 
         self.provide_frames_s.set()
         self.logger.info("provide_frames_s set.")
-        self.start_tracker()
+        self.i_tracker_process.start_tracker()
         self.log_data_s.set()
         self.logger.info("log_data_s set.")
         self.provide_data_s.set()

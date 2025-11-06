@@ -1,8 +1,8 @@
 """Frame Provider Module"""
 
-import queue
 from multiprocessing.shared_memory import SharedMemory
 from multiprocessing.synchronize import Event as MpEvent
+import multiprocessing as mp
 from typing import Any
 from threading import Event
 from enum import Enum
@@ -47,8 +47,8 @@ class FrameProvider(BaseService):
         comm_router_s: CommRouterSignals,
         eye_tracker_s: EyeTrackerSignals,
         tracker_s: TrackerSignals,
-        tracker_cmd_l_q: queue.Queue,
-        tracker_cmd_r_q: queue.Queue,
+        tracker_cmd_l_q: mp.Queue,
+        tracker_cmd_r_q: mp.Queue,
         config: Config,
     ) -> None:
         super().__init__(name="FrameProvider")
@@ -188,7 +188,6 @@ class FrameProvider(BaseService):
             self.logger.info("Test video released.")
 
         self._unsubscribe()
- 
 
 
     def is_online(self) -> bool:

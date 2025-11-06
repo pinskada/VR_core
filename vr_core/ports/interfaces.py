@@ -16,21 +16,39 @@ class INetworkService(ABC):
         """Send data over TCP."""
 
 
-class IGazeService(ABC):
-    """Gaze service interface."""
+class IGazeControl(ABC):
+    """Gaze control interface."""
 
     @abstractmethod
     def gaze_control(self, msg) -> None:
         """Control the gaze module."""
 
 
-class ITrackerService(ABC):
-    """Tracker service interface."""
+class IGazeService(ABC):
+    """Gaze service interface."""
 
+    @abstractmethod
+    def start_of_calibration(self) -> None:
+        """Start the gaze calibration."""
+
+    @abstractmethod
+    def end_of_calibration(self) -> None:
+        """Finalize the gaze calibration."""
+
+    @abstractmethod
+    def set_timestamp(self, string_state: str, distance: float) -> None:
+        """Set the current gaze distance."""
+
+
+class ITrackerControl(ABC):
+    """Tracker service interface."""
     @abstractmethod
     def tracker_control(self, msg) -> None:
         """Control the tracker module."""
 
+
+class ITrackerService(ABC):
+    """Eye tracker service interface."""
     @abstractmethod
     def start_tracker(self, test_mode: bool = False) -> None:
         """Start the tracker."""

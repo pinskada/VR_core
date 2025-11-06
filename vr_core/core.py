@@ -19,8 +19,6 @@ from vr_core.ports.queues import CommQueues
 import vr_core.ports.signals as signals
 import vr_core.ports.interfaces as interfaces
 
-from vr_core.health_monitor import HealthMonitor
-
 from vr_core.network.tcp_server import TCPServer
 from vr_core.network.comm_router import CommRouter
 
@@ -36,6 +34,7 @@ from vr_core.eye_tracker.frame_provider import FrameProvider
 from vr_core.gaze.gaze_control import GazeControl
 from vr_core.gaze.gaze_calib import GazeCalib
 from vr_core.gaze.gaze_calc import GazeCalc
+from vr_core.gaze.gaze_preprocess import GazePreprocess
 
 
 print("===== DEBUG INFO =====")
@@ -50,23 +49,26 @@ class Core:
     Core engine for RPI.
     """
 
-    def __init__(self, cfg: Config, argv: List[str] | None = None):
+    def __init__(self, argv: List[str] | None = None):
         print("Starting VR Core...")
 
         self.argv = argv or []
-        self.cfg = cfg
 
         self.logger = setup_logger("Core")
 
         self.queues = CommQueues()
         self.config_signals = signals.ConfigSignals()
         self.comm_router_signals = signals.CommRouterSignals()
+        self.tracker_data_signals = signals.TrackerDataSignals()
         self.tracker_signals = signals.TrackerSignals()
         self.eye_ready_signals = signals.EyeTrackerSignals()
+        self.gaze_signals = signals.GazeSignals()
+        self.imu_signals = signals.IMUSignals()
+        self.test_signals = signals.TestModeSignals()
 
         self.logger.info("All components initialized.")
 
-        self.services: Dict[str, BaseService] = {}
+        self.services: Dict[str, BaseService | Config] = {}
         self._stop_requested = False
 
 
@@ -75,26 +77,125 @@ class Core:
     def build(self):
         """Build and start all core modules."""
 
-        tcp_server = TCPServer(
-            config=self.cfg,
-            tcp_receive_q=self.queues.tcp_receive_q,
+        config = Config(
+            config_ready_s=self.config_signals.config_ready_s
         )
 
-        # config.tracker_config.use_test_video = True  # Use saved video instead of live camera
-        # if not config.tracker_config.use_test_video:
-        #     module_list.cam_manager = CameraManager()
-        # time.sleep(0.5)
-        # HealthMonitor()
-        # time.sleep(0.5)
-        # Gyroscope()
-        # time.sleep(0.5)
-        # ESP32(force_mock=True)
-        # time.sleep(0.5)
-        # #PreProcessor()
-        # time.sleep(0.5)
-        # CommandDispatcher()  # type: ignore # noqa: F841
+        tcp_server = TCPServer(
+            config=config,
+            tcp_receive_q=self.queues.tcp_receive_q,
+        )
+        camera_manager = CameraManager(
+            config=config,
+        )
+        esp32 = Esp32(
+            esp_cmd_q=self.queues.esp_cmd_q,
+            esp_mock_mode=self.test_signals.esp_mock_mode,
+            config=config,
+        )
+        imu = Imu(
+            comm_router_q=self.queues.comm_router_q,
+            gyro_mag_q=self.queues.gyro_mag_q,
+            imu_signals=self.imu_signals,
+            config=config,
+            imu_mock_mode=self.test_signals.imu_mock_mode,
+        )
+        tracker_sync = TrackerSync(
+            tracker_data_s=self.tracker_data_signals,
+            comm_router_q=self.queues.comm_router_q,
+            ipd_q=self.queues.ipd_q,
+            tracker_health_q=self.queues.tracker_health_q,
+            tracker_response_l_q=self.queues.tracker_resp_l_q,
+            tracker_response_r_q=self.queues.tracker_resp_r_q,
+            config=config,
+        )
+        frame_provider = FrameProvider(
+            i_camera_manager=camera_manager,
+            comm_router_s=self.comm_router_signals,
+            eye_tracker_s=self.eye_ready_signals,
+            tracker_s=self.tracker_signals,
+            tracker_cmd_l_q=self.queues.tracker_cmd_l_q,
+            tracker_cmd_r_q=self.queues.tracker_cmd_r_q,
+            config=config,
+        )
+        tracker_process = TrackerProcess(
+            tracker_cmd_q_l=self.queues.tracker_cmd_l_q,
+            tracker_cmd_q_r=self.queues.tracker_cmd_r_q,
+            tracker_resp_q_l=self.queues.tracker_resp_l_q,
+            tracker_resp_q_r=self.queues.tracker_resp_r_q,
+            tracker_health_q=self.queues.tracker_health_q,
+            eye_tracker_signals=self.eye_ready_signals,
+            tracker_signals=self.tracker_signals,
+            config=config,
+        )
+        tracker_control = TrackerControl(
+            com_router_queue_q=self.queues.comm_router_q,
+            tracker_cmd_l_q=self.queues.tracker_cmd_l_q,
+            tracker_cmd_r_q=self.queues.tracker_cmd_r_q,
+            comm_router_signals=self.comm_router_signals,
+            tracker_data_signals=self.tracker_data_signals,
+            tracker_signals=self.tracker_signals,
+            i_tracker_process=tracker_process,
+            config=config,
+        )
+        gaze_calib = GazeCalib(
+            ipd_q=self.queues.ipd_q,
+            comm_router_q=self.queues.comm_router_q,
+            gaze_signals=self.gaze_signals,
+            config=config,
+        )
+        gaze_calc = GazeCalc(
+            ipd_q=self.queues.ipd_q,
+            esp_cmd_q=self.queues.esp_cmd_q,
+            comm_router_q=self.queues.comm_router_q,
+            gyro_mag_q=self.queues.gyro_mag_q,
+            gaze_signals=self.gaze_signals,
+            config=config,
+        )
+        gaze_preprocess = GazePreprocess(
+            tracker_data_q=self.queues.tracker_data_q,
+            ipd_q=self.queues.ipd_q,
+            comm_router_q=self.queues.comm_router_q,
+            gaze_signals=self.gaze_signals,
+            imu_send_to_gaze_signal=self.imu_signals.imu_send_to_gaze,
+            config=config,
+        )
+        gaze_control = GazeControl(
+            gaze_signals=self.gaze_signals,
+            imu_send_to_gaze_signal=self.imu_signals.imu_send_over_tcp,
+            i_gaze_calib=gaze_calib,
+            config=config,
+        )
+        comm_router = CommRouter(
+            i_tcp_server=tcp_server,
+            i_gaze_control=gaze_control,
+            i_tracker_control=tracker_control,
+            com_router_queue_q=self.queues.comm_router_q,
+            tcp_receive_q=self.queues.tcp_receive_q,
+            esp_cmd_q=self.queues.esp_cmd_q,
+            imu_signals=self.imu_signals,
+            comm_router_signals=self.comm_router_signals,
+            tracker_signals=self.tracker_signals,
+            config_signals=self.config_signals,
+            config=config,
+        )
 
-        self.services = {}
+        self.services = {
+            "CommRouter": comm_router,
+            "TCPServer": tcp_server,
+            "ConfigService": config,
+            "CameraManager": camera_manager,
+            "ESP32": esp32,
+            "IMU": imu,
+            "FrameProvider": frame_provider,
+            "TrackerProcess": tracker_process,
+            "TrackerSync": tracker_sync,
+            "TrackerControl": tracker_control,
+            "GazeCalib": gaze_calib,
+            "GazeCalc": gaze_calc,
+            "GazePreprocess": gaze_preprocess,
+            "GazeControl": gaze_control,
+        }
 
 
     # ------------------------ lifecycle: start/stop ---------------------
@@ -112,19 +213,22 @@ class Core:
         start_order: List[str] = list(self.services.keys())
         self.logger.info("Starting services in order: %s", " → ".join(start_order))
 
+        # Wait for the service to declare readiness
         for name in start_order:
             svc = self.services[name]
             self.logger.info("→ start %s", name)
-            svc.start()
-            # Wait for the service to declare readiness
+
             if name == "TCPServer":
-                timeout = self.cfg.tcp.connect_timeout
-                if timeout == -1:
-                    timeout = float("inf")
-                if not svc.ready(timeout=timeout) and not self.config_signals.config_ready.is_set():
+                # TCP server needs longer timeout since client may take time to connect
+                timeout = 60
+                #timeout = float("inf")
+
+                if not svc.ready(timeout=timeout):
                     raise TimeoutError(f"Service '{name}' did not become ready in time")
-            elif not svc.ready(timeout=5):
-                raise TimeoutError(f"Service '{name}' did not become ready in time")
+            else:
+                svc.start()
+                if not svc.ready(timeout=5):
+                    raise TimeoutError(f"Service '{name}' did not become ready in time")
 
         self.logger.info("All services started and ready.")
 
@@ -202,8 +306,7 @@ def main(argv: list[str] | None = None) -> int:
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    cfg = Config()
-    app = Core(cfg, argv)
+    app = Core(argv)
     app.install_signal_handlers()
 
     try:

@@ -49,7 +49,7 @@ class TrackerSync(BaseService):
         self,
         tracker_data_s: TrackerDataSignals,
         comm_router_q: queue.PriorityQueue,
-        gaze_data_q: queue.Queue,
+        ipd_q: queue.Queue,
         tracker_health_q: queue.Queue,
         tracker_response_l_q: mp.Queue,
         tracker_response_r_q: mp.Queue,
@@ -65,7 +65,7 @@ class TrackerSync(BaseService):
 
         # Queues for outputting data
         self.comm_router_q = comm_router_q
-        self.gaze_data_q = gaze_data_q
+        self.ipd_q = ipd_q
 
         # Queue for forwarding tracker health messages to TrackerProcess
         self.tracker_health_q = tracker_health_q
@@ -259,7 +259,7 @@ class TrackerSync(BaseService):
                         # Fan-out based on control signals
                         if self.provide_data_s.is_set():
                             # Send to gaze module
-                            self.gaze_data_q.put(pair)
+                            self.ipd_q.put(pair)
 
                         if self.log_data_s.is_set():
                             # Send to comm router for logging/telemetry

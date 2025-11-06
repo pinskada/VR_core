@@ -21,8 +21,8 @@ class CommQueues:
     tracker_cmd_l_q: mp.Queue = field(default_factory=mp.Queue)
     tracker_cmd_r_q: mp.Queue = field(default_factory=mp.Queue)
 
-    tracker_rsp_l_q: mp.Queue = field(default_factory=mp.Queue)
-    tracker_rsp_r_q: mp.Queue = field(default_factory=mp.Queue)
+    tracker_resp_l_q: mp.Queue = field(default_factory=mp.Queue)
+    tracker_resp_r_q: mp.Queue = field(default_factory=mp.Queue)
 
     tracker_health_q: queue.Queue = field(default_factory=queue.Queue)
 

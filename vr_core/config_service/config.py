@@ -1,29 +1,62 @@
 """In-memory shared config with get/set APIs."""
 
 import threading
-from typing import Any, Callable, List, DefaultDict, Tuple
+from contextlib import contextmanager
+from typing import Any, Callable, List, DefaultDict, Tuple, Iterator
 from collections import defaultdict
 
+from vr_core.base_service import BaseService
 from vr_core.config_service.config_modules import RootConfig
 import vr_core.config_service.config_modules as config_modules
 from vr_core.utilities.logger_setup import setup_logger
 
 
-class Config:
+class Config(BaseService):
     """
     Shared, in-memory config with just two APIs:
       - set("camera.exposure", 25)
       - get("imu.rate_hz") -> 200
     Thread-safe, updates happen in-place on dataclass instances.
     """
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        config_ready_s: threading.Event
+    ) -> None:
+        super().__init__(name="Config")
+        self.logger = setup_logger("Config")
+
+        self.config_ready_s = config_ready_s
+
         self._lock = threading.RLock()
         self._root = RootConfig()
         self._subs_by_key: DefaultDict[
             str,
             List[Callable[[str, Any, Any], None]]
         ] = defaultdict(list)
-        self.logger = setup_logger("Config")
+        self.logger.info("Service initialized.")
+
+
+# ---------- BaseService lifecycle ----------
+
+    def _on_start(self) -> None:
+        """Start the config service."""
+        self.config_ready_s.wait(timeout=float("inf"))
+
+        self._ready.set()
+        self.logger.info("Service is ready.")
+
+
+    def _run(self) -> None:
+        """Config service main loop (does nothing)."""
+        while not self._stop.is_set():
+            self._stop.wait(0.5)
+
+
+    def _on_stop(self) -> None:
+        """Stop the config service."""
+
+        self.config_ready_s.clear()
+        self.logger.info("Service stopping.")
 
 
     # --- direct accessors ---
@@ -59,6 +92,13 @@ class Config:
     def eyeloop(self) -> config_modules.Eyeloop:
         """Direct access to eyeloop config."""
         return self._root.eyeloop
+
+
+    @contextmanager
+    def read(self) -> Iterator[RootConfig]:
+        """Hold the lock while reading config (strong typing preserved)."""
+        with self._lock:
+            yield self._root
 
 
     #-- get/set API ---

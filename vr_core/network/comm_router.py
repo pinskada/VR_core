@@ -16,8 +16,8 @@ from vr_core.config_service.config import Config
 from vr_core.network.comm_contracts import MessageType
 import vr_core.network.routing_table as routing_table
 import vr_core.network.image_encoder as image_encoder
-from vr_core.ports.interfaces import IImuService, IGazeService, ITrackerService, INetworkService
-from vr_core.ports.signals import CommRouterSignals, TrackerSignals, ConfigSignals
+from vr_core.ports.interfaces import IGazeControl, ITrackerControl, INetworkService
+from vr_core.ports.signals import CommRouterSignals, TrackerSignals, ConfigSignals, IMUSignals
 from vr_core.utilities.logger_setup import setup_logger
 
 class CommRouter(BaseService):
@@ -26,13 +26,13 @@ class CommRouter(BaseService):
     def __init__(
         self,
         i_tcp_server: INetworkService,
-        i_imu: IImuService,
-        i_gaze_control: IGazeService,
-        i_tracker_control: ITrackerService,
+        i_gaze_control: IGazeControl,
+        i_tracker_control: ITrackerControl,
         com_router_queue_q: PriorityQueue,
         tcp_receive_q: queue.Queue,
         esp_cmd_q: queue.Queue,
-        comm_router_s: CommRouterSignals,
+        imu_signals: IMUSignals,
+        comm_router_signals: CommRouterSignals,
         tracker_signals: TrackerSignals,
         config_signals: ConfigSignals,
         config: Config,
@@ -43,7 +43,6 @@ class CommRouter(BaseService):
 
         # Initialize interfaces
         self.i_tcp_server = i_tcp_server
-        self.i_imu = i_imu
         self.i_gaze_control = i_gaze_control
         self.i_tracker_control = i_tracker_control
 
@@ -53,16 +52,18 @@ class CommRouter(BaseService):
         self.esp_cmd_q = esp_cmd_q
 
         # Initialize shared memory signals
-        self.tcp_send_enabled_s: Event = comm_router_s.tcp_send_enabled
-        self.frame_ready_s: Event = comm_router_s.frame_ready
-        self.sync_frames_s: Event = comm_router_s.sync_frames
-        self.comm_shm_is_closed_s: Event = comm_router_s.comm_shm_is_closed
+        self.tcp_send_enabled_s: Event = comm_router_signals.tcp_send_enabled
+        self.frame_ready_s: Event = comm_router_signals.frame_ready
+        self.sync_frames_s: Event = comm_router_signals.sync_frames
+        self.comm_shm_is_closed_s: Event = comm_router_signals.comm_shm_is_closed
 
         self.shm_active_s: MpEvent = tracker_signals.shm_active
         self.eye_ready_l_s: MpEvent = tracker_signals.eye_ready_l
         self.eye_ready_r_s: MpEvent = tracker_signals.eye_ready_r
 
-        self.config_ready_s: Event = config_signals.config_ready
+        self.config_ready_s: Event = config_signals.config_ready_s
+
+        self.imu_send_to_gaze_s: Event = imu_signals.imu_send_over_tcp
 
         # Initialize config
         self.cfg = config
@@ -93,12 +94,12 @@ class CommRouter(BaseService):
     def _on_start(self) -> None:
         """Initialize routing table and mark as ready."""
         self.routing_table = routing_table.build_routing_table(
-            i_imu=self.i_imu,
+            imu_s=self.imu_send_to_gaze_s,
             i_gaze_control=self.i_gaze_control,
             i_tracker_control=self.i_tracker_control,
             esp_cmd_q=self.esp_cmd_q,
             config=self.cfg,
-            config_ready=self.config_ready_s
+            config_ready_s=self.config_ready_s
         )
 
         self._copy_settings_to_local()

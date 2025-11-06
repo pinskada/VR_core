@@ -7,7 +7,7 @@ class ConfigSignals:
     """Configuration service signals."""
 
     def __init__(self) -> None:
-        self.config_ready = Event()  # set when initial config is loaded
+        self.config_ready_s = Event()  # set when initial config is loaded
 
 
 class CommRouterSignals:
@@ -52,6 +52,7 @@ class TrackerSignals:
         self.eye_ready_l = mp.Event()
         self.eye_ready_r = mp.Event()
 
+
 class EyeTrackerSignals:
     """Signals indicating eye readiness for Eyeloop module"""
 
@@ -70,6 +71,7 @@ class GazeSignals:
         self.gaze_calc_signal = Event()
         self.ipd_to_tcp_signal = Event()
         self.gaze_to_tcp_signal = Event()
+        self.calib_finalized_signal = Event()
 
 
 class IMUSignals:

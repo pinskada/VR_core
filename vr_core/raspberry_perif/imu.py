@@ -61,6 +61,8 @@ class Imu(BaseService):
     def _on_start(self) -> None:
         """Initialize the gyroscope sensor."""
 
+        self.imu_send_over_tcp_s.set()
+
         if not self.mock_mode.is_set():
             if self._ensure_i2c_enabled() is False:
                 raise RuntimeError("I2C not enabled")
