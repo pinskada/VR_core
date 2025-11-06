@@ -80,19 +80,22 @@ class Gaze:
     # Factor to determine the amount of data to discard from the start and end of the buffer
     buffer_crop_factor: float = 0.1
     # Threshold for standard deviation to determine if the sample is valid
-    std_threshold: float = 0.01
+    std_threshold: float = 3.0
     # Threshold for gyroscope data to determine if the system should trust the data
     gyro_threshold: int = 5
     gyro_thr_high: int = 15  # High threshold for gyro to untrust tracker
     gyro_thr_low: int = 7    # Low threshold for gyro to trust tracker
     settle_time_s: float = 0.2  # Time to wait after untrusting before trusting again (in seconds)
 
-    compensation_factor: int = 1
+    ipd_min_samples: int = 10  # Minimum number of samples required for IPD calculation
+    compensation_factor: float = 0.1
     tracker_data_timeout: float = 0.05  # Timeout for receiving tracker data (in seconds)
     ipd_queue_timeout: float = 0.01  # Timeout for receiving IPD data (in seconds)
-
+    diop_impairment: float = 0.0  # Diopter value for vision impairment compensation
+    max_diop_impairment: float = 8.0  # Maximum diopter impairment supported
+    max_shift_factor: float = 1  # Maximum shift as a fraction of 'b' to avoid excessive compensation
     # Model parameters for the inverse model (to be set during calibration)
-    model_params: Any = None 
+    model_params: Any = None
     corrected_model_params: Any = None
 
 
