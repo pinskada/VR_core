@@ -1,18 +1,38 @@
 """Inverse model for gaze estimation."""
 
+from typing import Tuple
 import math
-# Stubs for scipy not existing in the moment of creation
-from scipy.optimize import curve_fit  # type: ignore
 
-def fit(distances, ipds):
+import numpy as np
+
+
+def fit(distances, ipds) -> Tuple[float, float]:
     """
     Fit the model: IPD ≈ a / distance + b
     """
-    def model_func(d, a, b):
-        return a / d + b
+    d = np.asarray(distances, dtype=float)
+    y = np.asarray(ipds, dtype=float)
 
-    popt, _ = curve_fit(model_func, distances, ipds, p0=(1.0, 0.0))
-    return popt  # returns (a, b)
+    if d.shape != y.shape or d.ndim != 1:
+        raise ValueError("distances and ipds must be 1D arrays of the same length")
+    if d.size < 2:
+        raise ValueError("Need at least 2 points to fit")
+
+    # Keep only finite, strictly positive distances and finite IPDs
+    mask = np.isfinite(d) & np.isfinite(y) & (d > 0.0)
+    d = d[mask]
+    y = y[mask]
+    if d.size < 2:
+        raise ValueError("Not enough valid points after filtering (need ≥ 2)")
+
+    x = 1.0 / d  # linearize
+
+    # Linear fit: y ≈ a*x + b
+    # r[0] is slope (a), r[1] is intercept (b)
+    a, b = np.polyfit(x, y, deg=1)
+
+    return float(a), float(b)
+
 
 def predict(ipd, model_params):
     """
@@ -21,6 +41,7 @@ def predict(ipd, model_params):
     """
     a, b = model_params
     return a / (ipd - b)
+
 
 def safe_predict(ipd, model_params, eps=1e-6):
     """
