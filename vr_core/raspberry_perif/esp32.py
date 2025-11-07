@@ -6,6 +6,7 @@ from typing import Optional, Any
 
 try:
     import serial  # type: ignore  # pylint: disable=import-error
+    from serial import Serial
 except ImportError:  # ImportError on dev machines without pyserial
     serial = None  # type: ignore
 
@@ -36,8 +37,9 @@ class Esp32(BaseService):
 
         self.esp_mock_mode = esp_mock_mode
 
-        self.serial_conn: Optional[Any] = None
+        self.serial_conn: Optional[Serial] = None
         self.online = False
+        print("Initialising.")
 
         self.logger.info("Service initialized.")
 
@@ -63,14 +65,15 @@ class Esp32(BaseService):
                     timeout=self.cfg.esp32.timeout
                 )
 
-                self._stop.wait(self.cfg.esp32.esp_boot_interval)  # Let ESP32 boot/reset
+                # self._stop.wait(self.cfg.esp32.esp_boot_interval)  # Let ESP32 boot/reset
 
-                if self._perform_handshake():
-                    self.logger.info("Serial connection established on %s; %d.",
-                        self.cfg.esp32.port, self.cfg.esp32.baudrate)
-                else:
-                    self.logger.error("Failed to perform handshake with ESP32.")
-                    raise RuntimeError("ESP32 handshake failed")
+                # if self._perform_handshake():
+                #     self.logger.info("Serial connection established on %s; %d.",
+                #         self.cfg.esp32.port, self.cfg.esp32.baudrate)
+                #     print("Handshake successful.")
+                # else:
+                #     self.logger.error("Failed to perform handshake with ESP32.")
+                #     raise RuntimeError("ESP32 handshake failed")
 
             except serial.SerialException as e:
                 self.logger.error("Serial error: %s.", e)
@@ -137,7 +140,6 @@ class Esp32(BaseService):
             # Wait before retrying the handshake
             self._stop.wait(self.cfg.esp32.handshake_interval)
 
-        self.logger.error("Handshake failed.")
         return False
 
 
@@ -147,6 +149,7 @@ class Esp32(BaseService):
         try:
             message = self.esp_cmd_q.get(timeout=self.cfg.esp32.cmd_queue_timeout)
             if isinstance(message, float):
+                print(f"Sent gaze distance: {message}")
                 self._send_gaze_distance(message)
             else:
                 self.logger.warning("Unknown command received in ESP32 queue: %s", message)
@@ -158,7 +161,7 @@ class Esp32(BaseService):
         """Send the gaze distance to the ESP32."""
 
         # Parse the message to send
-        message = f"{distance_mm:.2f}\n"
+        message = f'f"{distance_mm:.2f}\n'
 
         # Fake the message for mock mode
         if self.esp_mock_mode:

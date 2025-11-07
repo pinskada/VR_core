@@ -9,7 +9,7 @@ class TCP:
     host: str = '0.0.0.0' # Listen on all interfaces
     port: int = 65432     # Port for the TCP server
 
-    static_ip_prefix: str = "192.168.1." # Static IP prefix for the device
+    static_ip_prefix: str = "192.168.2." # Static IP prefix for the device
     recv_buffer_size: int = 1024         # Buffer size for receiving data
     send_loop_interval: float = 0.001      # Interval for sending messages (in seconds)
     receive_loop_interval: float = 0.001   # Interval for receiving messages (in seconds)
@@ -31,17 +31,12 @@ class TCP:
 class Tracker:
     """Tracker configuration settings."""
     frame_provider_max_fps: int = 1000 # Maximum FPS for the frame provider
-    jpeg_quality: int = 15  # JPEG encoding quality (0-100)
     png_compression: int = 3  # PNG compression level (0-9)
     sync_timeout: float = 2.0  # Timeout for EyeLoop response in seconds
-    preview_fps: int = 20  # FPS for preview stream
     resp_q_timeout: float = 0.001  # Timeout for queue operations in seconds
     provider_queue_timeout: float = 0.01  # Timeout for provider queue operations in seconds
     process_launch_time: float = 0.4  # Time to wait for the EyeLoop process to stabilize (in seconds)
     png_send_rate: int = 8
-
-    crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.0, 0.5), (0.0, 1.0))  # Relative region (x1, x2, y1, y2) for the left eye
-    crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.5, 1.0), (0.0, 1.0))  # Relative region (x1, x2, y1, y2) for the right eye
 
     sharedmem_name_left: str = "eye_left_frame"  # Shared memory buffer name for left eye
     sharedmem_name_right: str = "eye_right_frame"  # Shared memory buffer name for right eye
@@ -65,12 +60,19 @@ class Tracker:
     use_test_video: bool = False  # Use saved video instead of live camera
     test_video_path: str = "test_video/test_video.mp4"  # Path to test video
     # Hardcoded resolution, must be changed in the code if needed
-    test_video_resolution: tuple[int, int] = (1920, 1080)
+    test_video_width: int = 1080
+    test_video_height: int = 720
     # Number of channels in the test video, must be changed in the code if needed
     test_video_channels: int = 1
 
     sync_buffer_size: int = 128  # Maximum number of frames to hold for synchronization
 
+@dataclass
+class TrackerCrop:
+    """Defines crop region for the tracker."""
+
+    crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.0, 0.5), (0.0, 1.0))  # Relative region (x1, x2, y1, y2) for the left eye
+    crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.5, 1.0), (0.0, 1.0))  # Relative region (x1, x2, y1, y2) for the right eye
 
 @dataclass
 class Gaze:
@@ -102,18 +104,20 @@ class Gaze:
 @dataclass
 class Camera:
     """Camera configuration settings."""
-    width: int = 1280
-    height: int = 720
+    res_width: int = 1280
+    res_height: int = 720
 
     focus: int = 30 # Only used if autofocus is False
-    exposure_time: int = 10000  # In microseconds
-    analogue_gain: float = 2.0  # Brightness boost
+    exposure: int = 10000  # In microseconds
+    gain: float = 2.0  # Brightness boost
     af_mode: int = 0  # 0 = manual, 1 = auto
     buffer_count: int = 2  # Number of buffers for the camera
 
     capture_timeout_ms: int = 200  # Timeout for capturing a frame (in milliseconds)
     reconfig_interval: float = 5.0  # Time between config checks (in seconds)
     capture_retries: int = 3  # Number of attempts to capture a frame
+    jpeg_quality: int = 15  # JPEG encoding quality (0-100)
+    preview_fps: int = 20  # FPS for preview stream
 
 
 @dataclass
@@ -151,14 +155,14 @@ class IMU:
 @dataclass
 class ESP32:
     """ESP32 configuration settings."""
-    port: str = "/dev/serial0"  # Serial port for ESP32 (e.g., /dev/serial0 on Raspberry Pi)
+    port: str = '/dev/ttyAMA0' # "/dev/serial0" # Serial port for ESP32 (e.g., /dev/serial0 on Raspberry Pi)
     baudrate: int = 115200  # Baud rate for the serial connection
-    timeout: float = 1  # Timeout for the serial connection (in seconds)
+    timeout: float = 5  # Timeout for the serial connection (in seconds)
 
     esp_boot_interval: float = 2.0  # Time to wait for ESP32 to boot (in seconds)
 
     handshake_attempts: int = 3  # Number of attempts to perform the handshake
-    handshake_interval: float = 1  # Interval between handshake attempts (in seconds)
+    handshake_interval: float = 5  # Interval between handshake attempts (in seconds)
     handshake_message: str = "PING"  # Handshake message to send to ESP32
     handshake_response: str = "PONG"  # Expected response from ESP32 after handshake
 
@@ -194,6 +198,7 @@ class RootConfig:
     """Root configuration holding all modules."""
     tcp: TCP = field(default_factory=TCP)
     tracker: Tracker = field(default_factory=Tracker)
+    tracker_crop: TrackerCrop = field(default_factory=TrackerCrop)
     gaze: Gaze = field(default_factory=Gaze)
     camera: Camera = field(default_factory=Camera)
     imu: IMU = field(default_factory=IMU)

@@ -1,6 +1,5 @@
 """Core engine for RPI."""
 
-import os
 import sys
 import time
 import logging
@@ -62,11 +61,12 @@ class Core:
         self.services: Dict[str, BaseService] = {}
         self._stop_requested = Event()
 
-        self.tcp_mock_mode = True
-        self.config_mock_mode = True
+        self.tcp_mock_mode = False
+        self.config_mock_mode = False
         self.esp_mock_mode = True
         self.imu_mock_mode = True
         self.camera_mock_mode = True
+        self.fr_pr_test_video = True
 
     # -------- build: construct everything & inject dependencies --------
 
@@ -118,6 +118,7 @@ class Core:
             tracker_cmd_l_q=self.queues.tracker_cmd_l_q,
             tracker_cmd_r_q=self.queues.tracker_cmd_r_q,
             config=config,
+            use_test_video=self.fr_pr_test_video
         )
         tracker_process = TrackerProcess(
             tracker_cmd_q_l=self.queues.tracker_cmd_l_q,
@@ -163,7 +164,7 @@ class Core:
         )
         gaze_control = GazeControl(
             gaze_signals=self.gaze_signals,
-            imu_send_to_gaze_signal=self.imu_signals.imu_send_over_tcp,
+            imu_send_to_gaze_signal=self.imu_signals.imu_send_to_gaze,
             i_gaze_calib=gaze_calib,
             config=config,
         )
@@ -284,7 +285,7 @@ class Core:
 
     def wait_forever(self):
         """Idle loop for the supervisor. Add supervision/restarts here later if needed."""
-        self.logger.info("Waiting for services to stop...")
+        #self.logger.info("Waiting for services to stop...")
         try:
             while not self._stop_requested.is_set():
                 time.sleep(0.5)
@@ -334,9 +335,6 @@ class Core:
         except (AttributeError, OSError):
             # Not available on some platforms (e.g., Windows older Pythons)
             pass
-
-        if os.name == "nt" and hasattr(signal, "SIGBREAK"):
-            signal.signal(signal.SIGBREAK, _handler)
 
 
 # ------------------------------ Entrypoint -----------------------------

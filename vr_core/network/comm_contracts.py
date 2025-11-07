@@ -10,7 +10,7 @@ class MessageType(IntEnum):
     """
 
     imuSensor = 0
-    imuFilter = 1
+    imuCmd = 1
     gazeData = 2
     gazeCalcControl = 3
     gazeSceneControl = 4

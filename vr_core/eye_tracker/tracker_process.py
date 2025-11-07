@@ -84,7 +84,8 @@ class TrackerProcess(BaseService, ITrackerService):
         """Stops the Eyeloop processes."""
         self.logger.info("Service stopping.")
         self.online = False
-        self.stop_tracker()
+        if not self.tracker_state == "idle":
+            self.stop_tracker()
 
 
     # ---------- Public API (ITrackerService) ----------

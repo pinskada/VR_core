@@ -30,6 +30,8 @@ class TCPServer(BaseService, INetworkService):
 
         self.mock_mode = mock_mode
 
+        self.send_counter: int = 0
+
         self.online = False
 
         # Internal state
@@ -45,7 +47,7 @@ class TCPServer(BaseService, INetworkService):
     def _on_start(self) -> None:
         """Set up server socket and wait for client connection."""
         if not self.mock_mode:
-            self._verify_static_ip()
+            # self._verify_static_ip()
 
             if not self._start_server():
                 return
@@ -172,54 +174,53 @@ class TCPServer(BaseService, INetworkService):
             return
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError) as e:
             self.logger.warning("TCPServer: Receive error: %s", e)
+            self.online = False
 
 
     def _decode_message(self) -> None:
-        """Decode messages from the buffer."""
-
-        # Process as many complete packets as are available
         mv = memoryview(self._buf)
         consumed = 0
-        max_size = int(self.cfg.tcp.max_packet_size)
+        max_size = int(getattr(self.cfg.tcp, "max_packet_size", 16 * 1024 * 1024))
+        h = None  # header view
 
-        while len(mv) - consumed >= 4:  # header present?
-            h = mv[consumed:consumed+4]
-            pkt_type = h[0]
-            payload_len = int.from_bytes(h[1:4], "big")
+        try:
+            while len(mv) - consumed >= 4:
+                h = mv[consumed:consumed+4]
+                pkt_type = h[0]
+                payload_len = int.from_bytes(h[1:4], "big")
 
-            # sanity
-            if payload_len <= 0 or payload_len > max_size:
-                self.logger.error(
-                    "TCPServer: Invalid payload length %d; clearing buffer.",
-                    payload_len)
-                self._buf.clear()
-                return
+                if payload_len <= 0 or payload_len > max_size:
+                    self.logger.error("TCPServer: Invalid payload length %d; clearing buffer.",
+                        payload_len)
+                    return  # will release views in finally
 
-            total = 4 + payload_len
-            if len(mv) - consumed < total:
-                break  # wait for more bytes
+                total = 4 + payload_len
+                if len(mv) - consumed < total:
+                    break
 
-            # extract payload (copy bytes only once here)
-            start = consumed + 4
-            end = start + payload_len
-            payload = bytes(mv[start:end])
+                start = consumed + 4
+                end   = start + payload_len
+                payload = bytes(mv[start:end])
 
-            # map to MessageType; skip unknown (mirrors Unity’s check)
-            try:
-                msg_type = MessageType(pkt_type)
-            except ValueError:
-                self.logger.warning("TCPServer: Unknown MessageType %d, skipping packet.", pkt_type)
+                try:
+                    msg_type = MessageType(pkt_type)
+                except ValueError:
+                    self.logger.warning("TCPServer: Unknown MessageType %d, skipping packet.",
+                        pkt_type)
+                    consumed += total
+                    continue
+
+                self.tcp_receive_q.put((payload, msg_type))
                 consumed += total
-                continue
-
-            # enqueue raw bytes + type (no decoding)
-            self.tcp_receive_q.put((payload, msg_type))
-
-            consumed += total
+        finally:
+            # release ALL memoryviews before resizing the buffer
+            if h is not None:
+                del h
+            mv.release()  # or 'del mv'
 
         if consumed:
-            # drop consumed prefix once (amortized O(n))
             del self._buf[:consumed]
+
 
 
     def tcp_send(
@@ -244,6 +245,12 @@ class TCPServer(BaseService, INetworkService):
             self.logger.error("TCPServer: payload must be bytes-like.")
             return
         body = bytes(payload)
+
+        self.send_counter += 1
+
+        if self.send_counter % 10 == 0:
+            #self.logger.info("Sending data of type %s to CommRouter", msg_type)
+            self.send_counter = 0
 
         packet = self._encode_message(body, msg_type)
         max_attempts = self.cfg.tcp.max_resend_attempts

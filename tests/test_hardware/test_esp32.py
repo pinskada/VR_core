@@ -1,40 +1,54 @@
-import argparse
-from vr_core.raspberry_perif.esp32 import ESP32
+"""Test module for ESP32."""
 
-def run_esp32_test(force_mock=False):
+from queue import Queue
+from threading import Event
+import time
+
+import serial
+
+from vr_core.raspberry_perif.esp32 import Esp32
+from vr_core.config_service.config import Config
+
+
+def run_esp32_test(queue: Queue, esp_mock_mode=False) -> Esp32:
+    """Test rpi <-> esp connection"""
     print("\n=== [ESP32 TEST] Starting ===\n")
     
+    config_ready_s = Event()
+
+    config = Config(
+        config_ready_s=config_ready_s,
+        mock_mode=True,
+    )
+
     # Instantiate the ESP32 class
-    esp = ESP32(force_mock=force_mock)
+    esp = Esp32(
+        esp_cmd_q=queue,
+        config=config,
+        esp_mock_mode=esp_mock_mode,
+    )
+    config.start()
+    esp.start()
 
-    # Report status
-    print(f"\n[RESULT] Mode: {'MOCK' if esp.mock_mode else 'REAL'}")
-    print(f"[RESULT] Online: {esp.online}")
+    return esp
 
-    if not esp.online:
-        print("[TEST] ESP32 not available. Exiting.")
-        print("\n=== [ESP32 TEST] Finished ===\n")
-        print("[SUMMARY] ESP32 test FAILED — hardware not responsive.")
-        return
+test_queue: Queue = Queue()
 
-    # Run test commands
-    print("\n[TEST] Sending test focal distances...")
-    for d in [30.0, 45.5, 60.0]:
-        esp.send_focal_distance(d)
+esp = run_esp32_test(queue=test_queue, esp_mock_mode=False)
 
-    esp.close()
-    print("\n=== [ESP32 TEST] Finished ===\n")
-    if esp.mock_mode:
-        print("[SUMMARY] ESP32 test completed in MOCK MODE — no hardware verified.")
-    elif esp.online:
-        print("[SUMMARY] ESP32 test PASSED — device is connected and responding.")
-    else:
-        print("[SUMMARY] ESP32 test FAILED — hardware not responsive.")
+for i in range(0, 10000, 500):
+    test_queue.put(float(i))
+    time.sleep(0.2)
 
+print("Test ended.")
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Test ESP32 UART connection.")
-    parser.add_argument('--mock', action='store_true', help="Force mock mode regardless of hardware availability.")
-    args = parser.parse_args()
+esp.stop()
 
-    run_esp32_test(force_mock=args.mock)
+# ser = serial.Serial('/dev/ttyAMA0', 115200, timeout=0.5)
+# ser.reset_input_buffer()
+# ser.reset_output_buffer()
+# time.sleep(0.1)
+# ser.write(b'PING\n')
+# time.sleep(0.1)
+# print("got:", ser.readline())
+# ser.close()

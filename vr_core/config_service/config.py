@@ -44,7 +44,7 @@ class Config(BaseService):
     def _on_start(self) -> None:
         """Start the config service."""
         if not self.mock_mode:
-            self.config_ready_s.wait(timeout=float("inf"))
+            self.config_ready_s.wait(timeout=240)
 
         self._ready.set()
         self.logger.info("Service is ready.")
@@ -72,6 +72,10 @@ class Config(BaseService):
     def tracker(self) -> config_modules.Tracker:
         """Direct access to tracker config."""
         return self._root.tracker
+    @property
+    def tracker_crop(self) -> config_modules.TrackerCrop:
+        """Direct access to tracker_crop config."""
+        return self._root.tracker_crop
     @property
     def gaze(self) -> config_modules.Gaze:
         """Direct access to gaze config."""

@@ -50,6 +50,7 @@ class FrameProvider(BaseService):
         tracker_cmd_l_q: mp.Queue,
         tracker_cmd_r_q: mp.Queue,
         config: Config,
+        use_test_video: bool = False
     ) -> None:
         super().__init__(name="FrameProvider")
 
@@ -76,6 +77,8 @@ class FrameProvider(BaseService):
 
         self.cfg = config
         self._unsubscribe = config.subscribe("tracker", self._on_config_changed)
+        self._unsubscribe = config.subscribe("camera", self._on_config_changed)
+        self._unsubscribe = config.subscribe("tracker_crop", self._on_config_changed)
 
         self.online = False
         self.shm_left: Optional[SharedMemory] = None
@@ -86,14 +89,15 @@ class FrameProvider(BaseService):
 
         self.crop_l: tuple[tuple[float, float], tuple[float, float]]
         self.crop_r: tuple[tuple[float, float], tuple[float, float]]
-        self.full_frame_shape: tuple[int, int]
+        self.full_frame_width: int
+        self.full_frame_height: int
         self.test_frame_shape: tuple[int, int]
 
         self.video_capture: Any
 
         self.frame_id: int
 
-        self.use_test_video = False
+        self.use_test_video = use_test_video
         self.test_mode = False  # Flag for test mode
 
         self.logger.info("FrameProvider initialized.")
@@ -158,7 +162,8 @@ class FrameProvider(BaseService):
                 continue
 
             # If shared memory is not active, activate it
-            if not self.shm_active_s.is_set():
+            if not self.shm_active_s.is_set() and not self.hold_frames:
+                self.logger.info("Activating SHM from _run()")
                 self._activate_shm()
 
             # If holding frames due to config change, wait
@@ -181,7 +186,8 @@ class FrameProvider(BaseService):
         self.logger.info("Service stopping.")
 
         self.online = False
-        self._deactivate_shm()
+        if self.shm_active_s.is_set():
+            self._deactivate_shm()
 
         if self.use_test_video:
             self.video_capture.release()
@@ -246,14 +252,14 @@ class FrameProvider(BaseService):
 
         # Signal to CommRouter that a new frame is ready
         self.frame_ready_s.set()
-        self.logger.info("frame_ready_s set for frame ID %d", self.frame_id)
+        #self.logger.info("frame_ready_s set for frame ID %d", self.frame_id)
 
         # Put frame ID in sync queues for both EyeLoop processes
         if self.tracker_running_l_s.is_set():
             self.tracker_cmd_l_q.put({"frame_id": self.frame_id})
         if self.tracker_running_r_s.is_set():
             self.tracker_cmd_r_q.put({"frame_id": self.frame_id})
-        self.logger.info("tracker_cmd_l/r_q: frame ID %d sent.", self.frame_id)
+        #self.logger.info("tracker_cmd_l/r_q: frame ID %d sent.", self.frame_id)
 
 
     def _wait_for_sync(self) -> None:
@@ -271,22 +277,29 @@ class FrameProvider(BaseService):
 
         self.left_eye_ready_s.clear()
         self.right_eye_ready_s.clear()
-        self.logger.info("left/right_eye_ready_s signals cleared.")
+        #self.logger.info("left/right_eye_ready_s signals cleared.")
 
     # pylint: disable=unused-argument
     def _on_config_changed(self, path: str, old_val: Any, new_val: Any) -> None:
         """Handle configuration changes."""
 
-        if (path == "tracker.crop_left"
-            or path == "tracker.crop_right"
-            or path == "tracker.full_frame_resolution"
+        if (path == "tracker_crop.crop_left" or
+            path == "tracker_crop.crop_right" or
+            path == "camera.res_width" or
+            path == "camera.res_height"
         ):
+            if not self.shm_active_s.is_set():
+                self._validate_crop()
+                self._copy_settings_to_local()
+                return
+
             self.hold_frames = True
             self.logger.info("hold_frames flag set.")
             self.is_holding_frames.wait(self.cfg.tracker.frame_hold_timeout)
+            self._deactivate_shm()
             self._validate_crop()
             self._copy_settings_to_local()
-            self._deactivate_shm()
+            self.logger.info("Activating SHM from _on_config_changed()")
             self._activate_shm()
             self.hold_frames = False
             self.logger.info("hold_frames flag cleared.")
@@ -297,9 +310,10 @@ class FrameProvider(BaseService):
     def _copy_settings_to_local(self) -> None:
         """Copies/binds relevant tracker settings to local variables."""
 
-        self.crop_l = self.cfg.tracker.crop_left
-        self.crop_r = self.cfg.tracker.crop_right
-        self.full_frame_shape = self.cfg.tracker.full_frame_resolution
+        self.crop_l = self.cfg.tracker_crop.crop_left
+        self.crop_r = self.cfg.tracker_crop.crop_right
+        self.full_frame_width = self.cfg.camera.res_width
+        self.full_frame_height = self.cfg.camera.res_height
         self.logger.info("Local settings updated from config.")
 
 
@@ -346,7 +360,8 @@ class FrameProvider(BaseService):
             frame_height, frame_width = self.test_frame_shape
         else:
             # Use configured full frame dimensions
-            frame_height, frame_width = self.full_frame_shape
+            frame_height = self.full_frame_height
+            frame_width = self.full_frame_width
 
         # Determine memory name and crop based on eye side
         match side_to_allocate:
@@ -397,13 +412,14 @@ class FrameProvider(BaseService):
                 self.shm_left = shm
                 # self.cfg.tracker.memory_shape_l = (memory_shape_x, memory_shape_y)
                 self.cfg.tracker.memory_shape_l = (memory_shape_y, memory_shape_x)
+
             case Eye.RIGHT:
                 self.shm_right = shm
                 # self.cfg.tracker.memory_shape_r = (memory_shape_x, memory_shape_y)
                 self.cfg.tracker.memory_shape_r = (memory_shape_y, memory_shape_x)
 
-        self.logger.info("Allocated shared memory for %s eye: %s",
-                        side_to_allocate, memory_name)
+        self.logger.info("Allocated shared memory for %s eye: %s with size: %s",
+                        side_to_allocate, memory_name, (memory_shape_y, memory_shape_x))
 
 
     def _clear_memory(self, side_to_allocate: Eye) -> None:
@@ -425,6 +441,8 @@ class FrameProvider(BaseService):
         except (FileNotFoundError, PermissionError, OSError, BufferError) as e:
             self.logger.error("Failed to clean shared memory for "
                 "%s eye: %s", side_to_allocate, e)
+
+        self.logger.info("%s shm has been cleared.", side_to_allocate)
 
 
     def _close_consumer_shm(self) -> None:
@@ -492,18 +510,18 @@ class FrameProvider(BaseService):
     def _validate_crop(self) -> None:
         """Validates crop dimensions and resets to default if invalid."""
 
-        (x0_l, x1_l), (y0_l, y1_l) = self.cfg.tracker.crop_left
-        (x0_r, x1_r), (y0_r, y1_r) = self.cfg.tracker.crop_right
+        (x0_l, x1_l), (y0_l, y1_l) = self.cfg.tracker_crop.crop_left
+        (x0_r, x1_r), (y0_r, y1_r) = self.cfg.tracker_crop.crop_right
 
         if x0_l < 0 or x1_l > 0.5 or y0_l < 0 or y1_l > 1 or x0_l > x1_l or y0_l > y1_l:
             self.logger.warning("Invalid crop dimensions for left eye: "
-                  "%s, resetting to default.", self.cfg.tracker.crop_left)
-            self.cfg.set("tracker.crop_left", ((0, 0.5), (0, 1)))
+                  "%s, resetting to default.", self.cfg.tracker_crop.crop_left)
+            self.cfg.set("tracker_crop.crop_left", ((0, 0.5), (0, 1)))
 
         if x0_r < 0.5 or x1_r > 1 or y0_r < 0 or y1_r > 1 or x0_r > x1_r or y0_r > y1_r:
             self.logger.warning("Invalid crop dimensions for right eye: "
-                  "%s, resetting to default.", self.cfg.tracker.crop_right)
-            self.cfg.set("tracker.crop_right", ((0.5, 1), (0, 1)))
+                  "%s, resetting to default.", self.cfg.tracker_crop.crop_right)
+            self.cfg.set("tracker_crop.crop_right", ((0.5, 1), (0, 1)))
 
 
     def _crop(self, frame: NDArray[np.uint8], region: tuple) -> NDArray[np.uint8]:

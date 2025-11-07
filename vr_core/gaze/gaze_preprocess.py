@@ -41,7 +41,8 @@ class GazePreprocess(BaseService):
         self.imu_send_to_gaze_signal = imu_send_to_gaze_signal
 
         self.cfg = config
-        self._unsubscribe = config.subscribe("tracker", self._on_config_changed)
+        self._unsubscribe = config.subscribe("camera", self._on_config_changed)
+        self._unsubscribe = config.subscribe("tracker_crop", self._on_config_changed)
 
         self.full_frame_width: int
         self.x_left_start: float
@@ -165,9 +166,10 @@ class GazePreprocess(BaseService):
         Copy configuration settings to local variables.
         """
 
-        crop_left = self.cfg.tracker.crop_left
-        crop_right = self.cfg.tracker.crop_right
-        full_frame_width, full_frame_height = self.cfg.tracker.full_frame_resolution
+        crop_left = self.cfg.tracker_crop.crop_left
+        crop_right = self.cfg.tracker_crop.crop_right
+        full_frame_width = self.cfg.camera.res_width
+        full_frame_height = self.cfg.camera.res_height
         self.full_frame_width = full_frame_width
 
         self.x_left_start = crop_left[0][0] * full_frame_width
@@ -180,8 +182,9 @@ class GazePreprocess(BaseService):
     def _on_config_changed(self, path: str, old_val: Any, new_val: Any) -> None:
         """Handle configuration changes."""
         if (
-            path == "tracker.crop_left" or
-            path == "tracker.crop_right" or
-            path == "tracker.full_frame_resolution"
+            path == "tracker_crop.crop_left" or
+            path == "tracker_crop.crop_right" or
+            path == "camera.res_width" or
+            path == "camera.res_height"
         ):
             self._copy_config_to_locals()

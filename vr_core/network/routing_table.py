@@ -7,7 +7,10 @@ import threading
 from vr_core.network.comm_contracts import MessageType
 from vr_core.config_service.config import Config
 from vr_core.ports.interfaces import IGazeControl, ITrackerControl
+from vr_core.utilities.logger_setup import setup_logger
 
+
+logger = setup_logger("RoutingTable")
 
 # --- Handlers ---
 
@@ -21,8 +24,8 @@ def handle_imu_cmd(
     elif msg == "StopSending":
         imu_s.clear()
     else:
-        print("Unknown IMU command:", msg)
-    print("Handling IMU command:", msg)
+        logger.warning("Unknown IMU command: %s", msg)
+    logger.info("Handling IMU command: %s", msg)
 
 
 def handle_gaze_control(
@@ -31,7 +34,7 @@ def handle_gaze_control(
 ) -> None:
     """Handle gaze control messages."""
     i_gaze_control.gaze_control(msg)
-    print("Handling gaze control:", msg)
+    logger.info("Handling gaze control: %s", msg)
 
 
 def handle_tracker_control(
@@ -40,7 +43,7 @@ def handle_tracker_control(
 ) -> None:
     """Handle tracker control messages."""
     i_tracker_control.tracker_control(msg)
-    print("Handling tracker control:", msg)
+    logger.info("Handling tracker control: %s", msg)
 
 
 def handle_esp_config(
@@ -49,21 +52,23 @@ def handle_esp_config(
 ) -> None:
     """Handle ESP configuration messages."""
     esp_cmd_q.put(msg)
-    print("Handling ESP config:", msg)
+    logger.info("Handling ESP config: %s", msg)
 
 
 def handle_general_config(
     msg: Any,
-    config: Config
+    config: Config,
+    config_ready_s: threading.Event
 ) -> None:
     """Handle general configuration messages."""
     if not isinstance(msg, dict):
-        print("[ConfigHandler] Expected dict, got:", type(msg))
+        logger.warning("Expected dict, got: %s", type(msg))
         return
 
     for path, value in msg.items():
         config.set(path, value)
-        print(f"[ConfigHandler] Set {path} = {value}")
+        if config_ready_s.is_set():
+            logger.info("Set %s = %s", path, value)
 
 
 def handle_config_ready(
@@ -71,7 +76,7 @@ def handle_config_ready(
     config_ready_s: threading.Event
 ) -> None:
     """Handle configuration ready messages."""
-    print("Configuration is ready:", msg)
+    logger.info("Configuration is ready: %s", msg)
     config_ready_s.set()
 
 
@@ -90,6 +95,6 @@ def build_routing_table(
         MessageType.gazeCalcControl: lambda msg: handle_gaze_control(msg, i_gaze_control),
         MessageType.trackerControl: lambda msg: handle_tracker_control(msg, i_tracker_control),
         MessageType.espConfig: lambda msg: handle_esp_config(msg, esp_cmd_q),
-        MessageType.tcpConfig: lambda msg: handle_general_config(msg, config),
+        MessageType.tcpConfig: lambda msg: handle_general_config(msg, config, config_ready_s),
         MessageType.configReady: lambda msg: (handle_config_ready(msg, config_ready_s)),
     }

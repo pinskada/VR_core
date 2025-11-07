@@ -180,6 +180,7 @@ class CommRouter(BaseService):
                 self._tcp_receive_handler(payload, msg_type)
             except Exception as e:  # pylint: disable=broad-except
                 self.logger.error("recv handler error for %s: %s", msg_type, e)
+                self.logger.info("payload: %f", payload)
 
 
     # ruff: noqa: F841
@@ -193,6 +194,7 @@ class CommRouter(BaseService):
             try:
                 item = self.com_router_queue_q.get(timeout=0.1)
             except queue.Empty:
+                #self.logger.info("com_router_queue_q is empty.")
                 continue
             try:
                 # Accept either tuple (priority, msg_type, payload)
@@ -202,6 +204,7 @@ class CommRouter(BaseService):
 
                 if isinstance(item, tuple) and len(item) >= 3:
                     priority, msg_type, payload = item[0], item[1], item[2]
+                    #self.logger.info("MessageType: %s being sent to Unity", msg_type)
                 else:
                     self.logger.error("Unknown send queue item format: %s", type(item))
                     continue
@@ -246,14 +249,14 @@ class CommRouter(BaseService):
             # If ready, ack and send frame
             try:
                 self.frame_ready_s.clear()
-                self.logger.info("frame_ready_s cleared.")
+                #self.logger.info("frame_ready_s cleared.")
                 self._tcp_send_shm_handler()
 
                 # If in camera preview mode, signal both eyes are ready
                 if self.sync_frames_s.is_set():
                     self.eye_ready_l_s.set()
                     self.eye_ready_r_s.set()
-                    self.logger.info("eye_ready_l_s and eye_ready_r_s set.")
+                    #self.logger.info("eye_ready_l_s and eye_ready_r_s set.")
 
             except Exception as e:  # pylint: disable=broad-except
                 self.logger.error("shm send handler error: %s", e)
@@ -328,7 +331,7 @@ class CommRouter(BaseService):
             encoded_payload = image_encoder.encode_images_packet(
                 items=[(0, left_image), (1, right_image)],
                 codec="jpeg",
-                jpeg_quality=self.cfg.tracker.jpeg_quality,
+                jpeg_quality=self.cfg.camera.jpeg_quality,
                 color_is_bgr=True  # Assuming images in SHM are BGR
             )
         except Exception as e:  # pylint: disable=broad-except
@@ -337,7 +340,7 @@ class CommRouter(BaseService):
 
         # Send using i_tcp_server.tcp_send()
         self.i_tcp_server.tcp_send(encoded_payload, MessageType.eyePreview)
-        self.logger.info("Sent eyePreview message over TCP.")
+        #self.logger.info("Sent eyePreview message over TCP.")
 
 
     # --- SHM handling methods ---

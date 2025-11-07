@@ -68,8 +68,8 @@ class CameraManager(BaseService, ICameraService):
         self.online = False
         self.frame_id = 0
         self._current_size: Optional[tuple[int, int]] = None
-        self.width: int
-        self.height: int
+        self.res_width: int
+        self.res_height: int
 
         self.reconfiguring_s = Event()
 
@@ -139,7 +139,7 @@ class CameraManager(BaseService, ICameraService):
         if self.picam2 is None:
             self.logger.error("capture_frame() called but Picamera2 is unavailable.")
             return np.zeros(
-                (int(self.cfg.camera.height), int(self.cfg.camera.width)),
+                (int(self.res_height), int(self.res_width)),
                 dtype=np.uint8
             )
 
@@ -157,7 +157,7 @@ class CameraManager(BaseService, ICameraService):
                 if req is None:
                     raise TimeoutError("capture_request() returned None")
 
-                arr = req.make_array("main")[0:self.height, 0:self.width]  # Y plane
+                arr = req.make_array("main")[0:self.res_height, 0:self.res_width]  # Y plane
                 gray = np.ascontiguousarray(arr)
 
                 last_exc = None
@@ -177,7 +177,7 @@ class CameraManager(BaseService, ICameraService):
             self.logger.error("Capture failed after retries: %s", last_exc)
             self.online = False
             return np.zeros(
-                (int(self.cfg.camera.height), int(self.cfg.camera.width)),
+                (int(self.res_height), int(self.res_width)),
                 dtype=np.uint8
             )
 
@@ -226,15 +226,15 @@ class CameraManager(BaseService, ICameraService):
 
         # Apply image resolution and buffer settings
         cfg = self.picam2.create_video_configuration(
-            main={"size": (self.width, self.height), "format": "YUV420"},
+            main={"size": (self.res_width, self.res_height), "format": "YUV420"},
             buffer_count=buffer_count,
         )
 
         try:
             self.picam2.configure(cfg)
-            self._current_size = (self.width, self.height)
+            self._current_size = (self.res_width, self.res_height)
             self.logger.info("Configured video pipeline: %dx%d (buffers=%d).",
-                self.width, self.height, buffer_count)
+                self.res_width, self.res_height, buffer_count)
         except (OSError, RuntimeError, PiCameraError, ControlError) as e:
             self.logger.exception("Failed to configure camera: %s", e)
             return
@@ -244,8 +244,8 @@ class CameraManager(BaseService, ICameraService):
             controls = {
                 "AfMode": self.cfg.camera.af_mode,
                 "LensPosition": int(self.cfg.camera.focus),
-                "ExposureTime": int(self.cfg.camera.exposure_time),
-                "AnalogueGain": self.cfg.camera.analogue_gain,
+                "ExposureTime": int(self.cfg.camera.exposure),
+                "AnalogueGain": self.cfg.camera.gain,
             }
             self.picam2.set_controls(controls)
             self.logger.debug("Controls applied: %s", controls)
@@ -257,7 +257,8 @@ class CameraManager(BaseService, ICameraService):
 
     def _copy_config_to_local(self) -> None:
         """ Copy relevant config settings to local variables."""
-        (self.width, self.height) = self.cfg.tracker.full_frame_resolution
+        self.res_width = self.cfg.camera.res_width
+        self.res_height = self.cfg.camera.res_height
 
 
     #  pylint: disable=unused-argument
