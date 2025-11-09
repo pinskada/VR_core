@@ -8,11 +8,12 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vr_core.network.comm_contracts import MessageType
 from vr_core.base_service import BaseService
 from vr_core.config_service.config import Config
-from vr_core.ports.signals import TrackerDataSignals
+from vr_core.ports.signals import TrackerDataSignals, TrackerSignals
 from vr_core.utilities.logger_setup import setup_logger
 
 
@@ -48,6 +49,7 @@ class TrackerSync(BaseService):
     def __init__(
         self,
         tracker_data_s: TrackerDataSignals,
+        tracker_s: TrackerSignals,
         comm_router_q: queue.PriorityQueue,
         ipd_q: queue.Queue,
         tracker_health_q: queue.Queue,
@@ -62,6 +64,9 @@ class TrackerSync(BaseService):
         # Signal events for output data control
         self.log_data_s = tracker_data_s.log_data
         self.provide_data_s = tracker_data_s.provide_data
+
+        self.first_frame_processed_l = tracker_s.first_frame_processed_l
+        self.first_frame_processed_r = tracker_s.first_frame_processed_r
 
         # Queues for outputting data
         self.comm_router_q = comm_router_q
@@ -91,7 +96,7 @@ class TrackerSync(BaseService):
 
         self.online = False
 
-        self.logger.info("Service initialized.")
+        #self.logger.info("Service initialized.")
 
 
 # ---------- BaseService lifecycle ----------
@@ -116,7 +121,7 @@ class TrackerSync(BaseService):
         self.online = True
         self._ready.set()
 
-        self.logger.info("Service _ready is set.")
+        #self.logger.info("Service _ready is set.")
 
 
     def _run(self) -> None:
@@ -127,13 +132,13 @@ class TrackerSync(BaseService):
 
     def _on_stop(self) -> None:
         """Cleans up the QueueHandler service."""
-        self.logger.info("Service stopping.")
+        #self.logger.info("Service stopping.")
 
         self.online = False
         for t in (self._t_left, self._t_right):
             if t and t.is_alive():
                 t.join(timeout=0.5)
-                self.logger.info("Service %s stopped.", t.name)
+                #self.logger.info("Service %s stopped.", t.name)
 
 
 # ---------- Internals ----------
@@ -145,20 +150,20 @@ class TrackerSync(BaseService):
     ) -> None:
         """Loop to handle responses from EyeLoop processes."""
 
-        self.logger.info("Service %s started.", eye)
+        #self.logger.info("Service %s started.", eye)
 
         while not self._stop.is_set():
             try:
                 msg = response_queue.get(timeout=self.cfg.tracker.resp_q_timeout)
-                self.logger.info("Received message from %s: %s", eye, msg.get("type"))
+                #self.logger.info("Received message from %s: %s", eye, msg.get("type"))
             except queue.Empty:
                 # Nothing to read this tick
                 continue
 
-            try:
-                self._dispatch_message(msg, eye)
-            except (KeyError, ValueError, TypeError) as e:
-                self.logger.warning("Malformed message from %s: %s", eye, e)
+            #try:
+            self._dispatch_message(msg, eye)
+            #except (KeyError, ValueError, TypeError) as e:
+            #    self.logger.warning("Malformed message from %s: %s", eye, e)
 
 
     def _dispatch_message(
@@ -177,23 +182,7 @@ class TrackerSync(BaseService):
                 case "eye_data":
                     self._try_sync(message, eye, MessageType.trackerData)
                 case "image_preview":
-                    height = int(message.get("height", 0))
-                    width = int(message.get("width", 0))
-                    bit_map = message.get("bitmap")
-
-                    if bit_map is None:
-                        self.logger.info("No bitmap in image_preview message.")
-                        return
-
-                    if isinstance(bit_map, (bytes, bytearray)):
-                        bit_array = np.frombuffer(bit_map, dtype=np.uint8)
-                    else:
-                        bit_array = np.array(bit_map, dtype=np.uint8)
-
-                    # Convert bit map to uint8 numpy array
-                    eye_mask = np.unpackbits(bit_array)[:height*width].reshape((height, width))
-
-                    self._try_sync(eye_mask, eye, MessageType.trackerPreview)
+                    self._try_sync(message, eye, MessageType.trackerPreview)
                 case "health":
                     payload = message.get("payload")
                     self.tracker_health_q.put((payload, eye))
@@ -203,28 +192,70 @@ class TrackerSync(BaseService):
             self.logger.warning("Unexpected message format: %s", type(message))
 
 
+    def _extract_image_preview(self, message: Dict) -> Optional[NDArray[np.uint8]]:
+        height = int(message.get("height", 0))
+        width = int(message.get("width", 0))
+        bit_map = message.get("bitmap")
+
+        if bit_map is None:
+            self.logger.info("No bitmap in image_preview message.")
+            return None
+
+        if isinstance(bit_map, (bytes, bytearray)):
+            bit_array = np.frombuffer(bit_map, dtype=np.uint8)
+        else:
+            bit_array = np.array(bit_map, dtype=np.uint8)
+
+        # Convert bit map to uint8 numpy array
+        eye_mask = np.unpackbits(bit_array)[:height*width].reshape((height, width))
+
+        return eye_mask
+
+
     def _try_sync(
         self,
-        data: Any,
+        message: Dict,
         eye: Eye,
         message_type: MessageType,
     ) -> None:
         """Attempts to synchronize frames from left and right EyeLoop processes."""
 
-        frame_id = data.get("frame_id")
-        payload = data.get("payload")
-        if frame_id is None or payload is None:
+        frame_id = message.get("frame_id")
+
+        if message_type == MessageType.trackerPreview:
+            data = self._extract_image_preview(message)
+        else:
+            data = message.get("data")
+
+        # After Eyeloop processed first image, config can be sent
+        if (message_type is MessageType.trackerData):
+            if eye == Eye.LEFT:
+                self.first_frame_processed_l.set()
+                #self.logger.info("first_frame_processed_l has been set.")
+            else:
+                self.first_frame_processed_r.set()
+                #self.logger.info("first_frame_processed_r has been set.")
+
+
+        if frame_id is None:
             # Can't sync without frame_id; drop or log
-            self.logger.warning("Dropping message without frame_id or payload")
+            self.logger.warning("Dropping %s message for %s eye without frame_id.", message_type, eye)
+            return
+        if data is None:
+            # Can't sync without frame_id; drop or log
+            self.logger.warning("Dropping %s message for %s eye, with ID: "
+                "%s, without payload", message_type, eye, frame_id)
             return
 
         # Select buffer based on payload type
         if message_type is MessageType.trackerData:
             buf = self._eye_data_buf
             lock: threading.Lock = self._eye_lock
+            #self.logger.info("Processing tracker data from %s eye with id: %s", eye, frame_id)
         elif message_type is MessageType.trackerPreview:
             buf = self._image_buf
             lock = self._img_lock
+            #self.logger.info("Processing tracker preview from %s eye with id: %s", eye, frame_id)
         else:
             # if your enum could grow, be explicit so type-checkers know we return here
             self.logger.error("Unexpected message_type: %s", message_type)
@@ -238,7 +269,7 @@ class TrackerSync(BaseService):
                 bucket = _SyncBucket()
                 buf[frame_id] = bucket
 
-            half = _HalfFrame(data=payload)
+            half = _HalfFrame(data=data)
 
             if eye == Eye.LEFT:
                 bucket.left = half
@@ -260,16 +291,22 @@ class TrackerSync(BaseService):
                         if self.provide_data_s.is_set():
                             # Send to gaze module
                             self.ipd_q.put(pair)
+                            #self.logger.info("Sending tracker data to Gaze module.")
 
                         if self.log_data_s.is_set():
                             # Send to comm router for logging/telemetry
                             self.comm_router_q.put((5, MessageType.trackerData, pair))
+                            #self.logger.info("Sending tracker data over TCP.")
+
                     case MessageType.trackerPreview:
                         # Forward both images as a pair to CommRouter (it will PNG-encode)
-                        self.comm_router_q.put((5, MessageType.trackerPreview, pair))
+                        self.comm_router_q.put((8, MessageType.trackerPreview, pair))
+                        #self.logger.info("Sending preview images over TCP.")
 
                 # Cleanup consumed bucket
                 del buf[frame_id]
+
+            
 
             # GC if buffer grew too large
             if len(buf) > self.cfg.tracker.sync_buffer_size:

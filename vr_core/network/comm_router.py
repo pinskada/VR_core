@@ -51,11 +51,13 @@ class CommRouter(BaseService):
         self.tcp_receive_q = tcp_receive_q
         self.esp_cmd_q = esp_cmd_q
 
+
         # Initialize shared memory signals
         self.tcp_send_enabled_s: Event = comm_router_signals.tcp_send_enabled
         self.frame_ready_s: Event = comm_router_signals.frame_ready
         self.sync_frames_s: Event = comm_router_signals.sync_frames
         self.comm_shm_is_closed_s: Event = comm_router_signals.comm_shm_is_closed
+        self.tcp_connected: Event = comm_router_signals.tcp_connected
 
         self.shm_active_s: MpEvent = tracker_signals.shm_active
         self.eye_ready_l_s: MpEvent = tracker_signals.eye_ready_l
@@ -86,7 +88,7 @@ class CommRouter(BaseService):
         # SHM and online state
         self.online = False
 
-        self.logger.info("Service initialized.")
+        #self.logger.info("Service initialized.")
 
 
 # ---------- BaseService lifecycle ----------
@@ -130,7 +132,7 @@ class CommRouter(BaseService):
 
         self._ready.set()
 
-        self.logger.info("Service is ready.")
+        #self.logger.info("Service is ready.")
 
 
     def _run(self) -> None:
@@ -142,7 +144,7 @@ class CommRouter(BaseService):
     def _on_stop(self) -> None:
         """Signal threads to stop, close sockets, and join threads."""
 
-        self.logger.info("Service is stopping.")
+        #self.logger.info("Service is stopping.")
         self.online = False
 
         if not self.comm_shm_is_closed_s.is_set():
@@ -157,7 +159,7 @@ class CommRouter(BaseService):
 
             if t:
                 t.join(timeout=1.0)
-                self.logger.info("Service %s has stopped.", t.name)
+                #self.logger.info("Service %s has stopped.", t.name)
 
 
     def is_online(self) -> bool:
@@ -169,7 +171,7 @@ class CommRouter(BaseService):
 
     def _tcp_receive_loop(self) -> None:
         """Handle incoming TCP messages on the tcp_receive_q by routing them based on priority."""
-        self.logger.info("_tcp_receive_loop has started.")
+        #self.logger.info("_tcp_receive_loop has started.")
 
         while not self._stop.is_set():
             try:
@@ -187,7 +189,7 @@ class CommRouter(BaseService):
     # pylint: disable=unused-variable
     def _tcp_send_loop(self) -> None:
         """Drains com_router_queue_q and sends messages to Unity via TCPServer."""
-        self.logger.info("_tcp_send_loop has started.")
+        #self.logger.info("_tcp_send_loop has started.")
 
         # Expected item format: payload: Any, priority: int, msg_type: MessageType
         while not self._stop.is_set():
@@ -196,6 +198,10 @@ class CommRouter(BaseService):
             except queue.Empty:
                 #self.logger.info("com_router_queue_q is empty.")
                 continue
+
+            if not self.tcp_connected.is_set():
+                continue
+
             try:
                 # Accept either tuple (priority, msg_type, payload)
                 priority: Optional[int] = None
@@ -216,7 +222,7 @@ class CommRouter(BaseService):
 
     def _tcp_send_shm_loop(self) -> None:
         """If set, loads image from shared memory, encodes it, and sends it over TCP."""
-        self.logger.info("_tcp_send_shm_loop has started.")
+        #self.logger.info("_tcp_send_shm_loop has started.")
 
         while not self._stop.is_set():
 
@@ -250,7 +256,8 @@ class CommRouter(BaseService):
             try:
                 self.frame_ready_s.clear()
                 #self.logger.info("frame_ready_s cleared.")
-                self._tcp_send_shm_handler()
+                if self.tcp_connected.is_set():
+                    self._tcp_send_shm_handler()
 
                 # If in camera preview mode, signal both eyes are ready
                 if self.sync_frames_s.is_set():
@@ -286,10 +293,12 @@ class CommRouter(BaseService):
         """Encodes application objects to bytes and uses TCPServer to send them out."""
         # Encode to bytes (default JSON)
         body: bytes
+        preview_iterable = [(0, payload[0]), (1, payload[1])]
+
         if msg_type == MessageType.trackerPreview:
             try:
                 body = image_encoder.encode_images_packet(
-                    items=payload,
+                    items=preview_iterable,
                     codec="png",
                     png_compression=self.cfg.tracker.png_compression,
                     color_is_bgr=True  # Assuming images in payload are BGR
@@ -308,6 +317,7 @@ class CommRouter(BaseService):
 
         # Push to the socket through the TCPServer interface. :contentReference[oaicite:7]{index=7}
         self.i_tcp_server.tcp_send(body, msg_type)
+        #self.logger.info("Sent tracker preview image.")
 
 
     def _tcp_send_shm_handler(self) -> None:
@@ -335,7 +345,7 @@ class CommRouter(BaseService):
                 color_is_bgr=True  # Assuming images in SHM are BGR
             )
         except Exception as e:  # pylint: disable=broad-except
-            self.logger.error("encode failed: %s for jpeg", e)
+            self.logger.error("Encode failed: %s for jpeg", e)
             return
 
         # Send using i_tcp_server.tcp_send()
@@ -349,7 +359,8 @@ class CommRouter(BaseService):
         """Copies/binds memory shapes to local variables."""
         self.memory_shape_l = self.cfg.tracker.memory_shape_l
         self.memory_shape_r = self.cfg.tracker.memory_shape_r
-        self.logger.info("Local memory shapes copied.")
+        if self._ready.is_set():
+             self.logger.info("Local memory shapes copied.")
 
 
     def _connect_shm(self):

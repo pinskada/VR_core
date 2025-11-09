@@ -21,7 +21,7 @@ class MockCamera(BaseService, ICameraService):
 
         self.cfg = config
 
-        self.logger.info("Service initialized.")
+        #self.logger.info("Service initialized.")
 
 # ---------- BaseService lifecycle ----------
 
@@ -29,7 +29,7 @@ class MockCamera(BaseService, ICameraService):
     def _on_start(self) -> None:
         """Start the mock camera service."""
         self._ready.set()
-        self.logger.info("Service started.")
+        #self.logger.info("Service started.")
 
 
     def _run(self) -> None:
@@ -40,7 +40,7 @@ class MockCamera(BaseService, ICameraService):
 
     def _on_stop(self) -> None:
         """Stop the mock camera service."""
-        self.logger.info("Service stopped.")
+        #self.logger.info("Service stopped.")
 
 # -------- Public API --------
 

@@ -40,11 +40,17 @@ class TrackerProcess(BaseService, ITrackerService):
 
         self.tracker_health_q = tracker_health_q
 
-        self.eye_ready_l = tracker_signals.eye_ready_l
-        self.eye_ready_r = tracker_signals.eye_ready_r
+        self.eye_ready_s_l = tracker_signals.eye_ready_l
+        self.eye_ready_s_r = tracker_signals.eye_ready_r
 
-        self.tracker_shm_is_closed_l = eye_tracker_signals.tracker_shm_is_closed_l
-        self.tracker_shm_is_closed_r = eye_tracker_signals.tracker_shm_is_closed_r
+        self.tracker_shm_is_closed_s_l = eye_tracker_signals.tracker_shm_is_closed_l
+        self.tracker_shm_is_closed_s_r = eye_tracker_signals.tracker_shm_is_closed_r
+
+        self.tracker_running_s_l = tracker_signals.tracker_running_l
+        self.tracker_running_s_r = tracker_signals.tracker_running_r
+
+        self.first_frame_processed_s_l = tracker_signals.first_frame_processed_l
+        self.first_frame_processed_s_r = tracker_signals.first_frame_processed_r
 
         self.cfg = config
 
@@ -59,7 +65,7 @@ class TrackerProcess(BaseService, ITrackerService):
 
         self.online = False
 
-        self.logger.info("Service initialized.")
+        #self.logger.info("Service initialized.")
 
 
 # ---------- BaseService lifecycle ----------
@@ -69,7 +75,7 @@ class TrackerProcess(BaseService, ITrackerService):
 
         self.online = True
         self._ready.set()
-        self.logger.info("Service _ready is set.")
+        #self.logger.info("Service _ready is set.")
 
 
     def _run(self) -> None:
@@ -82,7 +88,7 @@ class TrackerProcess(BaseService, ITrackerService):
 
     def _on_stop(self) -> None:
         """Stops the Eyeloop processes."""
-        self.logger.info("Service stopping.")
+        #self.logger.info("Service stopping.")
         self.online = False
         if not self.tracker_state == "idle":
             self.stop_tracker()
@@ -96,7 +102,7 @@ class TrackerProcess(BaseService, ITrackerService):
     ) -> None:
         """Starts the tracker processes."""
 
-        self.logger.info("Starting tracker processes.")
+        #self.logger.info("Starting tracker processes.")
 
         if self.tracker_state in ("starting","running"):
             self.logger.warning("Start requested but process already %s.", self.tracker_state)
@@ -115,8 +121,9 @@ class TrackerProcess(BaseService, ITrackerService):
                       self.cfg.tracker.blink_calibration_L,
                       self.tracker_cmd_q_l,
                       self.tracker_resp_q_l,
-                      self.eye_ready_l,
-                      self.tracker_shm_is_closed_l,
+                      self.eye_ready_s_l,
+                      self.tracker_shm_is_closed_s_l,
+                      self.tracker_running_s_l,
                       test_mode
                 ),
                 daemon=False,
@@ -141,8 +148,9 @@ class TrackerProcess(BaseService, ITrackerService):
                       self.cfg.tracker.blink_calibration_R,
                       self.tracker_cmd_q_r,
                       self.tracker_resp_q_r,
-                      self.eye_ready_r,
-                      self.tracker_shm_is_closed_r,
+                      self.eye_ready_s_r,
+                      self.tracker_shm_is_closed_s_r,
+                      self.tracker_running_s_r,
                       test_mode
                     ),
                 daemon=False,
@@ -158,12 +166,20 @@ class TrackerProcess(BaseService, ITrackerService):
             self._terminate_side("left")
             return
 
+        if not self.tracker_running_s_l.wait(10):
+            self.logger.error("Left Eyeloop didn't start up properly, shutting down.")
+            return
+
+        if not self.tracker_running_s_r.wait(10):
+            self.logger.error("Right Eyeloop didn't start up properly, shutting down.")
+            return
+
         self.tracker_state = "running"
 
 
     def stop_tracker(self) -> None:
         """Stops the tracker processes."""
-        self.logger.info("Stopping tracker processes.")
+        #self.logger.info("Stopping tracker processes.")
 
         if self.tracker_state in ("idle","stopping"):
             self.logger.warning("Stop requested but already %s.", self.tracker_state)
@@ -207,6 +223,7 @@ class TrackerProcess(BaseService, ITrackerService):
 
                 try:
                     proc.join(timeout=1.0)
+                    self.logger.info("%s Eyeloop process joined.", side)
                 except AssertionError as e:
                     self.logger.warning("%s process join() skipped (not fully started?): %s",
                         side, e)
@@ -216,15 +233,17 @@ class TrackerProcess(BaseService, ITrackerService):
             if side == "left":
                 self.proc_left = None
                 self.running_left = False
-                if hasattr(self.eye_ready_l, "clear"):
-                    self.eye_ready_l.clear()
-                    self.logger.info("eye_ready_l cleared.")
+                if hasattr(self.eye_ready_s_l, "clear"):
+                    self.eye_ready_s_l.clear()
+                    self.first_frame_processed_s_l.clear()
+                    self.logger.info("eye_ready_s_l cleared.")
             else:
                 self.proc_right = None
                 self.running_right = False
-                if hasattr(self.eye_ready_r, "clear"):
-                    self.eye_ready_r.clear()
-                    self.logger.info("eye_ready_r cleared.")
+                if hasattr(self.eye_ready_s_r, "clear"):
+                    self.eye_ready_s_r.clear()
+                    self.first_frame_processed_s_r.clear()
+                    self.logger.info("eye_ready_s_r cleared.")
 
 
     # ruff: noqa: F841

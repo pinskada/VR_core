@@ -40,7 +40,7 @@ class Core:
     """
 
     def __init__(self, argv: List[str] | None = None):
-        print("Starting VR Core...")
+        #print("Starting VR Core...")
 
         self.argv = argv or []
 
@@ -81,6 +81,8 @@ class Core:
         tcp_server = TCPServer(
             config=config,
             tcp_receive_q=self.queues.tcp_receive_q,
+            tcp_connected=self.comm_router_signals.tcp_connected,
+            config_ready_s=self.config_signals.config_ready_s,
             mock_mode=self.tcp_mock_mode,
         )
         camera_manager = CameraManager(
@@ -103,6 +105,7 @@ class Core:
         )
         tracker_sync = TrackerSync(
             tracker_data_s=self.tracker_data_signals,
+            tracker_s=self.tracker_signals,
             comm_router_q=self.queues.comm_router_q,
             ipd_q=self.queues.ipd_q,
             tracker_health_q=self.queues.tracker_health_q,
@@ -213,12 +216,12 @@ class Core:
 
         # Order listed in build()
         start_order: List[str] = list(self.services.keys())
-        self.logger.info("Starting services in order: %s", " -> ".join(start_order))
+        #self.logger.info("Starting services in order: %s", " -> ".join(start_order))
 
         # Wait for the service to declare readiness
         for name in start_order:
             svc = self.services[name]
-            self.logger.info("-> start %s", name)
+            #self.logger.info("-> start %s", name)
 
             if name == "TCPServer" or name == "ConfigService":
                 # TCP server needs longer timeout since client may take time to connect
@@ -234,7 +237,8 @@ class Core:
                 self.logger.warning("Startup interrupted during %s; stopping…", name)
                 return
             if status == "timeout":
-                raise TimeoutError(f"Service '{name}' did not become ready in time: {timeout}s")
+                self.logger.error("Service '%s' did not become ready in time: %ss", name, timeout)
+                self._stop_requested.set()
 
         self.logger.info("All services started and ready.")
 
@@ -245,12 +249,12 @@ class Core:
             return
 
         stop_order = list(reversed(self.services.keys()))
-        self.logger.info("Stopping services in reverse order: %s", " <- ".join(stop_order))
+        #self.logger.info("Stopping services in reverse order: %s", " <- ".join(stop_order))
 
         # Request stop
         for name in stop_order:
             try:
-                self.logger.info("-> stop %s", name)
+                #self.logger.info("-> stop %s", name)
                 self.services[name].stop()
             except (RuntimeError, ValueError, OSError) as e:
                 # Common states: not started, already closed, socket already closed
@@ -289,6 +293,15 @@ class Core:
         try:
             while not self._stop_requested.is_set():
                 time.sleep(0.5)
+                tcp_server = self.services["TCPServer"]
+                if not tcp_server.is_online():
+                    tcp_server.stop()
+                    tcp_server.join(timeout=5)
+                    tcp_server.start()
+                    running = self._wait_ready_or_stop(tcp_server, timeout=300)
+                    if not running:
+                        self._stop_requested.set()
+
         except KeyboardInterrupt:
             # If SIGINT wasn’t caught by our handler, catch the raw KeyboardInterrupt
             self.logger.info("KeyboardInterrupt received, shutting down…")

@@ -20,7 +20,7 @@ class TCP:
     max_resend_attempts: int = 3      # Number of times to resend a message if not acknowledged
 
     # Timeout for establishing a connection, where -1 means no timeout (in seconds)
-    connect_timeout: float = 60
+    connect_timeout: float = 300
 
     max_packet_size: int = 0xFFFFFF  # Maximum allowed packet size
 
@@ -32,7 +32,7 @@ class Tracker:
     """Tracker configuration settings."""
     frame_provider_max_fps: int = 1000 # Maximum FPS for the frame provider
     png_compression: int = 3  # PNG compression level (0-9)
-    sync_timeout: float = 2.0  # Timeout for EyeLoop response in seconds
+    sync_timeout: float = 1.0  # Timeout for EyeLoop response in seconds
     resp_q_timeout: float = 0.001  # Timeout for queue operations in seconds
     provider_queue_timeout: float = 0.01  # Timeout for provider queue operations in seconds
     process_launch_time: float = 0.4  # Time to wait for the EyeLoop process to stabilize (in seconds)
@@ -50,6 +50,8 @@ class Tracker:
     # Path to the blink calibration file
     blink_calibration_L: str = "blink_calibration/blink_calibration_cropL.npy"
     blink_calibration_R: str = "blink_calibration/blink_calibration_cropR.npy"
+
+    eyeloop_start_timeout: float = 10
 
     # Importer name for the EyeLoop process
     importer_name: str = "shared_memory_importer"

@@ -34,7 +34,7 @@ class GazeControl(BaseService, IGazeControl):
 
         self.cfg = config
 
-        self.logger.info("Service initialized.")
+        #self.logger.info("Service initialized.")
 
 
 # ---------- BaseService lifecycle ----------
@@ -48,7 +48,7 @@ class GazeControl(BaseService, IGazeControl):
 
         self._ready.set()
 
-        self.logger.info("Service set ready.")
+        #self.logger.info("Service set ready.")
 
 
     def _run(self) -> None:
@@ -65,7 +65,7 @@ class GazeControl(BaseService, IGazeControl):
         self.gaze_calc_s.clear()
         self.ipd_to_tcp_s.clear()
 
-        self.logger.info("Service stopping.")
+        #self.logger.info("Service stopping.")
 
 
 # ---------- Public APIs ----------

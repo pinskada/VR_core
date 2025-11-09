@@ -57,7 +57,7 @@ class Imu(BaseService):
 
         self.online = False
 
-        self.logger.info("Service initialized.")
+        #self.logger.info("Service initialized.")
 
 
 
@@ -82,7 +82,7 @@ class Imu(BaseService):
 
         self.online = True
         self._ready.set()
-        self.logger.info("Service is ready.")
+        #self.logger.info("Service is ready.")
 
 
     def _run(self) -> None:
@@ -96,7 +96,7 @@ class Imu(BaseService):
         """Stop the gyroscope thread."""
 
         self.online = False
-        self.logger.info("Service stopped.")
+        #self.logger.info("Service stopped.")
 
 
 # ------------- Internals -------------

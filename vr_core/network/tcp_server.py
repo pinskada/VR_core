@@ -3,6 +3,7 @@
 import socket
 import queue
 import time
+import threading
 
 from vr_core.base_service import BaseService
 from vr_core.ports.interfaces import INetworkService
@@ -19,6 +20,8 @@ class TCPServer(BaseService, INetworkService):
         self,
         config: Config,
         tcp_receive_q: queue.Queue,
+        tcp_connected: threading.Event,
+        config_ready_s: threading.Event,
         mock_mode: bool = False,
     ) -> None:
         super().__init__(name="TCPServer")
@@ -27,6 +30,9 @@ class TCPServer(BaseService, INetworkService):
 
         self.cfg = config
         self.tcp_receive_q = tcp_receive_q
+
+        self.tcp_connected = tcp_connected
+        self.config_ready_s = config_ready_s
 
         self.mock_mode = mock_mode
 
@@ -41,7 +47,7 @@ class TCPServer(BaseService, INetworkService):
 
         self._buf = bytearray()
 
-        self.logger.info("Service initialized.")
+        #self.logger.info("Service initialized.")
 
 
     def _on_start(self) -> None:
@@ -49,18 +55,23 @@ class TCPServer(BaseService, INetworkService):
         if not self.mock_mode:
             # self._verify_static_ip()
 
-            if not self._start_server():
+            self._setup_server()
+            if not self._wait_for_client():
                 return
 
         # Mark as ready
         self._ready.set()
-        self.logger.info("Service _ready is set.")
+        #self.logger.info("Service _ready is set.")
 
 
     def _run(self) -> None:
         while not self._stop.is_set():
 
-            self._receive()
+            if self.tcp_connected.is_set():
+                self._receive()
+            else:
+                self._wait_for_client()
+
             self._stop.wait(self.cfg.tcp.receive_loop_interval)
 
 
@@ -68,7 +79,7 @@ class TCPServer(BaseService, INetworkService):
         """Signal threads to stop, close sockets, and join threads."""
         self.online = False
 
-        self.logger.info("Service is stopping.")
+        #self.logger.info("Service is stopping.")
 
         # Close sockets to unblock accept/recv
         if self.client_conn:
@@ -115,13 +126,20 @@ class TCPServer(BaseService, INetworkService):
         return False
 
 
-    def _start_server(self) -> bool:
-        # Create, bind, and listen
+    def _setup_server(self) -> None:
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server_socket.bind((self.cfg.tcp.host, self.cfg.tcp.port))
         self.server_socket.listen(1)
         self.server_socket.settimeout(1.0)
+
+
+    def _wait_for_client(self) -> bool:
+        # Create, bind, and listen
+
+        if not self.server_socket:
+            self.logger.error("Server not set up, cannot accept client.")
+            return False
 
         self.logger.info("Waiting for Unity on %s:%d...", self.cfg.tcp.host, self.cfg.tcp.port)
         start = time.time()
@@ -137,6 +155,7 @@ class TCPServer(BaseService, INetworkService):
                 self.client_conn.settimeout(getattr(self.cfg.tcp, "recv_timeout", 0.1))
                 self.online = True
 
+                self.tcp_connected.set()
                 self.logger.info("Connected to %s", addr)
 
                 return True
@@ -164,8 +183,9 @@ class TCPServer(BaseService, INetworkService):
         try:
             chunk = self.client_conn.recv(self.cfg.tcp.recv_buffer_size)
             if not chunk:
-                self.logger.warning("TCPServer: Connection closed by client.")
-                self.online = False
+                self.logger.warning("Connection closed by client.")
+                self.tcp_connected.clear()
+                self.config_ready_s.clear()
                 return
             self._buf.extend(chunk)
             self._decode_message()  # parse whatever we have
@@ -173,7 +193,7 @@ class TCPServer(BaseService, INetworkService):
             # No data this cycle — not an error. Let _run() continue.
             return
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError) as e:
-            self.logger.warning("TCPServer: Receive error: %s", e)
+            self.logger.warning("Receive error: %s", e)
             self.online = False
 
 

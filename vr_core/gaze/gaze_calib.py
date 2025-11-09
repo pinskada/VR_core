@@ -71,7 +71,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
 
         self.online = False
 
-        self.logger.info("Service initialized.")
+        #self.logger.info("Service initialized.")
 
 
 # ---------- BaseService lifecycle ----------
@@ -83,7 +83,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
         self.online = True
         self._ready.set()
 
-        self.logger.info("Service started.")
+        #self.logger.info("Service started.")
 
 
     def _run(self) -> None:
@@ -111,7 +111,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
         self.online = False
         self._unsubscribe()
 
-        self.logger.info("Service stopped.")
+        #self.logger.info("Service stopped.")
 
 
 # ---------- Public APIs ----------

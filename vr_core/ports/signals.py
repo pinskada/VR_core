@@ -23,6 +23,8 @@ class CommRouterSignals:
         # Signal indicating that shm has been closed
         self.comm_shm_is_closed = Event()
 
+        self.tcp_connected = Event()
+
 
 class TrackerDataSignals:
     """Signals for tracker data sharing."""
@@ -41,12 +43,17 @@ class TrackerSignals:
         # Control for FrameProvider to start/stop providing frames
         self.provide_frames = Event()
 
-        # Info events about tracker state
-        self.tracker_running_l = Event()
-        self.tracker_running_r = Event()
-
         # Shared memory activity signal
         self.shm_active = mp.Event()
+        self.shm_cleared = Event()
+
+        self.first_frame_processed_l = Event()
+        self.first_frame_processed_r = Event()
+
+        # Info events about tracker state
+        self.tracker_running_l = mp.Event()
+        self.tracker_running_r = mp.Event()
+
 
         # Signals indicating processed eye frame
         self.eye_ready_l = mp.Event()

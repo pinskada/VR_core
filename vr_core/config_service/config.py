@@ -36,7 +36,7 @@ class Config(BaseService):
             str,
             List[Callable[[str, Any, Any], None]]
         ] = defaultdict(list)
-        self.logger.info("Service initialized.")
+        #self.logger.info("Service initialized.")
 
 
 # ---------- BaseService lifecycle ----------
@@ -47,7 +47,7 @@ class Config(BaseService):
             self.config_ready_s.wait(timeout=240)
 
         self._ready.set()
-        self.logger.info("Service is ready.")
+        #self.logger.info("Service is ready.")
 
 
     def _run(self) -> None:
@@ -60,7 +60,7 @@ class Config(BaseService):
         """Stop the config service."""
 
         self.config_ready_s.clear()
-        self.logger.info("Service stopping.")
+        #self.logger.info("Service stopping.")
 
 
     # --- direct accessors ---
@@ -133,6 +133,9 @@ class Config(BaseService):
             obj, attr = self._traverse(path)
             old = getattr(obj, attr)
             target_type = type(old)
+
+            if attr == "crop_left" or attr == "crop_right":
+                value = self._coerce_crop(value)
 
             new: Any
             try:
@@ -227,3 +230,21 @@ class Config(BaseService):
             node = getattr(node, p)
 
         return node, parts[-1]
+
+
+    def _pair(self, v: Any) -> Tuple[float, float]:
+        # Accept {"min": x, "max": y} or [x, y] / (x, y)
+        if isinstance(v, dict):
+            return (float(v["min"]), float(v["max"]))
+        if isinstance(v, (list, tuple)) and len(v) == 2:
+            return (float(v[0]), float(v[1]))
+        raise ValueError(f"Invalid pair format: {v!r}")
+
+
+    def _coerce_crop(self, v: Any) -> Tuple[Tuple[float, float], Tuple[float, float]]:
+        # Accept {"x": {...}, "y": {...}} or [[x1, x2], [y1, y2]]
+        if isinstance(v, dict):
+            return (self._pair(v["x"]), self._pair(v["y"]))
+        if isinstance(v, (list, tuple)) and len(v) == 2:
+            return (self._pair(v[0]), self._pair(v[1]))
+        raise ValueError(f"Invalid crop format: {v!r}")

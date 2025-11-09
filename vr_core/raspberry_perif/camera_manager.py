@@ -75,7 +75,7 @@ class CameraManager(BaseService, ICameraService):
 
         self.picam2: Optional[Picamera2Type] = None
 
-        self.logger.info("Service initialized.")
+        #self.logger.info("Service initialized.")
 
 
 # ---------- BaseService lifecycle ----------
@@ -110,7 +110,7 @@ class CameraManager(BaseService, ICameraService):
         self.reconfiguring_s.set()
 
         self._ready.set()
-        self.logger.info("_ready set.")
+        #self.logger.info("_ready set.")
 
 
     def _run(self) -> None:
@@ -121,7 +121,7 @@ class CameraManager(BaseService, ICameraService):
 
     def _on_stop(self) -> None:
         """Cleanup camera resources."""
-        self.logger.info("Stopping service.")
+        #self.logger.info("Stopping service.")
         self.online = False
         self._stop_camera()
         self._unsubscribe()

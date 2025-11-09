@@ -43,7 +43,7 @@ class GazeCalc(BaseService):
 
         self.online = False # Flag to indicate if the system is online or offline
 
-        self.logger.info("Service initialized.")
+        #self.logger.info("Service initialized.")
 
 
 # ---------- BaseService lifecycle ----------
@@ -54,7 +54,7 @@ class GazeCalc(BaseService):
         self.online = True
         self.trust_tracker = True
         self._ready.set()
-        self.logger.info("Service started.")
+        #self.logger.info("Service started.")
 
 
     def _run(self):
@@ -71,7 +71,7 @@ class GazeCalc(BaseService):
         """Handle service stop."""
 
         self.online = False
-        self.logger.info("Service stopped.")
+        #self.logger.info("Service stopped.")
 
 
     def is_online(self):

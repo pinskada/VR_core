@@ -63,11 +63,15 @@ class FrameProvider(BaseService):
         self.comm_shm_is_closed_s: Event = comm_router_s.comm_shm_is_closed
 
         self.provide_frames_s: Event = tracker_s.provide_frames
-        self.tracker_running_l_s: Event = tracker_s.tracker_running_l
-        self.tracker_running_r_s: Event = tracker_s.tracker_running_r
+        self.tracker_running_l_s: MpEvent = tracker_s.tracker_running_l
+        self.tracker_running_r_s: MpEvent = tracker_s.tracker_running_r
         self.shm_active_s: MpEvent = tracker_s.shm_active
         self.left_eye_ready_s: MpEvent = tracker_s.eye_ready_l
         self.right_eye_ready_s: MpEvent = tracker_s.eye_ready_r
+        self.tracker_running_s_l: MpEvent = tracker_s.tracker_running_l
+        self.tracker_running_s_r: MpEvent = tracker_s.tracker_running_l
+        self.shm_cleared_s = tracker_s.shm_cleared
+
 
         self.tracker_shm_is_closed_l_s: MpEvent = eye_tracker_s.tracker_shm_is_closed_l
         self.tracker_shm_is_closed_r_s: MpEvent = eye_tracker_s.tracker_shm_is_closed_r
@@ -100,14 +104,14 @@ class FrameProvider(BaseService):
         self.use_test_video = use_test_video
         self.test_mode = False  # Flag for test mode
 
-        self.logger.info("FrameProvider initialized.")
+        #self.logger.info("FrameProvider initialized.")
 
 
 # ---------- BaseService lifecycle ----------
 
     def _on_start(self) -> None:
         """Starts the FrameProvider service by allocating resources."""
-
+        
         # Choose between test video or live camera
         if self.use_test_video:
             path = Path(self.cfg.tracker.test_video_path)
@@ -127,6 +131,7 @@ class FrameProvider(BaseService):
 
         self._validate_crop()
         self._copy_settings_to_local()
+        self.shm_cleared_s.set()
 
         if self.use_test_video:
             # Capture a test frame to determine actual crop size
@@ -145,7 +150,7 @@ class FrameProvider(BaseService):
         self.online = True
         self._ready.set()
 
-        self.logger.info("Service _ready is set.")
+        #self.logger.info("Service _ready is set.")
 
 
     def _run(self) -> None:
@@ -163,7 +168,7 @@ class FrameProvider(BaseService):
 
             # If shared memory is not active, activate it
             if not self.shm_active_s.is_set() and not self.hold_frames:
-                self.logger.info("Activating SHM from _run()")
+                #self.logger.info("Activating SHM from _run()")
                 self._activate_shm()
 
             # If holding frames due to config change, wait
@@ -183,7 +188,7 @@ class FrameProvider(BaseService):
 
     def _on_stop(self) -> None:
         """Stops the FrameProvider and cleans up resources."""
-        self.logger.info("Service stopping.")
+        #self.logger.info("Service stopping.")
 
         self.online = False
         if self.shm_active_s.is_set():
@@ -256,9 +261,15 @@ class FrameProvider(BaseService):
 
         # Put frame ID in sync queues for both EyeLoop processes
         if self.tracker_running_l_s.is_set():
-            self.tracker_cmd_l_q.put({"frame_id": self.frame_id})
+            self.tracker_cmd_l_q.put({
+                "type": "frame_id",
+                "value": self.frame_id,
+            })
         if self.tracker_running_r_s.is_set():
-            self.tracker_cmd_r_q.put({"frame_id": self.frame_id})
+            self.tracker_cmd_r_q.put({
+                "type": "frame_id",
+                "value": self.frame_id,
+            })
         #self.logger.info("tracker_cmd_l/r_q: frame ID %d sent.", self.frame_id)
 
 
@@ -314,7 +325,8 @@ class FrameProvider(BaseService):
         self.crop_r = self.cfg.tracker_crop.crop_right
         self.full_frame_width = self.cfg.camera.res_width
         self.full_frame_height = self.cfg.camera.res_height
-        self.logger.info("Local settings updated from config.")
+        if self._ready.is_set():
+            self.logger.info("Local settings updated from config.")
 
 
     def _activate_shm(
@@ -347,12 +359,16 @@ class FrameProvider(BaseService):
         self._clear_memory(Eye.LEFT)
         self._clear_memory(Eye.RIGHT)
 
+        self.shm_cleared_s.set()
+
 
     def _allocate_memory(
         self,
         side_to_allocate: Eye,
     ) -> None:
         """Allocates shared memory for eye frames based on current crop settings."""
+
+        self.shm_cleared_s.clear()
 
         # Extract full frame dimensions
         if self.use_test_video:
@@ -418,8 +434,8 @@ class FrameProvider(BaseService):
                 # self.cfg.tracker.memory_shape_r = (memory_shape_x, memory_shape_y)
                 self.cfg.tracker.memory_shape_r = (memory_shape_y, memory_shape_x)
 
-        self.logger.info("Allocated shared memory for %s eye: %s with size: %s",
-                        side_to_allocate, memory_name, (memory_shape_y, memory_shape_x))
+        # self.logger.info("Allocated shared memory for %s eye: %s with size: %s",
+        #                 side_to_allocate, memory_name, (memory_shape_y, memory_shape_x))
 
 
     def _clear_memory(self, side_to_allocate: Eye) -> None:
@@ -442,7 +458,7 @@ class FrameProvider(BaseService):
             self.logger.error("Failed to clean shared memory for "
                 "%s eye: %s", side_to_allocate, e)
 
-        self.logger.info("%s shm has been cleared.", side_to_allocate)
+        #self.logger.info("%s shm has been cleared.", side_to_allocate)
 
 
     def _close_consumer_shm(self) -> None:

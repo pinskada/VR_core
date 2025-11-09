@@ -21,6 +21,7 @@ def run_eyeloop(
     tracker_resp_q: mp.Queue,
     eye_ready_s: MpEvent,
     tracker_shm_is_closed_s: MpEvent,
+    tracker_running_s: MpEvent,
     test_mode: bool = False,
     ) -> None:
     """
@@ -34,20 +35,21 @@ def run_eyeloop(
         "--side", eye,
         "--importer", importer_name,
         "--sharedmem", shm_name,
-        "--auto_search", "false",
+        "--auto_search", "0",
 
         #"--video", "test_video/test_video.mp4",
     ]
 
     if not test_mode:
         try:
-            logger.info("Starting tracker for eye: %s.", eye)
+            #logger.info("Starting tracker for eye: %s.", eye)
             EyeLoop(
                 sys.argv[1:],
                 command_queue=tracker_cmd_q,
                 response_queue=tracker_resp_q,
                 eye_ready_signal=eye_ready_s,
                 tracker_shm_is_closed_signal=tracker_shm_is_closed_s,
+                tracker_running_signal=tracker_running_s,
                 logger=None,
             )
         except Exception as e:  # pylint: disable=broad-except

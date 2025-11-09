@@ -54,7 +54,7 @@ class GazePreprocess(BaseService):
 
         self.online = False # Flag to indicate if the system is online or offline
 
-        self.logger.info("Service initialized.")
+        #self.logger.info("Service initialized.")
 
 
 # ---------- BaseService lifecycle ----------
@@ -66,7 +66,7 @@ class GazePreprocess(BaseService):
         self.online = True
         self._ready.set()
 
-        self.logger.info("Service set ready.")
+        #self.logger.info("Service set ready.")
 
 
     def _run(self) -> None:
@@ -81,7 +81,7 @@ class GazePreprocess(BaseService):
         """Service stop logic."""
         self.online = False
         self._unsubscribe()
-        self.logger.info("Service stopping.")
+        #self.logger.info("Service stopping.")
 
 
     def is_online(self):

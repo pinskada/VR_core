@@ -33,8 +33,8 @@ def handle_gaze_control(
     i_gaze_control: IGazeControl
 ) -> None:
     """Handle gaze control messages."""
-    i_gaze_control.gaze_control(msg)
     logger.info("Handling gaze control: %s", msg)
+    i_gaze_control.gaze_control(msg)
 
 
 def handle_tracker_control(
@@ -42,8 +42,8 @@ def handle_tracker_control(
     i_tracker_control: ITrackerControl
 ) -> None:
     """Handle tracker control messages."""
-    i_tracker_control.tracker_control(msg)
     logger.info("Handling tracker control: %s", msg)
+    i_tracker_control.tracker_control(msg)
 
 
 def handle_esp_config(
@@ -51,8 +51,8 @@ def handle_esp_config(
     esp_cmd_q: Queue
 ) -> None:
     """Handle ESP configuration messages."""
-    esp_cmd_q.put(msg)
     logger.info("Handling ESP config: %s", msg)
+    esp_cmd_q.put(msg)
 
 
 def handle_general_config(
@@ -67,6 +67,7 @@ def handle_general_config(
 
     for path, value in msg.items():
         config.set(path, value)
+ 
         if config_ready_s.is_set():
             logger.info("Set %s = %s", path, value)
 
@@ -76,7 +77,7 @@ def handle_config_ready(
     config_ready_s: threading.Event
 ) -> None:
     """Handle configuration ready messages."""
-    logger.info("Configuration is ready: %s", msg)
+    logger.info("Configuration is ready.")
     config_ready_s.set()
 
 
