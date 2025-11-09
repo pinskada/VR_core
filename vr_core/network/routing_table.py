@@ -42,7 +42,7 @@ def handle_tracker_control(
     i_tracker_control: ITrackerControl
 ) -> None:
     """Handle tracker control messages."""
-    logger.info("Handling tracker control: %s", msg)
+    #logger.info("Handling tracker control: %s", msg)
     i_tracker_control.tracker_control(msg)
 
 
@@ -67,11 +67,12 @@ def handle_general_config(
 
     for path, value in msg.items():
         config.set(path, value)
- 
+
         if config_ready_s.is_set():
             logger.info("Set %s = %s", path, value)
 
 
+# pylint: disable=unused-argument
 def handle_config_ready(
     msg: Any,
     config_ready_s: threading.Event

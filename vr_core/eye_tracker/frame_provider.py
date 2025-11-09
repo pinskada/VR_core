@@ -15,7 +15,7 @@ import cv2
 from vr_core.base_service import BaseService
 from vr_core.config_service.config import Config
 from vr_core.ports.signals import CommRouterSignals, EyeTrackerSignals, TrackerSignals
-from vr_core.ports.interfaces import ICameraService
+from vr_core.ports.interfaces import ICameraService, ITrackerControl
 from vr_core.utilities.logger_setup import setup_logger
 
 
@@ -44,6 +44,7 @@ class FrameProvider(BaseService):
     def __init__(
         self,
         i_camera_manager: ICameraService,
+        i_tracker_control: ITrackerControl,
         comm_router_s: CommRouterSignals,
         eye_tracker_s: EyeTrackerSignals,
         tracker_s: TrackerSignals,
@@ -57,24 +58,23 @@ class FrameProvider(BaseService):
         self.logger = setup_logger("FrameProvider")
 
         self.i_camera_manager = i_camera_manager
+        self.i_tracker_control = i_tracker_control
 
-        self.tcp_enabled_s: Event = comm_router_s.tcp_send_enabled
-        self.frame_ready_s: Event = comm_router_s.frame_ready
-        self.comm_shm_is_closed_s: Event = comm_router_s.comm_shm_is_closed
+        self.tcp_enabled_s: Event = comm_router_s.tcp_shm_send_s
+        self.router_frame_ready_s: Event = comm_router_s.router_frame_ready_s
+        self.router_shm_is_closed_s: Event = comm_router_s.router_shm_is_closed_s
 
-        self.provide_frames_s: Event = tracker_s.provide_frames
-        self.tracker_running_l_s: MpEvent = tracker_s.tracker_running_l
-        self.tracker_running_r_s: MpEvent = tracker_s.tracker_running_r
-        self.shm_active_s: MpEvent = tracker_s.shm_active
-        self.left_eye_ready_s: MpEvent = tracker_s.eye_ready_l
-        self.right_eye_ready_s: MpEvent = tracker_s.eye_ready_r
-        self.tracker_running_s_l: MpEvent = tracker_s.tracker_running_l
-        self.tracker_running_s_r: MpEvent = tracker_s.tracker_running_l
-        self.shm_cleared_s = tracker_s.shm_cleared
+        self.provide_frames_s: Event = tracker_s.provide_frames_s
+        self.tracker_running_l_s: MpEvent = tracker_s.tracker_running_l_s
+        self.tracker_running_r_s: MpEvent = tracker_s.tracker_running_r_s
+        self.shm_active_s: MpEvent = tracker_s.shm_active_s
+        self.left_eye_ready_s: MpEvent = tracker_s.eye_ready_l_s
+        self.right_eye_ready_s: MpEvent = tracker_s.eye_ready_r_s
+        self.shm_cleared_s: Event = tracker_s.shm_cleared_s
 
 
-        self.tracker_shm_is_closed_l_s: MpEvent = eye_tracker_s.tracker_shm_is_closed_l
-        self.tracker_shm_is_closed_r_s: MpEvent = eye_tracker_s.tracker_shm_is_closed_r
+        self.tracker_shm_is_closed_l_s: MpEvent = eye_tracker_s.tracker_shm_is_closed_l_s
+        self.tracker_shm_is_closed_r_s: MpEvent = eye_tracker_s.tracker_shm_is_closed_r_s
 
         self.tracker_cmd_l_q = tracker_cmd_l_q
         self.tracker_cmd_r_q = tracker_cmd_r_q
@@ -111,7 +111,7 @@ class FrameProvider(BaseService):
 
     def _on_start(self) -> None:
         """Starts the FrameProvider service by allocating resources."""
-        
+
         # Choose between test video or live camera
         if self.use_test_video:
             path = Path(self.cfg.tracker.test_video_path)
@@ -181,6 +181,9 @@ class FrameProvider(BaseService):
                 self._stop.wait(0.1)
                 continue
 
+            if self.use_test_video:
+                self._stop.wait(0.05)  # Simulate ~30 FPS for test video
+
             # Start providing frames
             self._provide_frame()
             self._wait_for_sync()
@@ -188,7 +191,7 @@ class FrameProvider(BaseService):
 
     def _on_stop(self) -> None:
         """Stops the FrameProvider and cleans up resources."""
-        #self.logger.info("Service stopping.")
+        self.logger.info("Service stopping.")
 
         self.online = False
         if self.shm_active_s.is_set():
@@ -216,11 +219,13 @@ class FrameProvider(BaseService):
             ret, full_frame = self.video_capture.read()
             if full_frame is None:
                 self.logger.info("End of video reached.")
+                self.i_tracker_control.tracker_control({"mode": "offline"})
                 return
             full_frame = cv2.cvtColor(full_frame, cv2.COLOR_BGR2GRAY)
 
             if not ret:
                 self.logger.warning("End of test video or read error.")
+                self.i_tracker_control.tracker_control({"mode": "offline"})
                 self.online = False
                 return
         else:
@@ -256,8 +261,8 @@ class FrameProvider(BaseService):
         self.frame_id += 1
 
         # Signal to CommRouter that a new frame is ready
-        self.frame_ready_s.set()
-        #self.logger.info("frame_ready_s set for frame ID %d", self.frame_id)
+        self.router_frame_ready_s.set()
+        #self.logger.info("router_frame_ready_s set for frame ID %d", self.frame_id)
 
         # Put frame ID in sync queues for both EyeLoop processes
         if self.tracker_running_l_s.is_set():
@@ -270,7 +275,7 @@ class FrameProvider(BaseService):
                 "type": "frame_id",
                 "value": self.frame_id,
             })
-        #self.logger.info("tracker_cmd_l/r_q: frame ID %d sent.", self.frame_id)
+        self.logger.info("tracker_cmd_l/r_q: frame ID %d sent.", self.frame_id)
 
 
     def _wait_for_sync(self) -> None:
@@ -282,9 +287,9 @@ class FrameProvider(BaseService):
 
         # Block until both EyeLoop processes confirm processing of current frame
         if not self.left_eye_ready_s.wait(self.cfg.tracker.sync_timeout):
-            self.logger.warning("Timeout waiting for left eye readiness.")
+            self.logger.warning("Timeout waiting for left eye readiness for ID: %d", self.frame_id)
         if not self.right_eye_ready_s.wait(self.cfg.tracker.sync_timeout):
-            self.logger.warning("Timeout waiting for right eye readiness.")
+            self.logger.warning("Timeout waiting for right eye readiness for ID: %d", self.frame_id)
 
         self.left_eye_ready_s.clear()
         self.right_eye_ready_s.clear()
@@ -351,6 +356,9 @@ class FrameProvider(BaseService):
         # Signal to consumers that shared memory is being deactivated
         self.shm_active_s.clear()
         self.logger.info("shm_active_s cleared.")
+
+        # Notify EyeLoop trackers about new shared memory configuration
+        self._cmd_tracker_shm_state()
 
         # Wait for consumers to close their shared memory references
         self._close_consumer_shm()
@@ -471,7 +479,7 @@ class FrameProvider(BaseService):
 
         # Signal CommRouter to close shared memory if TCP is enabled
         if self.tcp_enabled_s.is_set():
-            if not self.comm_shm_is_closed_s.wait(self.cfg.tracker.memory_unlink_timeout):
+            if not self.router_shm_is_closed_s.wait(self.cfg.tracker.memory_unlink_timeout):
                 self.logger.error("Timeout waiting for CommRouter "
                       "to close shared memory.")
 
@@ -483,9 +491,12 @@ class FrameProvider(BaseService):
 
         # Signal right EyeLoop tracker to close shared memory
         if self.tracker_running_r_s.is_set():
+            self.logger.info("Waiting for right EyeLoop tracker to close shared memory.")
             if not self.tracker_shm_is_closed_r_s.wait(self.cfg.tracker.memory_unlink_timeout):
                 self.logger.error("Timeout waiting for right EyeLoop "
                       "tracker to close shared memory.")
+            else:
+                self.logger.info("Right EyeLoop tracker has closed shared memory.")
 
 
     def _cmd_tracker_shm_state(self) -> None:
@@ -505,10 +516,7 @@ class FrameProvider(BaseService):
                     "frame_shape": self.cfg.tracker.memory_shape_r,
                     "frame_dtype": self.cfg.tracker.memory_dtype
                 })
-            self.logger.info("tracker_cmd_l/r_q: shm_connect sent"
-                             "with frame_shape=%s, frame_dtype=%s.",
-                             self.cfg.tracker.memory_shape_l,
-                             self.cfg.tracker.memory_dtype)
+            self.logger.info("tracker_cmd_l/r_q: shm_connect sent.")
 
         else:
             if self.tracker_running_l_s.is_set():

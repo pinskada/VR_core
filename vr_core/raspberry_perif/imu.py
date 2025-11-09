@@ -1,5 +1,6 @@
 """Gyroscope module for VR Core on Raspberry Pi."""
 
+import itertools
 import os
 import math
 import time
@@ -24,20 +25,22 @@ class Imu(BaseService):
     def __init__(
         self,
         comm_router_q: PriorityQueue,
+        pq_counter: itertools.count,
         gyro_mag_q: Queue,
         imu_signals: IMUSignals,
         config: Config,
-        imu_mock_mode: bool = False,
+        imu_mock_mode_s: bool = False,
         ) -> None:
 
         super().__init__("IMU")
         self.logger = setup_logger("IMU")
 
         self.comm_router_q = comm_router_q
+        self.pq_counter = pq_counter
         self.gyro_mag_q = gyro_mag_q
 
-        self.imu_send_over_tcp_s = imu_signals.imu_send_over_tcp
-        self.imu_send_to_gaze_s = imu_signals.imu_send_to_gaze
+        self.imu_send_over_tcp_s = imu_signals.imu_send_over_tcp_s
+        self.imu_send_to_gaze_s = imu_signals.imu_send_to_gaze_s
 
         self.cfg = config
         self._unsubscribe = config.subscribe("IMU",
@@ -51,7 +54,7 @@ class Imu(BaseService):
         self.z_offset: float
 
         self.mock_angle = 0.0
-        self.mock_mode = imu_mock_mode
+        self.mock_mode = imu_mock_mode_s
 
         self.send_counter: int = 0
 
@@ -292,7 +295,7 @@ class Imu(BaseService):
                         self.send_counter = 0
                     # Send data via TCP
                     self.comm_router_q.put((
-                        1,
+                        1, next(self.pq_counter),
                         MessageType.imuSensor,
                         data
                         ))

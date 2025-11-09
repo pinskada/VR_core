@@ -10,7 +10,7 @@ from vr_core.raspberry_perif.esp32 import Esp32
 from vr_core.config_service.config import Config
 
 
-def run_esp32_test(queue: Queue, esp_mock_mode=False) -> Esp32:
+def run_esp32_test(queue: Queue, esp_mock_mode_s=False) -> Esp32:
     """Test rpi <-> esp connection"""
     print("\n=== [ESP32 TEST] Starting ===\n")
     
@@ -25,7 +25,7 @@ def run_esp32_test(queue: Queue, esp_mock_mode=False) -> Esp32:
     esp = Esp32(
         esp_cmd_q=queue,
         config=config,
-        esp_mock_mode=esp_mock_mode,
+        esp_mock_mode_s=esp_mock_mode_s,
     )
     config.start()
     esp.start()
@@ -34,7 +34,7 @@ def run_esp32_test(queue: Queue, esp_mock_mode=False) -> Esp32:
 
 test_queue: Queue = Queue()
 
-esp = run_esp32_test(queue=test_queue, esp_mock_mode=False)
+esp = run_esp32_test(queue=test_queue, esp_mock_mode_s=False)
 
 for i in range(0, 10000, 500):
     test_queue.put(float(i))

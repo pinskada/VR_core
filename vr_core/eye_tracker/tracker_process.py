@@ -15,6 +15,7 @@ from vr_core.utilities.logger_setup import setup_logger
 
 TrackerState = Literal["idle","starting","running","stopping","error"]
 
+
 class TrackerProcess(BaseService, ITrackerService):
     """Launches and monitors the eye tracker processes."""
     def __init__(
@@ -40,17 +41,19 @@ class TrackerProcess(BaseService, ITrackerService):
 
         self.tracker_health_q = tracker_health_q
 
-        self.eye_ready_s_l = tracker_signals.eye_ready_l
-        self.eye_ready_s_r = tracker_signals.eye_ready_r
+        self.eye_ready_l_s = tracker_signals.eye_ready_l_s
+        self.eye_ready_r_s = tracker_signals.eye_ready_r_s
 
-        self.tracker_shm_is_closed_s_l = eye_tracker_signals.tracker_shm_is_closed_l
-        self.tracker_shm_is_closed_s_r = eye_tracker_signals.tracker_shm_is_closed_r
+        self.tracker_shm_is_closed_l_s = eye_tracker_signals.tracker_shm_is_closed_l_s
+        self.tracker_shm_is_closed_r_s = eye_tracker_signals.tracker_shm_is_closed_r_s
 
-        self.tracker_running_s_l = tracker_signals.tracker_running_l
-        self.tracker_running_s_r = tracker_signals.tracker_running_r
+        self.tracker_running_l_s = tracker_signals.tracker_running_l_s
+        self.tracker_running_r_s = tracker_signals.tracker_running_r_s
 
-        self.first_frame_processed_s_l = tracker_signals.first_frame_processed_l
-        self.first_frame_processed_s_r = tracker_signals.first_frame_processed_r
+        self.first_frame_processed_l_s = tracker_signals.first_frame_processed_l_s
+        self.first_frame_processed_r_s = tracker_signals.first_frame_processed_r_s
+
+        self.shm_cleared_s = tracker_signals.shm_cleared_s
 
         self.cfg = config
 
@@ -118,12 +121,12 @@ class TrackerProcess(BaseService, ITrackerService):
                 args=("Left",
                       self.cfg.tracker.importer_name,
                       self.cfg.tracker.sharedmem_name_left,
-                      self.cfg.tracker.blink_calibration_L,
+                      self.cfg.tracker.blink_calibration_l,
                       self.tracker_cmd_q_l,
                       self.tracker_resp_q_l,
-                      self.eye_ready_s_l,
-                      self.tracker_shm_is_closed_s_l,
-                      self.tracker_running_s_l,
+                      self.eye_ready_l_s,
+                      self.tracker_shm_is_closed_l_s,
+                      self.tracker_running_l_s,
                       test_mode
                 ),
                 daemon=False,
@@ -145,12 +148,12 @@ class TrackerProcess(BaseService, ITrackerService):
                 args=("Right",
                       self.cfg.tracker.importer_name,
                       self.cfg.tracker.sharedmem_name_right,
-                      self.cfg.tracker.blink_calibration_R,
+                      self.cfg.tracker.blink_calibration_r,
                       self.tracker_cmd_q_r,
                       self.tracker_resp_q_r,
-                      self.eye_ready_s_r,
-                      self.tracker_shm_is_closed_s_r,
-                      self.tracker_running_s_r,
+                      self.eye_ready_r_s,
+                      self.tracker_shm_is_closed_r_s,
+                      self.tracker_running_r_s,
                       test_mode
                     ),
                 daemon=False,
@@ -166,11 +169,11 @@ class TrackerProcess(BaseService, ITrackerService):
             self._terminate_side("left")
             return
 
-        if not self.tracker_running_s_l.wait(10):
+        if not self.tracker_running_l_s.wait(10):
             self.logger.error("Left Eyeloop didn't start up properly, shutting down.")
             return
 
-        if not self.tracker_running_s_r.wait(10):
+        if not self.tracker_running_r_s.wait(10):
             self.logger.error("Right Eyeloop didn't start up properly, shutting down.")
             return
 
@@ -184,6 +187,9 @@ class TrackerProcess(BaseService, ITrackerService):
         if self.tracker_state in ("idle","stopping"):
             self.logger.warning("Stop requested but already %s.", self.tracker_state)
             return
+
+        if not self.shm_cleared_s.wait(3.0):
+            self.logger.warning("Shared memory not cleared before stopping tracker.")
 
         self.tracker_state = "stopping"
 
@@ -233,17 +239,17 @@ class TrackerProcess(BaseService, ITrackerService):
             if side == "left":
                 self.proc_left = None
                 self.running_left = False
-                if hasattr(self.eye_ready_s_l, "clear"):
-                    self.eye_ready_s_l.clear()
-                    self.first_frame_processed_s_l.clear()
-                    self.logger.info("eye_ready_s_l cleared.")
+                if hasattr(self.eye_ready_l_s, "clear"):
+                    self.eye_ready_l_s.clear()
+                    self.first_frame_processed_l_s.clear()
+                    self.logger.info("eye_ready_l_s cleared.")
             else:
                 self.proc_right = None
                 self.running_right = False
-                if hasattr(self.eye_ready_s_r, "clear"):
-                    self.eye_ready_s_r.clear()
-                    self.first_frame_processed_s_r.clear()
-                    self.logger.info("eye_ready_s_r cleared.")
+                if hasattr(self.eye_ready_r_s, "clear"):
+                    self.eye_ready_r_s.clear()
+                    self.first_frame_processed_r_s.clear()
+                    self.logger.info("eye_ready_r_s cleared.")
 
 
     # ruff: noqa: F841

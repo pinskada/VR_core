@@ -1,5 +1,6 @@
 """Gaze model calibration module."""
 
+import itertools
 import math
 from time import monotonic
 import queue
@@ -45,6 +46,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
         self,
         ipd_q: Queue,
         comm_router_q: PriorityQueue,
+        pq_counter: itertools.count,
         gaze_signals: GazeSignals,
         config: Config,
     ):
@@ -53,9 +55,10 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
 
         self.ipd_q = ipd_q
         self.comm_router_q = comm_router_q
+        self.pq_counter = pq_counter
 
-        self.gaze_calib_s = gaze_signals.gaze_calib_signal
-        self.calib_finalized_s = gaze_signals.calib_finalized_signal
+        self.gaze_calib_s = gaze_signals.gaze_calib_s
+        self.calib_finalized_s = gaze_signals.calib_finalized_s
         self.cmd_q: Queue = Queue()
 
         self.cfg = config

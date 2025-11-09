@@ -20,7 +20,7 @@ class TCPServer(BaseService, INetworkService):
         self,
         config: Config,
         tcp_receive_q: queue.Queue,
-        tcp_connected: threading.Event,
+        tcp_client_connected_s: threading.Event,
         config_ready_s: threading.Event,
         mock_mode: bool = False,
     ) -> None:
@@ -31,7 +31,7 @@ class TCPServer(BaseService, INetworkService):
         self.cfg = config
         self.tcp_receive_q = tcp_receive_q
 
-        self.tcp_connected = tcp_connected
+        self.tcp_client_connected_s = tcp_client_connected_s
         self.config_ready_s = config_ready_s
 
         self.mock_mode = mock_mode
@@ -58,6 +58,9 @@ class TCPServer(BaseService, INetworkService):
             self._setup_server()
             if not self._wait_for_client():
                 return
+        else:
+            self.config_ready_s.set()
+            self.online = True
 
         # Mark as ready
         self._ready.set()
@@ -67,10 +70,12 @@ class TCPServer(BaseService, INetworkService):
     def _run(self) -> None:
         while not self._stop.is_set():
 
-            if self.tcp_connected.is_set():
-                self._receive()
-            else:
-                self._wait_for_client()
+            if not self.mock_mode:
+
+                if self.tcp_client_connected_s.is_set():
+                    self._receive()
+                else:
+                    self._wait_for_client()
 
             self._stop.wait(self.cfg.tcp.receive_loop_interval)
 
@@ -155,7 +160,7 @@ class TCPServer(BaseService, INetworkService):
                 self.client_conn.settimeout(getattr(self.cfg.tcp, "recv_timeout", 0.1))
                 self.online = True
 
-                self.tcp_connected.set()
+                self.tcp_client_connected_s.set()
                 self.logger.info("Connected to %s", addr)
 
                 return True
@@ -164,12 +169,12 @@ class TCPServer(BaseService, INetworkService):
                 if infinite_timeout:
                     continue
                 elif time.time() - start >= deadline:
-                    self.logger.warning("TCPServer: accept timeout before client connected")
-                    raise RuntimeError("TCPServer: accept timeout before client connected") from e
+                    self.logger.warning("Accept timeout before client connected")
+                    raise RuntimeError("Accept timeout before client connected") from e
                 continue
             except OSError as e:
                 # Bind/listen failed or socket got closed during shutdown
-                self.logger.error("TCPServer: accept failed: %s", e)
+                self.logger.error("Accept failed: %s", e)
                 raise RuntimeError(f"TCPServer: accept failed: {e}") from e
 
         return False
@@ -184,7 +189,7 @@ class TCPServer(BaseService, INetworkService):
             chunk = self.client_conn.recv(self.cfg.tcp.recv_buffer_size)
             if not chunk:
                 self.logger.warning("Connection closed by client.")
-                self.tcp_connected.clear()
+                self.tcp_client_connected_s.clear()
                 self.config_ready_s.clear()
                 return
             self._buf.extend(chunk)
@@ -210,7 +215,7 @@ class TCPServer(BaseService, INetworkService):
                 payload_len = int.from_bytes(h[1:4], "big")
 
                 if payload_len <= 0 or payload_len > max_size:
-                    self.logger.error("TCPServer: Invalid payload length %d; clearing buffer.",
+                    self.logger.error("Invalid payload length %d; clearing buffer.",
                         payload_len)
                     return  # will release views in finally
 
@@ -225,7 +230,7 @@ class TCPServer(BaseService, INetworkService):
                 try:
                     msg_type = MessageType(pkt_type)
                 except ValueError:
-                    self.logger.warning("TCPServer: Unknown MessageType %d, skipping packet.",
+                    self.logger.warning("Unknown MessageType %d, skipping packet.",
                         pkt_type)
                     consumed += total
                     continue
@@ -250,19 +255,23 @@ class TCPServer(BaseService, INetworkService):
     ) -> None:
         """Encode a payload and send it."""
 
+        if self.mock_mode:
+            self.logger.info("Sending data (mock mode) of type %s", message_type)
+            return
+
         if not self.client_conn:
-            self.logger.warning("TCPServer: tcp_send called but no client is connected.")
+            self.logger.warning("tcp_send called but no client is connected.")
             self.online = False
             return
 
         try:
             msg_type = MessageType(message_type)
         except ValueError:
-            self.logger.error("TCPServer: unknown MessageType %r", message_type)
+            self.logger.error("Unknown MessageType %r", message_type)
             return
 
         if not isinstance(payload, (bytes, bytearray, memoryview)):
-            self.logger.error("TCPServer: payload must be bytes-like.")
+            self.logger.error("Payload must be bytes-like.")
             return
         body = bytes(payload)
 
@@ -280,9 +289,9 @@ class TCPServer(BaseService, INetworkService):
                     self.client_conn.sendall(packet)
                     return
             except OSError as e:
-                self.logger.warning("TCPServer: Send error (%d/%d): %s", attempt+1, max_attempts, e)
+                self.logger.warning("Send error (%d/%d): %s", attempt+1, max_attempts, e)
                 if attempt+1 >= max_attempts:
-                    self.logger.error("TCPServer: Max resend attempts reached; giving up.")
+                    self.logger.error("Max resend attempts reached; giving up.")
                     self.online = False
                     return
                 self._stop.wait(0.01)
@@ -303,7 +312,7 @@ class TCPServer(BaseService, INetworkService):
         length = len(payload)
         if length > self.cfg.tcp.max_packet_size:
             self.logger.error(
-                "TCPServer: Payload too large: %d > %d",
+                "Payload too large: %d > %d",
                 length, self.cfg.tcp.max_packet_size)
             raise ValueError("Payload too large.")
 

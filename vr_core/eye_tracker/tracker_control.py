@@ -1,5 +1,6 @@
 """Control service for eye-tracking module."""
 
+import itertools
 import queue
 import multiprocessing as mp
 from typing import Any
@@ -28,6 +29,7 @@ class TrackerControl(BaseService, ITrackerControl):
     def __init__(
         self,
         com_router_queue_q: queue.PriorityQueue,
+        pq_counter: itertools.count,
         tracker_cmd_l_q: mp.Queue,
         tracker_cmd_r_q: mp.Queue,
         comm_router_signals: CommRouterSignals,
@@ -42,22 +44,23 @@ class TrackerControl(BaseService, ITrackerControl):
         self.logger = setup_logger("TrackerControl")
 
         self.com_router_queue_q = com_router_queue_q
+        self.pq_counter = pq_counter
         self.tracker_cmd_l_q = tracker_cmd_l_q
         self.tracker_cmd_r_q = tracker_cmd_r_q
 
-        self.tcp_send_enabled_s = comm_router_signals.tcp_send_enabled
-        self.sync_frames_s = comm_router_signals.sync_frames
+        self.tcp_shm_send_s = comm_router_signals.tcp_shm_send_s
+        self.router_sync_frames_s = comm_router_signals.router_sync_frames_s
 
-        self.log_data_s = tracker_data_signals.log_data
-        self.provide_data_s = tracker_data_signals.provide_data
+        self.tracker_data_to_tcp_s = tracker_data_signals.tracker_data_to_tcp_s
+        self.tracker_data_to_gaze_s = tracker_data_signals.tracker_data_to_gaze_s
 
-        self.provide_frames_s = tracker_signals.provide_frames
-        self.tracker_running_l_s = tracker_signals.tracker_running_l
-        self.tracker_running_r_s = tracker_signals.tracker_running_r
-        self.shm_cleared_s = tracker_signals.shm_cleared
+        self.provide_frames_s = tracker_signals.provide_frames_s
+        self.tracker_running_l_s = tracker_signals.tracker_running_l_s
+        self.tracker_running_r_s = tracker_signals.tracker_running_r_s
+        self.shm_cleared_s = tracker_signals.shm_cleared_s
 
-        self.first_frame_processed_l = tracker_signals.first_frame_processed_l
-        self.first_frame_processed_r = tracker_signals.first_frame_processed_r
+        self.first_frame_processed_l_s = tracker_signals.first_frame_processed_l_s
+        self.first_frame_processed_r_s = tracker_signals.first_frame_processed_r_s
 
         self.i_tracker_process = i_tracker_process
 
@@ -88,6 +91,7 @@ class TrackerControl(BaseService, ITrackerControl):
     def _on_stop(self) -> None:
         """ Stop the tracker module. """
         self.online = False
+        self._offline_mode()
         self._unsubscribe()
         #self.logger.info("Service stopped.")
 
@@ -121,10 +125,10 @@ class TrackerControl(BaseService, ITrackerControl):
 
         self._stop_all_actions()
 
-        self.log_data_s.clear()
-        self.provide_data_s.clear()
-        self.sync_frames_s.clear()
-        self.tcp_send_enabled_s.clear()
+        self.tracker_data_to_tcp_s.clear()
+        self.tracker_data_to_gaze_s.clear()
+        self.router_sync_frames_s.clear()
+        self.tcp_shm_send_s.clear()
 
 
     def _camera_preview_mode(self) -> None:
@@ -135,10 +139,10 @@ class TrackerControl(BaseService, ITrackerControl):
         self._stop_all_actions()
 
         self.provide_frames_s.set()
-        self.sync_frames_s.set()
-        self.log_data_s.set()
-        self.provide_data_s.clear()
-        self.tcp_send_enabled_s.set()
+        self.router_sync_frames_s.set()
+        self.tracker_data_to_tcp_s.clear()
+        self.tracker_data_to_gaze_s.clear()
+        self.tcp_shm_send_s.set()
 
 
     def _tracker_preview_mode(self) -> None:
@@ -151,17 +155,17 @@ class TrackerControl(BaseService, ITrackerControl):
         self.i_tracker_process.start_tracker()
 
         if not (
-            self.tracker_running_l_s.wait(self.cfg.tracker.eyeloop_start_timeout) and 
+            self.tracker_running_l_s.wait(self.cfg.tracker.eyeloop_start_timeout) and
             self.tracker_running_r_s.wait(self.cfg.tracker.eyeloop_start_timeout)
         ):
             return
 
         self.provide_frames_s.set()
 
-        self.log_data_s.set()
-        self.provide_data_s.clear()
-        self.sync_frames_s.clear()
-        self.tcp_send_enabled_s.clear()
+        self.tracker_data_to_tcp_s.set()
+        self.tracker_data_to_gaze_s.clear()
+        self.router_sync_frames_s.clear()
+        self.tcp_shm_send_s.clear()
 
         self._setup_eyeloop(send_preview=True)
 
@@ -175,16 +179,16 @@ class TrackerControl(BaseService, ITrackerControl):
 
         self.i_tracker_process.start_tracker()
         if not (
-            self.tracker_running_l_s.wait(self.cfg.tracker.eyeloop_start_timeout) and 
+            self.tracker_running_l_s.wait(self.cfg.tracker.eyeloop_start_timeout) and
             self.tracker_running_r_s.wait(self.cfg.tracker.eyeloop_start_timeout)
         ):
             return
 
         self.provide_frames_s.set()
-        self.log_data_s.set()
-        self.provide_data_s.set()
-        self.sync_frames_s.clear()
-        self.tcp_send_enabled_s.clear()
+        self.tracker_data_to_tcp_s.set()
+        self.tracker_data_to_gaze_s.set()
+        self.router_sync_frames_s.clear()
+        self.tcp_shm_send_s.clear()
 
         self._setup_eyeloop()
 
@@ -195,19 +199,18 @@ class TrackerControl(BaseService, ITrackerControl):
         """Stops all resources."""
 
         self.provide_frames_s.clear()
-
         if not self.shm_cleared_s.wait(3):
             self.logger.error("SHM has not been closed in time.")
 
         if (
-            self.tracker_running_l_s.is_set() or 
+            self.tracker_running_l_s.is_set() or
             self.tracker_running_r_s.is_set()
-        ): 
+        ):
             self.i_tracker_process.stop_tracker()
 
-        self.first_frame_processed_l.clear()
-        self.first_frame_processed_r.clear()
-        
+        self.first_frame_processed_l_s.clear()
+        self.first_frame_processed_r_s.clear()
+
 
         self._stop.wait(1.1)
 
@@ -219,8 +222,8 @@ class TrackerControl(BaseService, ITrackerControl):
         send_preview: bool = False,
     ) -> None:
         # if (
-        #     self.first_frame_processed_l.wait(10) and
-        #     self.first_frame_processed_r.wait(10)
+        #     self.first_frame_processed_l_s.wait(10) and
+        #     self.first_frame_processed_r_s.wait(10)
         # ):
         self._set_eyeloop_config()
         self.prompt_preview(send_preview)
@@ -229,7 +232,7 @@ class TrackerControl(BaseService, ITrackerControl):
 
     def _empty_cmd_queues(self) -> None:
         while (
-            not self.tracker_cmd_l_q.empty() and 
+            not self.tracker_cmd_l_q.empty() and
             not self.tracker_cmd_r_q.empty()
         ):
             try:

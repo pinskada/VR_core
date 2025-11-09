@@ -1,5 +1,6 @@
 setup.py
 tests/__init__.py
+tests/test.py
 tests/test_core.py
 vr_core/__init__.py
 vr_core/base_service.py
@@ -55,6 +56,8 @@ vr_core/eye_tracker/eyeloop_module/eyeloop/utilities/encode_binary_float64_as_pn
 vr_core/eye_tracker/eyeloop_module/eyeloop/utilities/file_manager.py
 vr_core/eye_tracker/eyeloop_module/eyeloop/utilities/format_print.py
 vr_core/eye_tracker/eyeloop_module/eyeloop/utilities/general_operations.py
+vr_core/eye_tracker/eyeloop_module/eyeloop/utilities/npyReader.py
+vr_core/eye_tracker/eyeloop_module/eyeloop/utilities/npyWriter.py
 vr_core/eye_tracker/eyeloop_module/eyeloop/utilities/paramRead.py
 vr_core/eye_tracker/eyeloop_module/eyeloop/utilities/paramSave.py
 vr_core/eye_tracker/eyeloop_module/eyeloop/utilities/parser.py

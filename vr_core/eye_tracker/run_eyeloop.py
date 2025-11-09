@@ -48,8 +48,8 @@ def run_eyeloop(
                 command_queue=tracker_cmd_q,
                 response_queue=tracker_resp_q,
                 eye_ready_signal=eye_ready_s,
-                tracker_shm_is_closed_signal=tracker_shm_is_closed_s,
-                tracker_running_signal=tracker_running_s,
+                tracker_shm_is_closed_s=tracker_shm_is_closed_s,
+                tracker_running_s=tracker_running_s,
                 logger=None,
             )
         except Exception as e:  # pylint: disable=broad-except

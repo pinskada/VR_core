@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from queue import PriorityQueue
 import multiprocessing as mp
 import queue
+import itertools
 
 @dataclass
 class CommQueues:
@@ -15,7 +16,7 @@ class CommQueues:
     # Networking queues
     tcp_receive_q: queue.Queue = field(default_factory=queue.Queue)
     comm_router_q: PriorityQueue = field(default_factory=PriorityQueue)
-
+    pq_counter = itertools.count()
 
     # Eye-tracker module queues
     tracker_cmd_l_q: mp.Queue = field(default_factory=mp.Queue)

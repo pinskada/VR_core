@@ -1,5 +1,6 @@
 """Gaze calculation module."""
 
+import itertools
 from queue import Queue, PriorityQueue
 import queue
 import time
@@ -19,6 +20,7 @@ class GazeCalc(BaseService):
         ipd_q: Queue,
         esp_cmd_q: Queue,
         comm_router_q: PriorityQueue,
+        pq_counter: itertools.count,
         gyro_mag_q: Queue,
         gaze_signals: GazeSignals,
         config: Config,
@@ -29,10 +31,11 @@ class GazeCalc(BaseService):
         self.ipd_q = ipd_q
         self.esp_cmd_q = esp_cmd_q
         self.comm_router_q = comm_router_q
+        self.pq_counter = pq_counter
         self.gyro_mag_q = gyro_mag_q
 
-        self.gaze_calc_s = gaze_signals.gaze_calc_signal
-        self.gaze_to_tcp_signal = gaze_signals.gaze_to_tcp_signal
+        self.gaze_calc_s = gaze_signals.gaze_calc_s
+        self.gaze_to_tcp_s = gaze_signals.gaze_to_tcp_s
 
         self.cfg = config
 
@@ -118,9 +121,10 @@ class GazeCalc(BaseService):
             # Calculate distance using the inverse model
             gaze_distance = inverse_model.predict(ipd, self.cfg.gaze.model_params)
 
-            if self.gaze_to_tcp_signal.is_set():
+            if self.gaze_to_tcp_s.is_set():
                 # Send the gaze distance over tcp
-                self.comm_router_q.put((8, MessageType.gazeData, gaze_distance))
+                self.comm_router_q.put((8, next(self.pq_counter),
+                    MessageType.gazeData, gaze_distance))
 
             # Send the gaze distance to the ESP32
             self.esp_cmd_q.put(gaze_distance)

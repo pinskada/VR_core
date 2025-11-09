@@ -1,5 +1,6 @@
 """Handles the communication between the EyeLoop processes and the main process."""
 
+import itertools
 import queue
 import multiprocessing as mp
 from enum import Enum
@@ -51,6 +52,7 @@ class TrackerSync(BaseService):
         tracker_data_s: TrackerDataSignals,
         tracker_s: TrackerSignals,
         comm_router_q: queue.PriorityQueue,
+        pq_counter: itertools.count,
         ipd_q: queue.Queue,
         tracker_health_q: queue.Queue,
         tracker_response_l_q: mp.Queue,
@@ -62,14 +64,15 @@ class TrackerSync(BaseService):
         self.logger = setup_logger("TrackerSync")
 
         # Signal events for output data control
-        self.log_data_s = tracker_data_s.log_data
-        self.provide_data_s = tracker_data_s.provide_data
+        self.tracker_data_to_tcp_s = tracker_data_s.tracker_data_to_tcp_s
+        self.tracker_data_to_gaze_s = tracker_data_s.tracker_data_to_gaze_s
 
-        self.first_frame_processed_l = tracker_s.first_frame_processed_l
-        self.first_frame_processed_r = tracker_s.first_frame_processed_r
+        self.first_frame_processed_l_s = tracker_s.first_frame_processed_l_s
+        self.first_frame_processed_r_s = tracker_s.first_frame_processed_r_s
 
         # Queues for outputting data
         self.comm_router_q = comm_router_q
+        self.pq_counter = pq_counter
         self.ipd_q = ipd_q
 
         # Queue for forwarding tracker health messages to TrackerProcess
@@ -180,6 +183,8 @@ class TrackerSync(BaseService):
 
             match payload_type:
                 case "eye_data":
+                    self.logger.info("Dispatching eye_data message from %s eye with ID: %s"
+                        , eye, message.get("frame_id"))
                     self._try_sync(message, eye, MessageType.trackerData)
                 case "image_preview":
                     self._try_sync(message, eye, MessageType.trackerPreview)
@@ -228,18 +233,19 @@ class TrackerSync(BaseService):
             data = message.get("data")
 
         # After Eyeloop processed first image, config can be sent
-        if (message_type is MessageType.trackerData):
+        if message_type is MessageType.trackerData:
             if eye == Eye.LEFT:
-                self.first_frame_processed_l.set()
-                #self.logger.info("first_frame_processed_l has been set.")
+                self.first_frame_processed_l_s.set()
+                #self.logger.info("first_frame_processed_l_s has been set.")
             else:
-                self.first_frame_processed_r.set()
-                #self.logger.info("first_frame_processed_r has been set.")
+                self.first_frame_processed_r_s.set()
+                #self.logger.info("first_frame_processed_r_s has been set.")
 
 
         if frame_id is None:
             # Can't sync without frame_id; drop or log
-            self.logger.warning("Dropping %s message for %s eye without frame_id.", message_type, eye)
+            self.logger.warning("Dropping %s message for %s eye without frame_id.",
+                message_type, eye)
             return
         if data is None:
             # Can't sync without frame_id; drop or log
@@ -288,25 +294,25 @@ class TrackerSync(BaseService):
                 match message_type:
                     case MessageType.trackerData:
                         # Fan-out based on control signals
-                        if self.provide_data_s.is_set():
+                        if self.tracker_data_to_gaze_s.is_set():
                             # Send to gaze module
                             self.ipd_q.put(pair)
                             #self.logger.info("Sending tracker data to Gaze module.")
 
-                        if self.log_data_s.is_set():
+                        if self.tracker_data_to_tcp_s.is_set():
                             # Send to comm router for logging/telemetry
-                            self.comm_router_q.put((5, MessageType.trackerData, pair))
+                            self.comm_router_q.put((5, next(self.pq_counter),
+                                MessageType.trackerData, pair))
                             #self.logger.info("Sending tracker data over TCP.")
 
                     case MessageType.trackerPreview:
                         # Forward both images as a pair to CommRouter (it will PNG-encode)
-                        self.comm_router_q.put((8, MessageType.trackerPreview, pair))
+                        self.comm_router_q.put((8, next(self.pq_counter),
+                            MessageType.trackerPreview, pair))
                         #self.logger.info("Sending preview images over TCP.")
 
                 # Cleanup consumed bucket
                 del buf[frame_id]
-
-            
 
             # GC if buffer grew too large
             if len(buf) > self.cfg.tracker.sync_buffer_size:

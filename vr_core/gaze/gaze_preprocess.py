@@ -1,5 +1,6 @@
 """Gaze control and preprocessing module for VR Core on Raspberry Pi."""
 
+import itertools
 import queue
 from queue import Queue, PriorityQueue
 from threading import Event
@@ -22,6 +23,7 @@ class GazePreprocess(BaseService):
         tracker_data_q: Queue,
         ipd_q: Queue,
         comm_router_q: PriorityQueue,
+        pq_counter: itertools.count,
         gaze_signals: GazeSignals,
         imu_send_to_gaze_signal: Event,
         config: Config,
@@ -33,10 +35,11 @@ class GazePreprocess(BaseService):
         self.tracker_data_q = tracker_data_q
         self.ipd_q = ipd_q
         self.comm_router_q = comm_router_q
+        self.pq_counter = pq_counter
 
-        self.gaze_calib_s = gaze_signals.gaze_calib_signal
-        self.gaze_calc_s = gaze_signals.gaze_calc_signal
-        self.ipd_to_tcp_s = gaze_signals.ipd_to_tcp_signal
+        self.gaze_calib_s = gaze_signals.gaze_calib_s
+        self.gaze_calc_s = gaze_signals.gaze_calc_s
+        self.ipd_to_tcp_s = gaze_signals.ipd_to_tcp_s
 
         self.imu_send_to_gaze_signal = imu_send_to_gaze_signal
 
@@ -131,7 +134,8 @@ class GazePreprocess(BaseService):
 
         if self.ipd_to_tcp_s.is_set():
             # Send the relative filtered IPD to the TCP module
-            self.comm_router_q.put((6, MessageType.ipdPreview, relat_filt_ipd))
+            self.comm_router_q.put((6, next(self.pq_counter),
+                MessageType.ipdPreview, relat_filt_ipd))
 
         if self.gaze_calib_s.is_set() and self.gaze_calc_s.is_set():
             self.logger.warning("Both gaze calibration and calculation signals are set, " \

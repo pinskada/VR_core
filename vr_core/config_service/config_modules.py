@@ -35,21 +35,23 @@ class Tracker:
     sync_timeout: float = 1.0  # Timeout for EyeLoop response in seconds
     resp_q_timeout: float = 0.001  # Timeout for queue operations in seconds
     provider_queue_timeout: float = 0.01  # Timeout for provider queue operations in seconds
-    process_launch_time: float = 0.4  # Time to wait for the EyeLoop process to stabilize (in seconds)
+    process_launch_time: float = 0.4  # Time to wait for the tracker to stabilize (in seconds)
     png_send_rate: int = 8
 
     sharedmem_name_left: str = "eye_left_frame"  # Shared memory buffer name for left eye
     sharedmem_name_right: str = "eye_right_frame"  # Shared memory buffer name for right eye
     memory_dtype: str = "uint8"  # Data type for the shared memory buffer
-    memory_shape_l: tuple[int, int] = (1080, 960)  # Size of the shared memory buffer (height, width)
-    memory_shape_r: tuple[int, int] = (1080, 960)  # Size of the shared memory buffer (height, width)
+    memory_shape_l: tuple[int, int] = (1080, 960)  # Size of the shared memory buff (height, width)
+    memory_shape_r: tuple[int, int] = (1080, 960)  # Size of the shared memory buff (height, width)
     full_frame_resolution: tuple[int, int] = (1080, 1920)  # Full frame resolution (height, width)
-    memory_unlink_timeout: float = 10.0  # Time to wait for shared memory to be released (in seconds)
-    frame_hold_timeout: float = 2.0  # Time to wait for frame provider to release frames (in seconds)
+    # Time to wait for shared memory to be released (in seconds)
+    memory_unlink_timeout: float = 2.0
+    # Time to wait for frame provider to release frames (in seconds)
+    frame_hold_timeout: float = 2.0
 
     # Path to the blink calibration file
-    blink_calibration_L: str = "blink_calibration/blink_calibration_cropL.npy"
-    blink_calibration_R: str = "blink_calibration/blink_calibration_cropR.npy"
+    blink_calibration_l: str = "blink_calibration/blink_calibration_cropL.npy"
+    blink_calibration_r: str = "blink_calibration/blink_calibration_cropR.npy"
 
     eyeloop_start_timeout: float = 10
 
@@ -73,8 +75,10 @@ class Tracker:
 class TrackerCrop:
     """Defines crop region for the tracker."""
 
-    crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.0, 0.5), (0.0, 1.0))  # Relative region (x1, x2, y1, y2) for the left eye
-    crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.5, 1.0), (0.0, 1.0))  # Relative region (x1, x2, y1, y2) for the right eye
+    # Relative region (x1, x2, y1, y2) for the left eye
+    crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.0, 0.5), (0.0, 1.0))
+    # Relative region (x1, x2, y1, y2) for the right eye
+    crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.5, 1.0), (0.0, 1.0))
 
 @dataclass
 class Gaze:
@@ -97,7 +101,8 @@ class Gaze:
     ipd_queue_timeout: float = 0.01  # Timeout for receiving IPD data (in seconds)
     diop_impairment: float = 0.0  # Diopter value for vision impairment compensation
     max_diop_impairment: float = 8.0  # Maximum diopter impairment supported
-    max_shift_factor: float = 1  # Maximum shift as a fraction of 'b' to avoid excessive compensation
+    # Maximum shift as a fraction of 'b' to avoid excessive compensation
+    max_shift_factor: float = 1
     # Model parameters for the inverse model (to be set during calibration)
     model_params: Any = None
     corrected_model_params: Any = None
@@ -157,7 +162,8 @@ class IMU:
 @dataclass
 class ESP32:
     """ESP32 configuration settings."""
-    port: str = '/dev/ttyAMA0' # "/dev/serial0" # Serial port for ESP32 (e.g., /dev/serial0 on Raspberry Pi)
+    # Serial port for ESP32 (e.g., /dev/serial0 on Raspberry Pi)
+    port: str = '/dev/ttyAMA0' # "/dev/serial0"
     baudrate: int = 115200  # Baud rate for the serial connection
     timeout: float = 5  # Timeout for the serial connection (in seconds)
 

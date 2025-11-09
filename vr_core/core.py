@@ -6,6 +6,8 @@ import logging
 import signal
 from typing import Dict, List
 from threading import Event
+import os
+from datetime import datetime
 
 from vr_core.base_service import BaseService
 from vr_core.config_service.config import Config
@@ -34,6 +36,14 @@ from vr_core.gaze.gaze_preprocess import GazePreprocess
 from vr_core.mock_modules.mock_camera import MockCamera
 
 
+def _ensure_session_id() -> str:
+    sid = os.environ.get("VR_SESSION_ID")
+    if not sid:
+        sid = datetime.now().strftime("%H-%M-%S")
+        os.environ["VR_SESSION_ID"] = sid
+    return sid
+
+
 class Core:
     """
     Core engine for RPI.
@@ -56,6 +66,7 @@ class Core:
         self.imu_signals = signals.IMUSignals()
         self.test_signals = signals.TestModeSignals()
 
+        _ = _ensure_session_id()
         self.logger.info("All components initialized.")
 
         self.services: Dict[str, BaseService] = {}
@@ -63,10 +74,12 @@ class Core:
 
         self.tcp_mock_mode = False
         self.config_mock_mode = False
-        self.esp_mock_mode = True
-        self.imu_mock_mode = True
-        self.camera_mock_mode = True
+        self.esp_mock_mode_s = True
+        self.imu_mock_mode_s = True
+        self.camera_mock_mode_s = True
         self.fr_pr_test_video = True
+
+        self.tracker_control: TrackerControl
 
     # -------- build: construct everything & inject dependencies --------
 
@@ -81,48 +94,46 @@ class Core:
         tcp_server = TCPServer(
             config=config,
             tcp_receive_q=self.queues.tcp_receive_q,
-            tcp_connected=self.comm_router_signals.tcp_connected,
+            tcp_client_connected_s=self.comm_router_signals.tcp_client_connected_s,
             config_ready_s=self.config_signals.config_ready_s,
             mock_mode=self.tcp_mock_mode,
         )
+
         camera_manager = CameraManager(
             config=config,
         )
+
         mock_camera = MockCamera(
             config=config,
         )
+
         esp32 = Esp32(
             esp_cmd_q=self.queues.esp_cmd_q,
-            esp_mock_mode=self.esp_mock_mode,
+            esp_mock_mode_s=self.esp_mock_mode_s,
             config=config,
         )
+
         imu = Imu(
             comm_router_q=self.queues.comm_router_q,
+            pq_counter=self.queues.pq_counter,
             gyro_mag_q=self.queues.gyro_mag_q,
             imu_signals=self.imu_signals,
             config=config,
-            imu_mock_mode=self.imu_mock_mode,
+            imu_mock_mode_s=self.imu_mock_mode_s,
         )
+
         tracker_sync = TrackerSync(
             tracker_data_s=self.tracker_data_signals,
             tracker_s=self.tracker_signals,
             comm_router_q=self.queues.comm_router_q,
+            pq_counter=self.queues.pq_counter,
             ipd_q=self.queues.ipd_q,
             tracker_health_q=self.queues.tracker_health_q,
             tracker_response_l_q=self.queues.tracker_resp_l_q,
             tracker_response_r_q=self.queues.tracker_resp_r_q,
             config=config,
         )
-        frame_provider = FrameProvider(
-            i_camera_manager=mock_camera,
-            comm_router_s=self.comm_router_signals,
-            eye_tracker_s=self.eye_ready_signals,
-            tracker_s=self.tracker_signals,
-            tracker_cmd_l_q=self.queues.tracker_cmd_l_q,
-            tracker_cmd_r_q=self.queues.tracker_cmd_r_q,
-            config=config,
-            use_test_video=self.fr_pr_test_video
-        )
+
         tracker_process = TrackerProcess(
             tracker_cmd_q_l=self.queues.tracker_cmd_l_q,
             tracker_cmd_q_r=self.queues.tracker_cmd_r_q,
@@ -133,8 +144,10 @@ class Core:
             tracker_signals=self.tracker_signals,
             config=config,
         )
+
         tracker_control = TrackerControl(
             com_router_queue_q=self.queues.comm_router_q,
+            pq_counter=self.queues.pq_counter,
             tracker_cmd_l_q=self.queues.tracker_cmd_l_q,
             tracker_cmd_r_q=self.queues.tracker_cmd_r_q,
             comm_router_signals=self.comm_router_signals,
@@ -143,34 +156,54 @@ class Core:
             i_tracker_process=tracker_process,
             config=config,
         )
+
+        frame_provider = FrameProvider(
+            i_camera_manager=mock_camera,
+            i_tracker_control=tracker_control,
+            comm_router_s=self.comm_router_signals,
+            eye_tracker_s=self.eye_ready_signals,
+            tracker_s=self.tracker_signals,
+            tracker_cmd_l_q=self.queues.tracker_cmd_l_q,
+            tracker_cmd_r_q=self.queues.tracker_cmd_r_q,
+            config=config,
+            use_test_video=self.fr_pr_test_video
+        )
+
         gaze_calib = GazeCalib(
             ipd_q=self.queues.ipd_q,
             comm_router_q=self.queues.comm_router_q,
+            pq_counter=self.queues.pq_counter,
             gaze_signals=self.gaze_signals,
             config=config,
         )
+
         gaze_calc = GazeCalc(
             ipd_q=self.queues.ipd_q,
             esp_cmd_q=self.queues.esp_cmd_q,
             comm_router_q=self.queues.comm_router_q,
+            pq_counter=self.queues.pq_counter,
             gyro_mag_q=self.queues.gyro_mag_q,
             gaze_signals=self.gaze_signals,
             config=config,
         )
+
         gaze_preprocess = GazePreprocess(
             tracker_data_q=self.queues.tracker_data_q,
             ipd_q=self.queues.ipd_q,
             comm_router_q=self.queues.comm_router_q,
+            pq_counter=self.queues.pq_counter,
             gaze_signals=self.gaze_signals,
-            imu_send_to_gaze_signal=self.imu_signals.imu_send_to_gaze,
+            imu_send_to_gaze_signal=self.imu_signals.imu_send_to_gaze_s,
             config=config,
         )
+
         gaze_control = GazeControl(
             gaze_signals=self.gaze_signals,
-            imu_send_to_gaze_signal=self.imu_signals.imu_send_to_gaze,
+            imu_send_to_gaze_signal=self.imu_signals.imu_send_to_gaze_s,
             i_gaze_calib=gaze_calib,
             config=config,
         )
+
         comm_router = CommRouter(
             i_tcp_server=tcp_server,
             i_gaze_control=gaze_control,
@@ -201,7 +234,6 @@ class Core:
             "GazePreprocess": gaze_preprocess,
             "GazeControl": gaze_control,
         }
-
 
     # ------------------------ lifecycle: start/stop ---------------------
 
@@ -290,17 +322,11 @@ class Core:
     def wait_forever(self):
         """Idle loop for the supervisor. Add supervision/restarts here later if needed."""
         #self.logger.info("Waiting for services to stop...")
+        cycle_count = 0
         try:
             while not self._stop_requested.is_set():
+                cycle_count += 1
                 time.sleep(0.5)
-                tcp_server = self.services["TCPServer"]
-                if not tcp_server.is_online():
-                    tcp_server.stop()
-                    tcp_server.join(timeout=5)
-                    tcp_server.start()
-                    running = self._wait_ready_or_stop(tcp_server, timeout=300)
-                    if not running:
-                        self._stop_requested.set()
 
         except KeyboardInterrupt:
             # If SIGINT wasn’t caught by our handler, catch the raw KeyboardInterrupt

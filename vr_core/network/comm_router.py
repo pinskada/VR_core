@@ -53,19 +53,19 @@ class CommRouter(BaseService):
 
 
         # Initialize shared memory signals
-        self.tcp_send_enabled_s: Event = comm_router_signals.tcp_send_enabled
-        self.frame_ready_s: Event = comm_router_signals.frame_ready
-        self.sync_frames_s: Event = comm_router_signals.sync_frames
-        self.comm_shm_is_closed_s: Event = comm_router_signals.comm_shm_is_closed
-        self.tcp_connected: Event = comm_router_signals.tcp_connected
+        self.tcp_shm_send_s: Event = comm_router_signals.tcp_shm_send_s
+        self.router_frame_ready_s: Event = comm_router_signals.router_frame_ready_s
+        self.router_sync_frames_s: Event = comm_router_signals.router_sync_frames_s
+        self.router_shm_is_closed_s: Event = comm_router_signals.router_shm_is_closed_s
+        self.tcp_client_connected_s: Event = comm_router_signals.tcp_client_connected_s
 
-        self.shm_active_s: MpEvent = tracker_signals.shm_active
-        self.eye_ready_l_s: MpEvent = tracker_signals.eye_ready_l
-        self.eye_ready_r_s: MpEvent = tracker_signals.eye_ready_r
+        self.shm_active_s: MpEvent = tracker_signals.shm_active_s
+        self.eye_ready_l_s: MpEvent = tracker_signals.eye_ready_l_s
+        self.eye_ready_r_s: MpEvent = tracker_signals.eye_ready_r_s
 
         self.config_ready_s: Event = config_signals.config_ready_s
 
-        self.imu_send_to_gaze_s: Event = imu_signals.imu_send_over_tcp
+        self.imu_send_to_gaze_s: Event = imu_signals.imu_send_over_tcp_s
 
         # Initialize config
         self.cfg = config
@@ -124,7 +124,7 @@ class CommRouter(BaseService):
             daemon=True
         )
 
-        self.comm_shm_is_closed_s.set()
+        self.router_shm_is_closed_s.set()
 
         self._t_recv.start()
         self._t_send.start()
@@ -147,7 +147,7 @@ class CommRouter(BaseService):
         #self.logger.info("Service is stopping.")
         self.online = False
 
-        if not self.comm_shm_is_closed_s.is_set():
+        if not self.router_shm_is_closed_s.is_set():
             self._disconnect_shm()
 
         # Join workers (best-effort)
@@ -199,7 +199,7 @@ class CommRouter(BaseService):
                 #self.logger.info("com_router_queue_q is empty.")
                 continue
 
-            if not self.tcp_connected.is_set():
+            if not self.tcp_client_connected_s.is_set():
                 continue
 
             try:
@@ -208,8 +208,8 @@ class CommRouter(BaseService):
                 msg_type = None
                 payload: Any = None
 
-                if isinstance(item, tuple) and len(item) >= 3:
-                    priority, msg_type, payload = item[0], item[1], item[2]
+                if isinstance(item, tuple) and len(item) == 4:
+                    priority, _, msg_type, payload = item[0], item[1], item[2], item[3]
                     #self.logger.info("MessageType: %s being sent to Unity", msg_type)
                 else:
                     self.logger.error("Unknown send queue item format: %s", type(item))
@@ -227,40 +227,40 @@ class CommRouter(BaseService):
         while not self._stop.is_set():
 
             # If TCP sending is disabled, wait and continue
-            if not self.tcp_send_enabled_s.is_set():
+            if not self.tcp_shm_send_s.is_set():
 
                 # If SHM is not closed, but sending disabled, disconnect
-                if not self.comm_shm_is_closed_s.is_set():
+                if not self.router_shm_is_closed_s.is_set():
                     self._disconnect_shm()
                 self._stop.wait(0.1)
                 continue
 
             # If SHM is active and not connected, connect
             if self.shm_active_s.is_set():
-                if self.comm_shm_is_closed_s.is_set():
+                if self.router_shm_is_closed_s.is_set():
                     self._copy_settings_to_local()
                     self._connect_shm()
 
             # If SHM is not active and connected, disconnect
             else:
-                if not self.comm_shm_is_closed_s.is_set():
+                if not self.router_shm_is_closed_s.is_set():
                     self._disconnect_shm()
                 continue
 
             # If frame is not ready, wait and continue
-            if not self.frame_ready_s.is_set():
+            if not self.router_frame_ready_s.is_set():
                 self._stop.wait(0.05)
                 continue
 
             # If ready, ack and send frame
             try:
-                self.frame_ready_s.clear()
-                #self.logger.info("frame_ready_s cleared.")
-                if self.tcp_connected.is_set():
+                self.router_frame_ready_s.clear()
+                #self.logger.info("router_frame_ready_s cleared.")
+                if self.tcp_client_connected_s.is_set():
                     self._tcp_send_shm_handler()
 
                 # If in camera preview mode, signal both eyes are ready
-                if self.sync_frames_s.is_set():
+                if self.router_sync_frames_s.is_set():
                     self.eye_ready_l_s.set()
                     self.eye_ready_r_s.set()
                     #self.logger.info("eye_ready_l_s and eye_ready_r_s set.")
@@ -360,13 +360,13 @@ class CommRouter(BaseService):
         self.memory_shape_l = self.cfg.tracker.memory_shape_l
         self.memory_shape_r = self.cfg.tracker.memory_shape_r
         if self._ready.is_set():
-             self.logger.info("Local memory shapes copied.")
+            self.logger.info("Local memory shapes copied.")
 
 
     def _connect_shm(self):
         """Establish connection to shared memory."""
-        if not self.comm_shm_is_closed_s.is_set():
-            self.logger.info("comm_shm_is_closed_s is already cleared.")
+        if not self.router_shm_is_closed_s.is_set():
+            self.logger.info("router_shm_is_closed_s is already cleared.")
             return
 
         shm_left = shm_right = None
@@ -382,14 +382,14 @@ class CommRouter(BaseService):
             return
 
         self.shm_left, self.shm_right = shm_left, shm_right
-        self.comm_shm_is_closed_s.clear()
-        self.logger.info("comm_shm_is_closed_s has been cleared.")
+        self.router_shm_is_closed_s.clear()
+        self.logger.info("router_shm_is_closed_s has been cleared.")
 
 
     def _disconnect_shm(self):
         """Disconnect from shared memory."""
-        if self.comm_shm_is_closed_s.is_set():
-            self.logger.info("comm_shm_is_closed_s is already set.")
+        if self.router_shm_is_closed_s.is_set():
+            self.logger.info("router_shm_is_closed_s is already set.")
             return
 
         if self.shm_left:
@@ -404,5 +404,5 @@ class CommRouter(BaseService):
         else:
             self.logger.info("Right SHM was already closed.")
 
-        self.comm_shm_is_closed_s.set()
-        self.logger.info("comm_shm_is_closed_s has been set.")
+        self.router_shm_is_closed_s.set()
+        self.logger.info("router_shm_is_closed_s has been set.")

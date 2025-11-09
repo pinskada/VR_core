@@ -23,10 +23,10 @@ class GazeControl(BaseService, IGazeControl):
         super().__init__("GazePreprocess")
         self.logger = setup_logger("GazePreprocess")
 
-        self.calib_finalized_s = gaze_signals.calib_finalized_signal
-        self.gaze_calib_s = gaze_signals.gaze_calib_signal
-        self.gaze_calc_s = gaze_signals.gaze_calc_signal
-        self.ipd_to_tcp_s = gaze_signals.ipd_to_tcp_signal
+        self.calib_finalized_s = gaze_signals.calib_finalized_s
+        self.gaze_calib_s = gaze_signals.gaze_calib_s
+        self.gaze_calc_s = gaze_signals.gaze_calc_s
+        self.ipd_to_tcp_s = gaze_signals.ipd_to_tcp_s
 
         self.imu_send_to_gaze_s = imu_send_to_gaze_signal
 

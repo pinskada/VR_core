@@ -15,15 +15,15 @@ class CommRouterSignals:
 
     def __init__(self) -> None:
         # Enable/disable TCP sending of frames
-        self.tcp_send_enabled = Event()
+        self.tcp_shm_send_s = Event()
         # New frame is ready for CommRouter in shared memory
-        self.frame_ready = Event()
+        self.router_frame_ready_s = Event()
         # Signal to CommRouter to sync frames, else just send latest
-        self.sync_frames = Event()
+        self.router_sync_frames_s = Event()
         # Signal indicating that shm has been closed
-        self.comm_shm_is_closed = Event()
+        self.router_shm_is_closed_s = Event()
 
-        self.tcp_connected = Event()
+        self.tcp_client_connected_s = Event()
 
 
 class TrackerDataSignals:
@@ -31,9 +31,9 @@ class TrackerDataSignals:
 
     def __init__(self) -> None:
         # Control for TrackerComm to send data to network
-        self.log_data = Event()
+        self.tracker_data_to_tcp_s = Event()
         # Control for TrackerComm to send data to gaze module
-        self.provide_data = Event()
+        self.tracker_data_to_gaze_s = Event()
 
 
 class TrackerSignals:
@@ -41,23 +41,22 @@ class TrackerSignals:
 
     def __init__(self) -> None:
         # Control for FrameProvider to start/stop providing frames
-        self.provide_frames = Event()
+        self.provide_frames_s = Event()
 
         # Shared memory activity signal
-        self.shm_active = mp.Event()
-        self.shm_cleared = Event()
+        self.shm_active_s = mp.Event()
+        self.shm_cleared_s = Event()
 
-        self.first_frame_processed_l = Event()
-        self.first_frame_processed_r = Event()
+        self.first_frame_processed_l_s = Event()
+        self.first_frame_processed_r_s = Event()
 
         # Info events about tracker state
-        self.tracker_running_l = mp.Event()
-        self.tracker_running_r = mp.Event()
-
+        self.tracker_running_l_s = mp.Event()
+        self.tracker_running_r_s = mp.Event()
 
         # Signals indicating processed eye frame
-        self.eye_ready_l = mp.Event()
-        self.eye_ready_r = mp.Event()
+        self.eye_ready_l_s = mp.Event()
+        self.eye_ready_r_s = mp.Event()
 
 
 class EyeTrackerSignals:
@@ -65,8 +64,8 @@ class EyeTrackerSignals:
 
     def __init__(self) -> None:
         # Signals indicating that shm has been closed
-        self.tracker_shm_is_closed_l = mp.Event()   # signal that shared memory is closed
-        self.tracker_shm_is_closed_r = mp.Event()   # signal that shared memory
+        self.tracker_shm_is_closed_l_s = mp.Event()   # signal that shared memory is closed
+        self.tracker_shm_is_closed_r_s = mp.Event()   # signal that shared memory
 
 
 class GazeSignals:
@@ -74,11 +73,11 @@ class GazeSignals:
 
     def __init__(self) -> None:
         # Signal to indicate new gaze data is available
-        self.gaze_calib_signal = Event()
-        self.gaze_calc_signal = Event()
-        self.ipd_to_tcp_signal = Event()
-        self.gaze_to_tcp_signal = Event()
-        self.calib_finalized_signal = Event()
+        self.gaze_calib_s = Event()
+        self.gaze_calc_s = Event()
+        self.ipd_to_tcp_s = Event()
+        self.gaze_to_tcp_s = Event()
+        self.calib_finalized_s = Event()
 
 
 class IMUSignals:
@@ -86,8 +85,8 @@ class IMUSignals:
 
     def __init__(self) -> None:
         # Signal to indicate new IMU data is available
-        self.imu_send_over_tcp = Event()
-        self.imu_send_to_gaze = Event()
+        self.imu_send_over_tcp_s = Event()
+        self.imu_send_to_gaze_s = Event()
 
 
 class TestModeSignals:
@@ -95,6 +94,6 @@ class TestModeSignals:
 
     def __init__(self) -> None:
         # Signal to indicate test mode is active
-        self.esp_mock_mode = Event()
-        self.imu_mock_mode = Event()
-        self.camera_mock_mode = Event()
+        self.esp_mock_mode_s = Event()
+        self.imu_mock_mode_s = Event()
+        self.camera_mock_mode_s = Event()
