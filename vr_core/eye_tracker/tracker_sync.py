@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 from numpy.typing import NDArray
+import cv2
 
 from vr_core.network.comm_contracts import MessageType
 from vr_core.base_service import BaseService
@@ -53,7 +54,7 @@ class TrackerSync(BaseService):
         tracker_s: TrackerSignals,
         comm_router_q: queue.PriorityQueue,
         pq_counter: itertools.count,
-        ipd_q: queue.Queue,
+        tracker_data_q: queue.Queue,
         tracker_health_q: queue.Queue,
         tracker_response_l_q: mp.Queue,
         tracker_response_r_q: mp.Queue,
@@ -73,7 +74,7 @@ class TrackerSync(BaseService):
         # Queues for outputting data
         self.comm_router_q = comm_router_q
         self.pq_counter = pq_counter
-        self.ipd_q = ipd_q
+        self.tracker_data_q = tracker_data_q
 
         # Queue for forwarding tracker health messages to TrackerProcess
         self.tracker_health_q = tracker_health_q
@@ -96,6 +97,8 @@ class TrackerSync(BaseService):
         # Per-kind sync buffers: frame_id -> _SyncBucket
         self._eye_data_buf: Dict[int, _SyncBucket] = {}
         self._image_buf: Dict[int, _SyncBucket] = {}
+
+        self.print_count = 0
 
         self.online = False
 
@@ -183,8 +186,8 @@ class TrackerSync(BaseService):
 
             match payload_type:
                 case "eye_data":
-                    self.logger.info("Dispatching eye_data message from %s eye with ID: %s"
-                        , eye, message.get("frame_id"))
+                    #self.logger.info("Dispatching eye_data message from %s eye with ID: %s"
+                    #    , eye, message.get("frame_id"))
                     self._try_sync(message, eye, MessageType.trackerData)
                 case "image_preview":
                     self._try_sync(message, eye, MessageType.trackerPreview)
@@ -198,23 +201,28 @@ class TrackerSync(BaseService):
 
 
     def _extract_image_preview(self, message: Dict) -> Optional[NDArray[np.uint8]]:
-        height = int(message.get("height", 0))
-        width = int(message.get("width", 0))
+        h = int(message.get("height", 0))
+        w = int(message.get("width", 0))
         bit_map = message.get("bitmap")
-
-        if bit_map is None:
-            self.logger.info("No bitmap in image_preview message.")
+        if not h or not w or bit_map is None:
+            self.logger.info("No bitmap/size in image_preview message.")
             return None
 
-        if isinstance(bit_map, (bytes, bytearray)):
-            bit_array = np.frombuffer(bit_map, dtype=np.uint8)
+        # accept bytes or array
+        if isinstance(bit_map, (bytes, bytearray, memoryview)):
+            packed = np.frombuffer(bit_map, dtype=np.uint8)
         else:
-            bit_array = np.array(bit_map, dtype=np.uint8)
+            packed = np.asarray(bit_map, dtype=np.uint8)
 
-        # Convert bit map to uint8 numpy array
-        eye_mask = np.unpackbits(bit_array)[:height*width].reshape((height, width))
+        # unpack with the same bit order used when packing
+        bits = np.unpackbits(packed, bitorder="big")
+        mask01: NDArray[np.uint8] = bits[: h * w].reshape((h, w)).astype(np.uint8)
 
-        return eye_mask
+        # keep dtype uint8 (0 -> 0, 1 -> 255)
+        mask255: NDArray[np.uint8] = (mask01 * np.uint8(255)).astype(np.uint8)
+        # optional: ensure contiguous for OpenCV
+        return np.ascontiguousarray(mask255)
+
 
 
     def _try_sync(
@@ -227,10 +235,14 @@ class TrackerSync(BaseService):
 
         frame_id = message.get("frame_id")
 
+
         if message_type == MessageType.trackerPreview:
             data = self._extract_image_preview(message)
+            if data is not None:
+                cv2.imwrite("/tmp/preview_sync.png", data)
         else:
             data = message.get("data")
+        #self.logger.info("Received message from %s eye with ID: %s, of type: %s", eye, frame_id, str(message_type))
 
         # After Eyeloop processed first image, config can be sent
         if message_type is MessageType.trackerData:
@@ -288,16 +300,32 @@ class TrackerSync(BaseService):
                 if left is None or right is None:
                     return
 
+                if message_type==MessageType.trackerData:
+
+                    if not isinstance(left.data, dict) or not isinstance(right.data, dict):
+                        self.logger.warning("Data type error, skipping.")
+                        return
+
+                    if not left.data or not right.data:
+                        self.logger.info("Empty pupil data, skipping.")
+                        return
+
                 # Both halves are present; forward the paired data
                 pair = (left.data, right.data)
 
                 match message_type:
                     case MessageType.trackerData:
                         # Fan-out based on control signals
+                        self.print_count += 1
+                        # if self.print_count % 20 == 0:
+                            # self.logger.info("Left coordinates: %s", left.data)
+                            # self.logger.info("Right coordinates: %s", right.data)
+
                         if self.tracker_data_to_gaze_s.is_set():
                             # Send to gaze module
-                            self.ipd_q.put(pair)
-                            #self.logger.info("Sending tracker data to Gaze module.")
+                            self.tracker_data_q.put(pair)
+                            # if self.print_count % 20 == 0:
+                                # self.logger.info("Sending data to gaze module.")
 
                         if self.tracker_data_to_tcp_s.is_set():
                             # Send to comm router for logging/telemetry

@@ -127,7 +127,7 @@ class Core:
             tracker_s=self.tracker_signals,
             comm_router_q=self.queues.comm_router_q,
             pq_counter=self.queues.pq_counter,
-            ipd_q=self.queues.ipd_q,
+            tracker_data_q=self.queues.tracker_data_q,
             tracker_health_q=self.queues.tracker_health_q,
             tracker_response_l_q=self.queues.tracker_resp_l_q,
             tracker_response_r_q=self.queues.tracker_resp_r_q,
@@ -257,7 +257,7 @@ class Core:
 
             if name == "TCPServer" or name == "ConfigService":
                 # TCP server needs longer timeout since client may take time to connect
-                timeout = 60
+                timeout = 120
                 #timeout = float("inf")
             else:
                 timeout = 5
@@ -271,6 +271,7 @@ class Core:
             if status == "timeout":
                 self.logger.error("Service '%s' did not become ready in time: %ss", name, timeout)
                 self._stop_requested.set()
+                return
 
         self.logger.info("All services started and ready.")
 
@@ -297,8 +298,8 @@ class Core:
         # Join
         for name in stop_order:
             svc = self.services[name]
-            if not svc.ready(timeout=0):
-                self.logger.info("Service %s not started, skipping stop.", name)
+            if not getattr(svc, "alive", False):
+                self.logger.info("Service %s thread not running, skipping join.", name)
                 continue
             try:
                 svc.join(timeout=5)

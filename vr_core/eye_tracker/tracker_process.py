@@ -208,6 +208,7 @@ class TrackerProcess(BaseService, ITrackerService):
 
         proc = self.proc_left if side == "left" else self.proc_right
         if not proc:
+            self.logger.warning("Process for %s eyeloop not existings, skipping termination.", side)
             return
 
 
@@ -220,6 +221,7 @@ class TrackerProcess(BaseService, ITrackerService):
                 {"type": "close"},
             )
 
+        proc.join(timeout=0.5)
         try:
             if proc.is_alive():
                 try:
@@ -229,10 +231,12 @@ class TrackerProcess(BaseService, ITrackerService):
 
                 try:
                     proc.join(timeout=1.0)
-                    self.logger.info("%s Eyeloop process joined.", side)
+                    self.logger.info("Process for %s eyeloop joined.", side)
                 except AssertionError as e:
                     self.logger.warning("%s process join() skipped (not fully started?): %s",
                         side, e)
+            else:
+                self.logger.info("Process for %s eyeloop joined.", side)
         except AssertionError as e:
             self.logger.warning("%s process is_alive() not valid (never started?): %s", side, e)
         finally:
@@ -240,16 +244,18 @@ class TrackerProcess(BaseService, ITrackerService):
                 self.proc_left = None
                 self.running_left = False
                 if hasattr(self.eye_ready_l_s, "clear"):
+                    self.tracker_running_l_s.clear()
                     self.eye_ready_l_s.clear()
                     self.first_frame_processed_l_s.clear()
-                    self.logger.info("eye_ready_l_s cleared.")
+                    # self.logger.info("Left tracker_signals cleared.")
             else:
                 self.proc_right = None
                 self.running_right = False
                 if hasattr(self.eye_ready_r_s, "clear"):
+                    self.tracker_running_r_s.clear()
                     self.eye_ready_r_s.clear()
                     self.first_frame_processed_r_s.clear()
-                    self.logger.info("eye_ready_r_s cleared.")
+                    # self.logger.info("Right tracker_signals cleared.")
 
 
     # ruff: noqa: F841

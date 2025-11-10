@@ -158,9 +158,11 @@ class TrackerControl(BaseService, ITrackerControl):
             self.tracker_running_l_s.wait(self.cfg.tracker.eyeloop_start_timeout) and
             self.tracker_running_r_s.wait(self.cfg.tracker.eyeloop_start_timeout)
         ):
+            self.logger.error("Processes have not started running.")
             return
 
         self.provide_frames_s.set()
+        # self.logger.info("providet_frame_s is set.")
 
         self.tracker_data_to_tcp_s.set()
         self.tracker_data_to_gaze_s.clear()
@@ -182,9 +184,12 @@ class TrackerControl(BaseService, ITrackerControl):
             self.tracker_running_l_s.wait(self.cfg.tracker.eyeloop_start_timeout) and
             self.tracker_running_r_s.wait(self.cfg.tracker.eyeloop_start_timeout)
         ):
+            self.logger.error("Processes have not started running.")
             return
 
         self.provide_frames_s.set()
+        # self.logger.info("providet_frame_s is set.")
+
         self.tracker_data_to_tcp_s.set()
         self.tracker_data_to_gaze_s.set()
         self.router_sync_frames_s.clear()
@@ -212,7 +217,7 @@ class TrackerControl(BaseService, ITrackerControl):
         self.first_frame_processed_r_s.clear()
 
 
-        self._stop.wait(1.1)
+        self._stop.wait(0.21)
 
         self._empty_cmd_queues()
 
@@ -227,19 +232,16 @@ class TrackerControl(BaseService, ITrackerControl):
         # ):
         self._set_eyeloop_config()
         self.prompt_preview(send_preview)
-        self.logger.info("Sent config to Eyeloop.")
+        # self.logger.info("Sent config to Eyeloop.")
 
 
     def _empty_cmd_queues(self) -> None:
-        while (
-            not self.tracker_cmd_l_q.empty() and
-            not self.tracker_cmd_r_q.empty()
-        ):
-            try:
-                self.tracker_cmd_l_q.get_nowait()
-                self.tracker_cmd_r_q.get_nowait()
-            except queue.Empty:
-                break
+        for q in (self.tracker_cmd_l_q, self.tracker_cmd_r_q):
+            while True:
+                try:
+                    q.get_nowait()
+                except queue.Empty:
+                    break
 
     def prompt_preview(self, send_preview: bool) -> None:
         """
@@ -258,7 +260,7 @@ class TrackerControl(BaseService, ITrackerControl):
             "param": "preview",
             "value": send_preview
         })
-        self.logger.info("tracker_cmd_l_q: Prompted preview : %s", send_preview)
+        # self.logger.info("tracker_cmd_l_q: Prompted preview : %s", send_preview)
 
 
     def update_eyeloop_autosearch(self, autosearch: bool) -> None:
@@ -278,7 +280,7 @@ class TrackerControl(BaseService, ITrackerControl):
             "param": "auto_search",
             "value": autosearch
         })
-        self.logger.info("tracker_cmd_l_q: Prompted auto_search : %s", autosearch)
+        # self.logger.info("tracker_cmd_l_q: Prompted auto_search : %s", autosearch)
 
 
     # pylint: disable=unused-argument
@@ -289,7 +291,7 @@ class TrackerControl(BaseService, ITrackerControl):
             if field == "":
                 return
             self._send_config_to_eyeloop(field, new_val)
-            self.logger.info("tracker_cmd_l_q: Prompted config change for %s: %s", field, new_val)
+            # self.logger.info("tracker_cmd_l_q: Prompted config change for %s: %s", field, new_val)
 
 
     def _set_eyeloop_config(self) -> None:
@@ -298,7 +300,7 @@ class TrackerControl(BaseService, ITrackerControl):
 
         for field, value in eyeloop_config.items():
             self._send_config_to_eyeloop(field, value)
-        self.logger.info("Sent full eyeloop configuration to EyeLoop processes.")
+        # self.logger.info("Sent full eyeloop configuration to EyeLoop processes.")
 
 
     def _send_config_to_eyeloop(

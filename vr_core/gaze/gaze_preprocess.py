@@ -4,7 +4,7 @@ import itertools
 import queue
 from queue import Queue, PriorityQueue
 from threading import Event
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 
@@ -53,7 +53,9 @@ class GazePreprocess(BaseService):
         self.x_right_start: float
         self.y_right_start: float
 
-        self.filtered_ipd: float # Placeholder for the filtered Interpupillary Distance (IPD) value
+        self.filtered_ipd: Optional[float] = None # Placeholder for the filtered Interpupillary Distance (IPD) value
+
+        self.print_state = 0
 
         self.online = False # Flag to indicate if the system is online or offline
 
@@ -102,6 +104,7 @@ class GazePreprocess(BaseService):
             (pupil_left, pupil_right) = eye_data
 
             if pupil_left is not None and pupil_right is not None:
+                # self.logger.info("Preprocessing data.")
                 self._get_relative_ipd(pupil_left, pupil_right)
 
         except queue.Empty:
@@ -112,6 +115,9 @@ class GazePreprocess(BaseService):
         """
         Get relative ipd of the eye data.
         """
+        # self.logger.info("pupil_left: %s", pupil_left)
+        # self.logger.info("pupil_right: %s", pupil_right)
+
         # Extract pupil centers
         x_left = pupil_left['pupil'][0][0]
         y_left = pupil_left['pupil'][0][1]
@@ -130,12 +136,16 @@ class GazePreprocess(BaseService):
 
         relat_ipd = ipd_px / self.full_frame_width # Normalize the IPD to the full frame width
 
-        relat_filt_ipd = self._filter_ipd(float(relat_ipd)) # Apply filtering to the IPD value
+        self._filter_ipd(float(relat_ipd)) # Apply filtering to the IPD value
+        
+        self.print_state += 1
+        if self.print_state % 20 == 0:
+            self.logger.info("Computed relative IPD: %s", self.filtered_ipd)
 
         if self.ipd_to_tcp_s.is_set():
             # Send the relative filtered IPD to the TCP module
             self.comm_router_q.put((6, next(self.pq_counter),
-                MessageType.ipdPreview, relat_filt_ipd))
+                MessageType.ipdPreview, self.filtered_ipd))
 
         if self.gaze_calib_s.is_set() and self.gaze_calc_s.is_set():
             self.logger.warning("Both gaze calibration and calculation signals are set, " \
@@ -144,10 +154,10 @@ class GazePreprocess(BaseService):
 
         if self.gaze_calib_s.is_set() or self.gaze_calc_s.is_set():
             # Send the IPD to either calibration or main processing module
-            self.ipd_q.put(relat_filt_ipd)
+            self.ipd_q.put(self.filtered_ipd)
 
 
-    def _filter_ipd(self, new_ipd: float) -> float:
+    def _filter_ipd(self, new_ipd: float):
         """Filter the IPD value using a simple moving average.
 
         Constant Alpha with range [0,1], where:
@@ -162,7 +172,6 @@ class GazePreprocess(BaseService):
                 self.cfg.gaze.filter_alpha * new_ipd +
                 (1 - self.cfg.gaze.filter_alpha) * self.filtered_ipd
             )
-        return self.filtered_ipd
 
 
     def _copy_config_to_locals(self):

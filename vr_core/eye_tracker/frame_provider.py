@@ -275,7 +275,7 @@ class FrameProvider(BaseService):
                 "type": "frame_id",
                 "value": self.frame_id,
             })
-        self.logger.info("tracker_cmd_l/r_q: frame ID %d sent.", self.frame_id)
+        #self.logger.info("tracker_cmd_l/r_q: frame ID %d sent.", self.frame_id)
 
 
     def _wait_for_sync(self) -> None:
@@ -310,17 +310,17 @@ class FrameProvider(BaseService):
                 return
 
             self.hold_frames = True
-            self.logger.info("hold_frames flag set.")
+            # self.logger.info("hold_frames flag set.")
             self.is_holding_frames.wait(self.cfg.tracker.frame_hold_timeout)
             self._deactivate_shm()
             self._validate_crop()
             self._copy_settings_to_local()
-            self.logger.info("Activating SHM from _on_config_changed()")
+            # self.logger.info("Activating SHM from _on_config_changed()")
             self._activate_shm()
             self.hold_frames = False
-            self.logger.info("hold_frames flag cleared.")
+            # self.logger.info("hold_frames flag cleared.")
             self.is_holding_frames.clear()
-            self.logger.info("Holding frames released after config change.")
+            # self.logger.info("Holding frames released after config change.")
 
 
     def _copy_settings_to_local(self) -> None:
@@ -344,7 +344,7 @@ class FrameProvider(BaseService):
 
         # Signal that shared memory is active
         self.shm_active_s.set()
-        self.logger.info("Shared memory activated.")
+        # self.logger.info("Shared memory activated.")
 
         # Notify EyeLoop trackers about new shared memory configuration
         self._cmd_tracker_shm_state()
@@ -355,7 +355,7 @@ class FrameProvider(BaseService):
 
         # Signal to consumers that shared memory is being deactivated
         self.shm_active_s.clear()
-        self.logger.info("shm_active_s cleared.")
+        # self.logger.info("shm_active_s cleared.")
 
         # Notify EyeLoop trackers about new shared memory configuration
         self._cmd_tracker_shm_state()
@@ -465,8 +465,14 @@ class FrameProvider(BaseService):
         except (FileNotFoundError, PermissionError, OSError, BufferError) as e:
             self.logger.error("Failed to clean shared memory for "
                 "%s eye: %s", side_to_allocate, e)
+        finally:
+            match side_to_allocate:
+                case Eye.LEFT:
+                    self.shm_left = None
+                case Eye.RIGHT:
+                    self.shm_right = None
 
-        #self.logger.info("%s shm has been cleared.", side_to_allocate)
+        # self.logger.info("%s shm has been cleared.", side_to_allocate)
 
 
     def _close_consumer_shm(self) -> None:
@@ -485,18 +491,21 @@ class FrameProvider(BaseService):
 
         # Signal left EyeLoop tracker to close shared memory
         if self.tracker_running_l_s.is_set():
+            # self.logger.info("Waiting for right EyeLoop tracker to close shared memory.")
             if not self.tracker_shm_is_closed_l_s.wait(self.cfg.tracker.memory_unlink_timeout):
                 self.logger.error("Timeout waiting for left EyeLoop "
                       "tracker to close shared memory.")
+            # else:
+            #     self.logger.info("Left EyeLoop tracker has closed shared memory.")
 
         # Signal right EyeLoop tracker to close shared memory
         if self.tracker_running_r_s.is_set():
-            self.logger.info("Waiting for right EyeLoop tracker to close shared memory.")
+            # self.logger.info("Waiting for right EyeLoop tracker to close shared memory.")
             if not self.tracker_shm_is_closed_r_s.wait(self.cfg.tracker.memory_unlink_timeout):
                 self.logger.error("Timeout waiting for right EyeLoop "
                       "tracker to close shared memory.")
-            else:
-                self.logger.info("Right EyeLoop tracker has closed shared memory.")
+            # else:
+            #     self.logger.info("Right EyeLoop tracker has closed shared memory.")
 
 
     def _cmd_tracker_shm_state(self) -> None:
@@ -516,7 +525,7 @@ class FrameProvider(BaseService):
                     "frame_shape": self.cfg.tracker.memory_shape_r,
                     "frame_dtype": self.cfg.tracker.memory_dtype
                 })
-            self.logger.info("tracker_cmd_l/r_q: shm_connect sent.")
+            # self.logger.info("tracker_cmd_l/r_q: shm_connect sent.")
 
         else:
             if self.tracker_running_l_s.is_set():
@@ -528,7 +537,7 @@ class FrameProvider(BaseService):
                 self.tracker_cmd_r_q.put({
                     "type": "shm_detach",
                 })
-            self.logger.info("tracker_cmd_l/r_q: shm_detach sent.")
+            # self.logger.info("tracker_cmd_l/r_q: shm_detach sent.")
 
 
     def _validate_crop(self) -> None:

@@ -45,8 +45,8 @@ def run_eyeloop(
             #logger.info("Starting tracker for eye: %s.", eye)
             EyeLoop(
                 sys.argv[1:],
-                command_queue=tracker_cmd_q,
-                response_queue=tracker_resp_q,
+                tracker_cmd_q=tracker_cmd_q,
+                tracker_response_q=tracker_resp_q,
                 eye_ready_signal=eye_ready_s,
                 tracker_shm_is_closed_s=tracker_shm_is_closed_s,
                 tracker_running_s=tracker_running_s,

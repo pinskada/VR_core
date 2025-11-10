@@ -32,7 +32,7 @@ class Tracker:
     """Tracker configuration settings."""
     frame_provider_max_fps: int = 1000 # Maximum FPS for the frame provider
     png_compression: int = 3  # PNG compression level (0-9)
-    sync_timeout: float = 1.0  # Timeout for EyeLoop response in seconds
+    sync_timeout: float = 0.2  # Timeout for EyeLoop response in seconds
     resp_q_timeout: float = 0.001  # Timeout for queue operations in seconds
     provider_queue_timeout: float = 0.01  # Timeout for provider queue operations in seconds
     process_launch_time: float = 0.4  # Time to wait for the tracker to stabilize (in seconds)
