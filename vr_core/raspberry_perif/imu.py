@@ -69,7 +69,7 @@ class Imu(BaseService):
     def _on_start(self) -> None:
         """Initialize the gyroscope sensor."""
 
-        self.imu_send_over_tcp_s.clear()
+        self.imu_send_over_tcp_s.set()
 
         if platform.system() != "Linux":
             self.logger.info("Non-Linux system detected; forcing mock mode.")
@@ -274,7 +274,7 @@ class Imu(BaseService):
                 gyro_data = self._read_gyro()
                 accel_data = self._read_accel()
                 mag_data = self._read_mag()
-                timestamp = time.time()
+                timestamp = time.perf_counter_ns() / 1e9
 
                 # Apply calibration offsets
                 if not self.mock_mode:
@@ -288,17 +288,21 @@ class Imu(BaseService):
                     "mag": mag_data,
                     "timestamp": timestamp
                 }
+
+                self.logger.info(data)
+
                 if self.imu_send_over_tcp_s.is_set():
                     self.send_counter += 1
-                    if self.send_counter % 10 == 0:
-                        #self.logger.info("Sending data to CommRouter")
+                    if self.send_counter % 100 == 0:
+                        #self.logger.info(data)
                         self.send_counter = 0
                     # Send data via TCP
-                    self.comm_router_q.put((
+                    tcp_tuple = (
                         1, next(self.pq_counter),
                         MessageType.imuSensor,
                         data
-                        ))
+                        )
+                    self.comm_router_q.put(tcp_tuple)
                 else:
                     self.send_counter += 1
                     if self.send_counter % 10 == 0:

@@ -181,9 +181,6 @@ class FrameProvider(BaseService):
                 self._stop.wait(0.1)
                 continue
 
-            if self.use_test_video:
-                self._stop.wait(0.05)  # Simulate ~30 FPS for test video
-
             # Start providing frames
             self._provide_frame()
             self._wait_for_sync()
@@ -216,6 +213,7 @@ class FrameProvider(BaseService):
 
         # Capture next frame from video or camera
         if self.use_test_video:
+            self._stop.wait(self.cfg.camera.exposure / 1000000)  # Simulate exposure time
             ret, full_frame = self.video_capture.read()
             if full_frame is None:
                 self.logger.info("End of video reached.")
@@ -230,6 +228,7 @@ class FrameProvider(BaseService):
                 return
         else:
             full_frame = self.i_camera_manager.capture_frame()
+
 
         # Crop left and right regions from the full frame
         left_frame = self._crop(full_frame, self.crop_l)

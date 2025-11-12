@@ -33,8 +33,6 @@ from vr_core.gaze.gaze_calib import GazeCalib
 from vr_core.gaze.gaze_calc import GazeCalc
 from vr_core.gaze.gaze_preprocess import GazePreprocess
 
-from vr_core.mock_modules.mock_camera import MockCamera
-
 
 def _ensure_session_id() -> str:
     sid = os.environ.get("VR_SESSION_ID")
@@ -75,11 +73,9 @@ class Core:
         self.tcp_mock_mode = False
         self.config_mock_mode = False
         self.esp_mock_mode_s = True
-        self.imu_mock_mode_s = True
-        self.camera_mock_mode_s = True
+        self.imu_mock_mode_s = False
+        self.camera_mock_mode = True
         self.fr_pr_test_video = True
-
-        self.tracker_control: TrackerControl
 
     # -------- build: construct everything & inject dependencies --------
 
@@ -101,10 +97,7 @@ class Core:
 
         camera_manager = CameraManager(
             config=config,
-        )
-
-        mock_camera = MockCamera(
-            config=config,
+            mock_mode=self.camera_mock_mode,
         )
 
         esp32 = Esp32(
@@ -158,7 +151,7 @@ class Core:
         )
 
         frame_provider = FrameProvider(
-            i_camera_manager=mock_camera,
+            i_camera_manager=camera_manager,
             i_tracker_control=tracker_control,
             comm_router_s=self.comm_router_signals,
             eye_tracker_s=self.eye_ready_signals,

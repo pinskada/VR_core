@@ -49,11 +49,14 @@ class CameraManager(BaseService, ICameraService):
     """ Manages the Raspberry Pi camera using Picamera2."""
     def __init__(
         self,
-        config: Config
+        config: Config,
+        mock_mode: bool = False,
     ) -> None:
         super().__init__("CameraManager")
 
         self.logger = setup_logger("CameraManager")
+
+        self.mock_mode = mock_mode
 
         self.cfg = config
         self._unsubscribe = config.subscribe(
@@ -83,6 +86,14 @@ class CameraManager(BaseService, ICameraService):
     def _on_start(self) -> None:
         """Initialize camera resources."""
 
+        self._copy_config_to_local()
+
+        if self.mock_mode:
+            self.logger.info("CameraManager running in mock mode; no camera will be used.")
+            self.online = True
+            self._ready.set()
+            return
+
         if Picamera2Runtime is None:
             self.logger.warning("Picamera2 not available on this platform; running without camera.")
             self.online = False
@@ -93,7 +104,7 @@ class CameraManager(BaseService, ICameraService):
         if not hasattr(sys, 'is_finalizing') or not sys.is_finalizing():
             try: # type: ignore
                 self.picam2 = Picamera2Runtime()  # Initialize camera object
-            except (ImportError, RuntimeError, PiCameraError) as e:
+            except (ImportError, RuntimeError, PiCameraError, IndexError) as e:
                 self.logger.error("Picamera2 not available: %s", e)
                 self.online = False
                 return
@@ -136,6 +147,13 @@ class CameraManager(BaseService, ICameraService):
     def capture_frame(self) -> NDArray[np.uint8]:
         """ Capture a single frame from the camera."""
 
+        if self.mock_mode:
+            self.logger.debug("Mock mode: returning empty frame.")
+            return np.zeros(
+                (int(self.res_height), int(self.res_width)),
+                dtype=np.uint8
+            )
+
         if self.picam2 is None:
             self.logger.error("capture_frame() called but Picamera2 is unavailable.")
             return np.zeros(
@@ -153,7 +171,7 @@ class CameraManager(BaseService, ICameraService):
             req = None
             try:
                 # OR for async non-blocking
-                req = self.picam2.capture_request(timeout=self.cfg.camera.capture_timeout_ms)
+                req = self.picam2.capture_request(wait=self.cfg.camera.capture_timeout_ms)
                 if req is None:
                     raise TimeoutError("capture_request() returned None")
 

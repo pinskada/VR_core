@@ -1,5 +1,6 @@
 """Communication router module."""
 
+import time
 from typing import Callable, Dict, Any, Optional
 from queue import PriorityQueue
 from multiprocessing.shared_memory import SharedMemory
@@ -88,6 +89,8 @@ class CommRouter(BaseService):
         # SHM and online state
         self.online = False
 
+        self.time = 0.0
+        self.print_state = 0
         #self.logger.info("Service initialized.")
 
 
@@ -185,8 +188,6 @@ class CommRouter(BaseService):
                 self.logger.info("payload: %f", payload)
 
 
-    # ruff: noqa: F841
-    # pylint: disable=unused-variable
     def _tcp_send_loop(self) -> None:
         """Drains com_router_queue_q and sends messages to Unity via TCPServer."""
         #self.logger.info("_tcp_send_loop has started.")
@@ -204,12 +205,12 @@ class CommRouter(BaseService):
 
             try:
                 # Accept either tuple (priority, msg_type, payload)
-                priority: Optional[int] = None
+                #priority: Optional[int] = None
                 msg_type = None
                 payload: Any = None
 
                 if isinstance(item, tuple) and len(item) == 4:
-                    priority, _, msg_type, payload = item[0], item[1], item[2], item[3]
+                    _, _, msg_type, payload = item[0], item[1], item[2], item[3]
                     #self.logger.info("MessageType: %s being sent to Unity", msg_type)
                 else:
                     self.logger.error("Unknown send queue item format: %s", type(item))
@@ -217,7 +218,7 @@ class CommRouter(BaseService):
 
                 self._tcp_send_handler(payload, msg_type)
             except Exception as e:  # pylint: disable=broad-except
-                self.logger.error("send handler error: %s", e)
+                self.logger.error("Send handler error: %s", e)
 
 
     def _tcp_send_shm_loop(self) -> None:
@@ -249,7 +250,7 @@ class CommRouter(BaseService):
 
             # If frame is not ready, wait and continue
             if not self.router_frame_ready_s.is_set():
-                self._stop.wait(0.05)
+                self._stop.wait(0.001)
                 continue
 
             # If ready, ack and send frame
@@ -266,7 +267,7 @@ class CommRouter(BaseService):
                     #self.logger.info("eye_ready_l_s and eye_ready_r_s set.")
 
             except Exception as e:  # pylint: disable=broad-except
-                self.logger.error("shm send handler error: %s", e)
+                self.logger.error("SHM send handler error: %s", e)
 
     # ---------------- Handlers ----------------
 
@@ -293,10 +294,10 @@ class CommRouter(BaseService):
         """Encodes application objects to bytes and uses TCPServer to send them out."""
         # Encode to bytes (default JSON)
         body: bytes
-        preview_iterable = [(0, payload[0]), (1, payload[1])]
 
         if msg_type == MessageType.trackerPreview:
             try:
+                preview_iterable = [(0, payload[0]), (1, payload[1])]
                 body = image_encoder.encode_images_packet(
                     items=preview_iterable,
                     codec="png",
@@ -352,6 +353,13 @@ class CommRouter(BaseService):
         self.i_tcp_server.tcp_send(encoded_payload, MessageType.eyePreview)
         #self.logger.info("Sent eyePreview message over TCP.")
 
+        fps = 1 / (time.time() - self.time) if self.time != 0 else 0
+
+        self.time = time.time()
+
+        self.print_state += 1
+        if self.print_state % 20 == 0:
+            self.logger.info("Gaze Preprocess FPS: %.2f", fps)
 
     # --- SHM handling methods ---
 

@@ -5,6 +5,7 @@ import queue
 from queue import Queue, PriorityQueue
 from threading import Event
 from typing import Any, Optional
+import time
 
 import numpy as np
 
@@ -56,7 +57,7 @@ class GazePreprocess(BaseService):
         self.filtered_ipd: Optional[float] = None # Placeholder for the filtered Interpupillary Distance (IPD) value
 
         self.print_state = 0
-
+        self.time = 0.0
         self.online = False # Flag to indicate if the system is online or offline
 
         #self.logger.info("Service initialized.")
@@ -137,10 +138,15 @@ class GazePreprocess(BaseService):
         relat_ipd = ipd_px / self.full_frame_width # Normalize the IPD to the full frame width
 
         self._filter_ipd(float(relat_ipd)) # Apply filtering to the IPD value
-        
+
+        fps = 1 / (time.time() - self.time) if self.time != 0 else 0
+
+        self.time = time.time()
+
         self.print_state += 1
         if self.print_state % 20 == 0:
             self.logger.info("Computed relative IPD: %s", self.filtered_ipd)
+            self.logger.info("Gaze Preprocess FPS: %.2f", fps)
 
         if self.ipd_to_tcp_s.is_set():
             # Send the relative filtered IPD to the TCP module
