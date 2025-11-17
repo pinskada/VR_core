@@ -195,7 +195,7 @@ class TrackerControl(BaseService, ITrackerControl):
         self.router_sync_frames_s.clear()
         self.tcp_shm_send_s.clear()
 
-        self._setup_eyeloop()
+        self._setup_eyeloop(send_preview=True)
 
 
 # ---------- Helpers ----------

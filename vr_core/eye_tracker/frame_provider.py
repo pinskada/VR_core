@@ -181,6 +181,9 @@ class FrameProvider(BaseService):
                 self._stop.wait(0.1)
                 continue
 
+            if self.use_test_video:
+                self._stop.wait(0.1)
+
             # Start providing frames
             self._provide_frame()
             self._wait_for_sync()
@@ -255,7 +258,7 @@ class FrameProvider(BaseService):
             self.logger.error("Failed to write to shared memory: %s", e)
             self.online = False
             return
-
+        self.logger.info("Left shape: %s ; Right shape: %s", self.cfg.tracker.memory_shape_l, self.cfg.tracker.memory_shape_r)
         # Increment frame ID
         self.frame_id += 1
 

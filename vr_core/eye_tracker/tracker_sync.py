@@ -307,7 +307,7 @@ class TrackerSync(BaseService):
                         return
 
                     if not left.data or not right.data:
-                        self.logger.info("Empty pupil data, skipping.")
+                        #self.logger.info("Empty pupil data, skipping.")
                         return
 
                 # Both halves are present; forward the paired data
@@ -317,15 +317,13 @@ class TrackerSync(BaseService):
                     case MessageType.trackerData:
                         # Fan-out based on control signals
                         self.print_count += 1
-                        # if self.print_count % 20 == 0:
+                        if self.print_count % 20 == 0:
+                            self.logger.info("%s ; %s", left.data, right.data)
                             # self.logger.info("Left coordinates: %s", left.data)
                             # self.logger.info("Right coordinates: %s", right.data)
-
                         if self.tracker_data_to_gaze_s.is_set():
                             # Send to gaze module
                             self.tracker_data_q.put(pair)
-                            # if self.print_count % 20 == 0:
-                                # self.logger.info("Sending data to gaze module.")
 
                         if self.tracker_data_to_tcp_s.is_set():
                             # Send to comm router for logging/telemetry

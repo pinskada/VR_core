@@ -144,9 +144,9 @@ class GazePreprocess(BaseService):
         self.time = time.time()
 
         self.print_state += 1
-        if self.print_state % 20 == 0:
-            self.logger.info("Computed relative IPD: %s", self.filtered_ipd)
-            self.logger.info("Gaze Preprocess FPS: %.2f", fps)
+        # if self.print_state % 1 == 0:
+            #self.logger.info("Computed relative IPD: %s", self.filtered_ipd)
+            #self.logger.info("Gaze Preprocess FPS: %.2f", fps)
 
         if self.ipd_to_tcp_s.is_set():
             # Send the relative filtered IPD to the TCP module

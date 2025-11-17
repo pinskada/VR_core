@@ -73,8 +73,8 @@ class Core:
         self.tcp_mock_mode = False
         self.config_mock_mode = False
         self.esp_mock_mode_s = True
-        self.imu_mock_mode_s = False
-        self.camera_mock_mode = True
+        self.imu_mock_mode_s = True
+        self.camera_mock_mode = False
         self.fr_pr_test_video = True
 
     # -------- build: construct everything & inject dependencies --------

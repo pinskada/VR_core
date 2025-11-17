@@ -111,8 +111,8 @@ class Gaze:
 @dataclass
 class Camera:
     """Camera configuration settings."""
-    res_width: int = 1280
-    res_height: int = 720
+    res_width: int = 4608
+    res_height: int = 2592
 
     focus: int = 30 # Only used if autofocus is False
     exposure: int = 10000  # In microseconds
@@ -133,8 +133,8 @@ class IMU:
     update_rate: float = 0.01  # in seconds (100 Hz)
     retry_attempts: int = 10  # Number of attempts to read data from the gyroscope
 
-    calib_buffer_size: int = 100
-    scale_factor: float = 0.075
+    calib_buffer_size: int = 300
+    scale_factor: float = 0.07
 
     bus_num: int = 1  # I2C bus number (1 for Raspberry Pi 3 and later)
     addr_gyr_acc: int = 0x6b  # I2C address of the gyroscope (L3GD20H)

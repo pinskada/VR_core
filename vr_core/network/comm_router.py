@@ -358,8 +358,8 @@ class CommRouter(BaseService):
         self.time = time.time()
 
         self.print_state += 1
-        if self.print_state % 20 == 0:
-            self.logger.info("Gaze Preprocess FPS: %.2f", fps)
+        # if self.print_state % 20 == 0:
+        #     self.logger.info("Gaze Preprocess FPS: %.2f", fps)
 
     # --- SHM handling methods ---
 

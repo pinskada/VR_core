@@ -184,7 +184,7 @@ class Imu(BaseService):
         self.x_offset = sum(calib_buffer_x) / len(calib_buffer_x)
         self.y_offset = sum(calib_buffer_y) / len(calib_buffer_y)
         self.z_offset = sum(calib_buffer_z) / len(calib_buffer_z)
-
+        self.logger.info("%s ; %s ; %s", self.x_offset, self.y_offset, self.z_offset)
 
     def _read_gyro(self) -> dict[str, float]:
         """Read gyroscope data."""
@@ -289,11 +289,11 @@ class Imu(BaseService):
                     "timestamp": timestamp
                 }
 
-                self.logger.info(data)
+                #self.logger.info(data)
 
                 if self.imu_send_over_tcp_s.is_set():
                     self.send_counter += 1
-                    if self.send_counter % 100 == 0:
+                    if self.send_counter % 20 == 0:
                         #self.logger.info(data)
                         self.send_counter = 0
                     # Send data via TCP
@@ -302,7 +302,7 @@ class Imu(BaseService):
                         MessageType.imuSensor,
                         data
                         )
-                    self.comm_router_q.put(tcp_tuple)
+                    #self.comm_router_q.put(tcp_tuple)
                 else:
                     self.send_counter += 1
                     if self.send_counter % 10 == 0:

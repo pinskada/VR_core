@@ -255,6 +255,8 @@ class TCPServer(BaseService, INetworkService):
     ) -> None:
         """Encode a payload and send it."""
 
+        #self.logger.info("Message type: %s", message_type)
+
         if self.mock_mode:
             self.logger.info("Sending data (mock mode) of type %s", message_type)
             return
