@@ -20,7 +20,7 @@ class IGazeControl(ABC):
     """Gaze control interface."""
 
     @abstractmethod
-    def gaze_control(self, msg) -> None:
+    def gaze_control(self, msg: dict) -> None:
         """Control the gaze module."""
 
 
@@ -36,7 +36,7 @@ class IGazeService(ABC):
         """Finalize the gaze calibration."""
 
     @abstractmethod
-    def set_timestamp(self, string_state: str, distance: float) -> None:
+    def set_timestamp(self, dist_point: dict) -> None:
         """Set the current gaze distance."""
 
 

@@ -153,7 +153,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
         self.cmd_q.put(("FINALIZE", (samples, markers)))
 
 
-    def set_timestamp(self, string_state: str, distance: float) -> None:
+    def set_timestamp(self, dist_point: dict) -> None:
         """
         Append a distance marker with the current timestamp to dist_markers.
 
@@ -161,6 +161,9 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
             string_state: either "start" or "stop" message for given distance
             distance: distance of the virtual object in meters
         """
+        string_state = dist_point.get("state")
+        distance = dist_point.get("distance")
+
         # Parse the marker state
         match string_state:
             case "start":
@@ -175,10 +178,14 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
             self.logger.error("calib_start_t is not set.")
             return
 
+        if distance is None:
+            self.logger.error("Distance value is None.")
+            return
+
         # Append the distance marker with the current timestamp
         t = monotonic() - self.calib_start_t
 
-        if not math.isfinite(distance) or distance < 0.0:
+        if math.isfinite(distance) and distance >= 0.0:
             with self._buf_lock:
                 self.dist_markers.append(DistanceMarker(t, state, distance))
 

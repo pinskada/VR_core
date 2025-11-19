@@ -70,13 +70,19 @@ class GazeControl(BaseService, IGazeControl):
 
 # ---------- Public APIs ----------
 
-    def gaze_control(self, msg) -> None:
+    def gaze_control(self, msg: dict) -> None:
         """Control the gaze module."""
-        match msg:
+        command = msg.get("command")
+
+        match command:
             case "start_calibration":
                 self._start_calibration()
             case "end_calibration":
                 self._end_calibration()
+            case "set_timestamp":
+                dist_point = msg.get("dist_point", {})
+                if isinstance(dist_point, dict):
+                    self.i_gaze_calib.set_timestamp(dist_point)
             case "start_gaze_calc":
                 self._start_gaze_calc()
             case "ipd_to_tcp_requested":
