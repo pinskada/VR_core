@@ -326,10 +326,18 @@ class TrackerSync(BaseService):
                             self.tracker_data_q.put(pair)
 
                         if self.tracker_data_to_tcp_s.is_set():
+                            left_eye  = self._eye_to_unity_format(left.data)
+                            right_eye = self._eye_to_unity_format(right.data)
+
+                            tracker_payload = {
+                                "left_eye": left_eye,
+                                "right_eye": right_eye,
+                            }
+
                             # Send to comm router for logging/telemetry
                             self.comm_router_q.put((5, next(self.pq_counter),
-                                MessageType.trackerData, pair))
-                            #self.logger.info("Sending tracker data over TCP.")
+                                MessageType.trackerData, tracker_payload))
+                            self.logger.info("Sending tracker data over TCP.")
 
                     case MessageType.trackerPreview:
                         # Forward both images as a pair to CommRouter (it will PNG-encode)
@@ -368,3 +376,33 @@ class TrackerSync(BaseService):
             buf.pop(k, None)
 
         self.logger.warning("Trimmed sync buffer by %d entries.", drop_n)
+
+
+    @staticmethod
+    def _eye_to_unity_format(eye_dict: Dict) -> Dict[str, float]:
+        """
+        Convert EyeLoop eye data:
+            {'pupil': ((cx, cy), rx, ry, something)}
+        into Unity's EyeData JSON:
+            {center_x, center_y, radius_x, radius_y, is_valid}
+        """
+        pupil = eye_dict.get("pupil")
+        if not pupil:
+            return {
+                "center_x": 0.0,
+                "center_y": 0.0,
+                "radius_x": 0.0,
+                "radius_y": 0.0,
+                "is_valid": False,
+            }
+
+        # pupil = ((cx, cy), rx, ry, _)
+        (cx, cy), rx, ry, *_ = pupil
+
+        return {
+            "center_x": float(cx),
+            "center_y": float(cy),
+            "radius_x": float(rx),
+            "radius_y": float(ry),
+            "is_valid": True,
+        }
