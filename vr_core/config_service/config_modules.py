@@ -80,9 +80,9 @@ class TrackerCrop:
     # # Relative region (x1, x2, y1, y2) for the right eye
     # crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.5, 1.0), (0.0, 1.0))
 
-    crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.2, 0.45), (0.3, 0.65))
+    crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.25, 0.45), (0.3, 0.65))
     # Relative region (x1, x2, y1, y2) for the right eye
-    crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.5, 0.75), (0.3, 0.65))
+    crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.5, 0.7), (0.3, 0.65))
 
     # crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.2, 0.45), (0.6, 0.95))
     # # Relative region (x1, x2, y1, y2) for the right eye
@@ -204,7 +204,7 @@ class Eyeloop:
 
     right_threshold: int = 63  # Threshold for pupil detection in the right eye
     right_blur_size: int = 3  # Size of the blur applied to the image
-    right_min_radius: int = 3  # Minimum radius for pupil detection
+    right_min_radius: int = 4  # Minimum radius for pupil detection
     right_max_radius: int = 200  # Maximum radius for pupil detection
     right_search_step: int = 5  # Step size for searching the pupil
 

@@ -182,7 +182,7 @@ class FrameProvider(BaseService):
                 continue
 
             if self.use_test_video:
-                self._stop.wait(0.1)
+                self._stop.wait(0.01)
 
             # Start providing frames
             self._provide_frame()

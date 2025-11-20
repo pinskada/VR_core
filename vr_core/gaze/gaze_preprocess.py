@@ -70,6 +70,7 @@ class GazePreprocess(BaseService):
         Service start logic.
         """
         self.online = True
+        self._copy_config_to_locals()
         self._ready.set()
 
         #self.logger.info("Service set ready.")
@@ -145,7 +146,7 @@ class GazePreprocess(BaseService):
 
         self.print_state += 1
         # if self.print_state % 1 == 0:
-            #self.logger.info("Computed relative IPD: %s", self.filtered_ipd)
+        self.logger.info("Computed relative IPD: %s; fps: %.2f", self.filtered_ipd, fps)
             #self.logger.info("Gaze Preprocess FPS: %.2f", fps)
 
         if self.ipd_to_tcp_s.is_set():

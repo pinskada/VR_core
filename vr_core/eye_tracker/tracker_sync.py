@@ -264,6 +264,8 @@ class TrackerSync(BaseService):
             self.logger.warning("Dropping %s message for %s eye, with ID: "
                 "%s, without payload", message_type, eye, frame_id)
             return
+        if message_type is MessageType.trackerData and data.get("pupil") is None:
+            return
 
         # Select buffer based on payload type
         if message_type is MessageType.trackerData:
@@ -316,7 +318,7 @@ class TrackerSync(BaseService):
                 match message_type:
                     case MessageType.trackerData:
                         # Fan-out based on control signals
-                        self.logger.info("Left coordinates: %s", left.data)
+                        # self.logger.info("Left coordinates: %s", left.data)
                         self.print_count += 1
                         # if self.print_count % 20 == 0:
                             # self.logger.info("%s ; %s", left.data, right.data)

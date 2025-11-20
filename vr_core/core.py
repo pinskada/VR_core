@@ -76,7 +76,7 @@ class Core:
         self.imu_mock_mode_s = True
         self.camera_mock_mode = True
         self.fr_pr_test_video = True
-        self.use_eyeloop_gui = False
+        self.use_eyeloop_gui = True
 
     # -------- build: construct everything & inject dependencies --------
 
@@ -324,9 +324,9 @@ class Core:
                 cycle_count += 1
                 time.sleep(0.5)
 
-                if cycle_count == 2:
+                if cycle_count == 1:
                     tracker_control = self.services.get("TrackerControl")
-                    tracker_control.tracker_control({'mode': 'tracker_preview'})
+                    tracker_control.tracker_control({'mode': 'online'})
 
         except KeyboardInterrupt:
             # If SIGINT wasn’t caught by our handler, catch the raw KeyboardInterrupt
