@@ -309,20 +309,8 @@ class TrackerControl(BaseService, ITrackerControl):
         value: Any
     ) -> None:
         """Sends the current configuration to both EyeLoop processes."""
-        if field == "auto_search":
-            self.tracker_cmd_l_q.put(
-            {
-                "type": "config",
-                "param": field,
-                "value": value
-            })
-            self.tracker_cmd_r_q.put(
-            {
-                "type": "config",
-                "param": field,
-                "value": value
-            })
-        elif "left" in field:
+
+        if "left" in field:
             self.tracker_cmd_l_q.put(
             {
                 "type": "config",

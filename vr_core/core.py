@@ -70,12 +70,13 @@ class Core:
         self.services: Dict[str, BaseService] = {}
         self._stop_requested = Event()
 
-        self.tcp_mock_mode = False
-        self.config_mock_mode = False
+        self.tcp_mock_mode = True
+        self.config_mock_mode = True
         self.esp_mock_mode_s = True
         self.imu_mock_mode_s = True
-        self.camera_mock_mode = False
+        self.camera_mock_mode = True
         self.fr_pr_test_video = True
+        self.use_eyeloop_gui = False
 
     # -------- build: construct everything & inject dependencies --------
 
@@ -136,6 +137,7 @@ class Core:
             eye_tracker_signals=self.eye_ready_signals,
             tracker_signals=self.tracker_signals,
             config=config,
+            use_gui=self.use_eyeloop_gui,
         )
 
         tracker_control = TrackerControl(
@@ -321,6 +323,10 @@ class Core:
             while not self._stop_requested.is_set():
                 cycle_count += 1
                 time.sleep(0.5)
+
+                if cycle_count == 2:
+                    tracker_control = self.services.get("TrackerControl")
+                    tracker_control.tracker_control({'mode': 'tracker_preview'})
 
         except KeyboardInterrupt:
             # If SIGINT wasn’t caught by our handler, catch the raw KeyboardInterrupt

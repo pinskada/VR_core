@@ -22,6 +22,7 @@ def run_eyeloop(
     eye_ready_s: MpEvent,
     tracker_shm_is_closed_s: MpEvent,
     tracker_running_s: MpEvent,
+    use_gui: bool = False,
     test_mode: bool = False,
     ) -> None:
     """
@@ -29,15 +30,17 @@ def run_eyeloop(
     Sets up sys.argv so EyeLoop's main() can parse CLI-style arguments,
     and optionally injects a command queue.
     """
+    if use_gui:
+        gui_flag = "1"
+    else:
+        gui_flag = "0"
 
     sys.argv = [
         "eyeloop",
         "--side", eye,
         "--importer", importer_name,
         "--sharedmem", shm_name,
-        "--auto_search", "0",
-
-        #"--video", "test_video/test_video.mp4",
+        "--use_gui", gui_flag,
     ]
 
     if not test_mode:
@@ -50,7 +53,6 @@ def run_eyeloop(
                 eye_ready_signal=eye_ready_s,
                 tracker_shm_is_closed_s=tracker_shm_is_closed_s,
                 tracker_running_s=tracker_running_s,
-                logger=None,
             )
         except Exception as e:  # pylint: disable=broad-except
             logger.error("EyeLoop process for eye %s crashed: %s", eye, e)

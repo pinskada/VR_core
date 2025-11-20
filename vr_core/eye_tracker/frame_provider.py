@@ -258,7 +258,7 @@ class FrameProvider(BaseService):
             self.logger.error("Failed to write to shared memory: %s", e)
             self.online = False
             return
-        self.logger.info("Left shape: %s ; Right shape: %s", self.cfg.tracker.memory_shape_l, self.cfg.tracker.memory_shape_r)
+        #self.logger.info("Left shape: %s ; Right shape: %s", self.cfg.tracker.memory_shape_l, self.cfg.tracker.memory_shape_r)
         # Increment frame ID
         self.frame_id += 1
 

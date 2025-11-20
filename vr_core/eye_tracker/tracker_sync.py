@@ -316,10 +316,10 @@ class TrackerSync(BaseService):
                 match message_type:
                     case MessageType.trackerData:
                         # Fan-out based on control signals
+                        self.logger.info("Left coordinates: %s", left.data)
                         self.print_count += 1
-                        if self.print_count % 20 == 0:
-                            self.logger.info("%s ; %s", left.data, right.data)
-                            # self.logger.info("Left coordinates: %s", left.data)
+                        # if self.print_count % 20 == 0:
+                            # self.logger.info("%s ; %s", left.data, right.data)
                             # self.logger.info("Right coordinates: %s", right.data)
                         if self.tracker_data_to_gaze_s.is_set():
                             # Send to gaze module
@@ -337,7 +337,7 @@ class TrackerSync(BaseService):
                             # Send to comm router for logging/telemetry
                             self.comm_router_q.put((5, next(self.pq_counter),
                                 MessageType.trackerData, tracker_payload))
-                            self.logger.info("Sending tracker data over TCP.")
+                            #self.logger.info("Sending tracker data over TCP.")
 
                     case MessageType.trackerPreview:
                         # Forward both images as a pair to CommRouter (it will PNG-encode)

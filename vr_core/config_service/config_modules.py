@@ -76,9 +76,17 @@ class TrackerCrop:
     """Defines crop region for the tracker."""
 
     # Relative region (x1, x2, y1, y2) for the left eye
-    crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.0, 0.5), (0.0, 1.0))
+    # crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.0, 0.5), (0.0, 1.0))
+    # # Relative region (x1, x2, y1, y2) for the right eye
+    # crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.5, 1.0), (0.0, 1.0))
+
+    crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.2, 0.45), (0.3, 0.65))
     # Relative region (x1, x2, y1, y2) for the right eye
-    crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.5, 1.0), (0.0, 1.0))
+    crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.5, 0.75), (0.3, 0.65))
+
+    # crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.2, 0.45), (0.6, 0.95))
+    # # Relative region (x1, x2, y1, y2) for the right eye
+    # crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.5, 0.75), (0.6, 0.95))
 
 @dataclass
 class Gaze:
@@ -188,16 +196,16 @@ class Health:
 @dataclass
 class Eyeloop:
     """Eyeloop configuration settings."""
-    auto_search: bool = True  # Enable or disable auto-search for the pupil
-    left_threshold: int = 50  # Threshold for pupil detection in the left eye
-    right_threshold: int = 50  # Threshold for pupil detection in the right eye
-    left_blur_size: int = 5  # Size of the blur applied to the image
-    right_blur_size: int = 5  # Size of the blur applied to the image
-    left_min_radius: int = 10  # Minimum radius for pupil detection
-    right_min_radius: int = 10  # Minimum radius for pupil detection
-    left_max_radius: int = 60  # Maximum radius for pupil detection
-    right_max_radius: int = 60  # Maximum radius for pupil detection
+    left_threshold: int = 63  # Threshold for pupil detection in the left eye
+    left_blur_size: int = 3  # Size of the blur applied to the image
+    left_min_radius: int = 7  # Minimum radius for pupil detection
+    left_max_radius: int = 200  # Maximum radius for pupil detection
     left_search_step: int = 5  # Step size for searching the pupil
+
+    right_threshold: int = 63  # Threshold for pupil detection in the right eye
+    right_blur_size: int = 3  # Size of the blur applied to the image
+    right_min_radius: int = 3  # Minimum radius for pupil detection
+    right_max_radius: int = 200  # Maximum radius for pupil detection
     right_search_step: int = 5  # Step size for searching the pupil
 
 

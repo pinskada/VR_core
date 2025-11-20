@@ -28,6 +28,7 @@ class TrackerProcess(BaseService, ITrackerService):
         eye_tracker_signals: EyeTrackerSignals,
         tracker_signals: TrackerSignals,
         config: Config,
+        use_gui: bool = False,
     ) -> None:
         super().__init__(name="TrackerProcess")
 
@@ -56,6 +57,8 @@ class TrackerProcess(BaseService, ITrackerService):
         self.shm_cleared_s = tracker_signals.shm_cleared_s
 
         self.cfg = config
+
+        self.use_gui = use_gui
 
         self.proc_left: Optional[Process] = None
         self.proc_right: Optional[Process] = None
@@ -127,6 +130,7 @@ class TrackerProcess(BaseService, ITrackerService):
                       self.eye_ready_l_s,
                       self.tracker_shm_is_closed_l_s,
                       self.tracker_running_l_s,
+                      self.use_gui,
                       test_mode
                 ),
                 daemon=False,
@@ -154,6 +158,7 @@ class TrackerProcess(BaseService, ITrackerService):
                       self.eye_ready_r_s,
                       self.tracker_shm_is_closed_r_s,
                       self.tracker_running_r_s,
+                      self.use_gui,
                       test_mode
                     ),
                 daemon=False,
