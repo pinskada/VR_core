@@ -289,9 +289,11 @@ class FrameProvider(BaseService):
 
         # Block until both EyeLoop processes confirm processing of current frame
         if not self.left_eye_ready_s.wait(self.cfg.tracker.sync_timeout):
-            self.logger.warning("Timeout waiting for left eye readiness for ID: %d", self.frame_id)
+            # self.logger.warning("Timeout waiting for left eye readiness for ID: %d", self.frame_id)
+            pass
         if not self.right_eye_ready_s.wait(self.cfg.tracker.sync_timeout):
-            self.logger.warning("Timeout waiting for right eye readiness for ID: %d", self.frame_id)
+            # self.logger.warning("Timeout waiting for right eye readiness for ID: %d", self.frame_id)
+            pass
 
         self.left_eye_ready_s.clear()
         self.right_eye_ready_s.clear()
@@ -370,6 +372,7 @@ class FrameProvider(BaseService):
         self._clear_memory(Eye.RIGHT)
 
         self.shm_cleared_s.set()
+        self.logger.info("shm_cleared_s is set")
 
 
     def _allocate_memory(
@@ -425,7 +428,22 @@ class FrameProvider(BaseService):
                 name=memory_name,
                 create=True,
                 size=memory_size)
-
+        except FileExistsError:
+            # Clean up stale SHM and retry
+            self.logger.warning("SHM '%s' already exists. Attempting to unlink and recreate...", memory_name)
+            try:
+                existing = SharedMemory(name=memory_name)
+                existing.unlink()
+                existing.close()
+                shm = SharedMemory(
+                    name=memory_name,
+                    create=True,
+                    size=memory_size
+                )
+            except Exception as e2:
+                self.logger.error("Failed to recreate shared memory after unlink: %s", e2)
+                self.online = False
+                return
         except (FileNotFoundError, PermissionError, OSError, BufferError, ValueError) as e:
             self.online = False
             self.logger.error("Failed to allocate shared memory for %s eyeframe: %s",
@@ -461,6 +479,7 @@ class FrameProvider(BaseService):
             if shm is not None:
                 shm.close()
                 shm.unlink()
+                self.logger.info("%s shm has been cleared.", side_to_allocate)
             else:
                 self.logger.warning("No shared memory to clean "
                     "for %s eye.", side_to_allocate)
@@ -474,7 +493,6 @@ class FrameProvider(BaseService):
                 case Eye.RIGHT:
                     self.shm_right = None
 
-        # self.logger.info("%s shm has been cleared.", side_to_allocate)
 
 
     def _close_consumer_shm(self) -> None:
@@ -527,7 +545,7 @@ class FrameProvider(BaseService):
                     "frame_shape": self.cfg.tracker.memory_shape_r,
                     "frame_dtype": self.cfg.tracker.memory_dtype
                 })
-            # self.logger.info("tracker_cmd_l/r_q: shm_connect sent.")
+            self.logger.info("tracker_cmd_l/r_q: shm_connect sent.")
 
         else:
             if self.tracker_running_l_s.is_set():
@@ -539,7 +557,7 @@ class FrameProvider(BaseService):
                 self.tracker_cmd_r_q.put({
                     "type": "shm_detach",
                 })
-            # self.logger.info("tracker_cmd_l/r_q: shm_detach sent.")
+            self.logger.info("tracker_cmd_l/r_q: shm_detach sent.")
 
 
     def _validate_crop(self) -> None:

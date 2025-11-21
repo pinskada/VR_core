@@ -17,6 +17,7 @@ def run_eyeloop(
     importer_name: str,
     shm_name: str,
     blink_cal: str,
+    eyeloop_model: str,
     tracker_cmd_q: mp.Queue,
     tracker_resp_q: mp.Queue,
     eye_ready_s: MpEvent,
@@ -41,6 +42,7 @@ def run_eyeloop(
         "--importer", importer_name,
         "--sharedmem", shm_name,
         "--use_gui", gui_flag,
+        "--model", eyeloop_model,
     ]
 
     if not test_mode:

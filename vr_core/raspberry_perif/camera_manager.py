@@ -261,7 +261,7 @@ class CameraManager(BaseService, ICameraService):
         try:
             controls = {
                 "AfMode": self.cfg.camera.af_mode,
-                "LensPosition": int(self.cfg.camera.focus),
+                "LensPosition": float(self.cfg.camera.focus),
                 "ExposureTime": int(self.cfg.camera.exposure),
                 "AnalogueGain": self.cfg.camera.gain,
             }

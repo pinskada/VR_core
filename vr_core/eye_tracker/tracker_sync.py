@@ -377,7 +377,7 @@ class TrackerSync(BaseService):
         for k in keys[:drop_n]:
             buf.pop(k, None)
 
-        self.logger.warning("Trimmed sync buffer by %d entries.", drop_n)
+        #self.logger.warning("Trimmed sync buffer by %d entries.", drop_n)
 
 
     @staticmethod

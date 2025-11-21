@@ -45,7 +45,7 @@ class Tracker:
     memory_shape_r: tuple[int, int] = (1080, 960)  # Size of the shared memory buff (height, width)
     full_frame_resolution: tuple[int, int] = (1080, 1920)  # Full frame resolution (height, width)
     # Time to wait for shared memory to be released (in seconds)
-    memory_unlink_timeout: float = 2.0
+    memory_unlink_timeout: float = 5.0
     # Time to wait for frame provider to release frames (in seconds)
     frame_hold_timeout: float = 2.0
 
@@ -69,7 +69,10 @@ class Tracker:
     # Number of channels in the test video, must be changed in the code if needed
     test_video_channels: int = 1
 
-    sync_buffer_size: int = 128  # Maximum number of frames to hold for synchronization
+    sync_buffer_size: int = 32  # Maximum number of frames to hold for synchronization
+
+    # eyeloop_model: str = "circular"
+    eyeloop_model: str = "ellipsoid"
 
 @dataclass
 class TrackerCrop:
@@ -80,9 +83,9 @@ class TrackerCrop:
     # # Relative region (x1, x2, y1, y2) for the right eye
     # crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.5, 1.0), (0.0, 1.0))
 
-    crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.25, 0.45), (0.3, 0.65))
+    crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.1, 0.35), (0.20, 0.7))
     # Relative region (x1, x2, y1, y2) for the right eye
-    crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.5, 0.7), (0.3, 0.65))
+    crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.65, 0.9), (0.2, 0.7))
 
     # crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.2, 0.45), (0.6, 0.95))
     # # Relative region (x1, x2, y1, y2) for the right eye
@@ -124,7 +127,7 @@ class Camera:
 
     focus: int = 30 # Only used if autofocus is False
     exposure: int = 10000  # In microseconds
-    gain: float = 2.0  # Brightness boost
+    gain: float = 25  # Brightness boost
     af_mode: int = 0  # 0 = manual, 1 = auto
     buffer_count: int = 2  # Number of buffers for the camera
 

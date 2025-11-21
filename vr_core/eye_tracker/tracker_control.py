@@ -188,7 +188,7 @@ class TrackerControl(BaseService, ITrackerControl):
             return
 
         self.provide_frames_s.set()
-        # self.logger.info("providet_frame_s is set.")
+        self.logger.info("providet_frame_s is set.")
 
         self.tracker_data_to_tcp_s.set()
         self.tracker_data_to_gaze_s.set()
@@ -204,7 +204,7 @@ class TrackerControl(BaseService, ITrackerControl):
         """Stops all resources."""
 
         self.provide_frames_s.clear()
-        if not self.shm_cleared_s.wait(3):
+        if not self.shm_cleared_s.wait(5):
             self.logger.error("SHM has not been closed in time.")
 
         if (

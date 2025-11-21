@@ -145,14 +145,14 @@ class GazePreprocess(BaseService):
         self.time = time.time()
 
         self.print_state += 1
-        # if self.print_state % 1 == 0:
-        self.logger.info("Computed relative IPD: %s; fps: %.2f", self.filtered_ipd, fps)
+        # if self.print_state % 5 == 0:
+        self.logger.info("Computed relative IPD: %s", self.filtered_ipd)
             #self.logger.info("Gaze Preprocess FPS: %.2f", fps)
 
-        if self.ipd_to_tcp_s.is_set():
+        # if self.ipd_to_tcp_s.is_set():
             # Send the relative filtered IPD to the TCP module
-            self.comm_router_q.put((6, next(self.pq_counter),
-                MessageType.ipdPreview, self.filtered_ipd))
+        self.comm_router_q.put((6, next(self.pq_counter),
+            MessageType.gazeData, self.filtered_ipd))
 
         if self.gaze_calib_s.is_set() and self.gaze_calc_s.is_set():
             self.logger.warning("Both gaze calibration and calculation signals are set, " \
