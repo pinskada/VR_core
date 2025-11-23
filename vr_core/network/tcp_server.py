@@ -36,6 +36,8 @@ class TCPServer(BaseService, INetworkService):
 
         self.mock_mode = mock_mode
 
+        self._send_lock = threading.Lock()
+
         self.send_counter: int = 0
 
         self.online = False
@@ -282,21 +284,25 @@ class TCPServer(BaseService, INetworkService):
         if self.send_counter % 10 == 0:
             #self.logger.info("Sending data of type %s to CommRouter", msg_type)
             self.send_counter = 0
+        try:
+            packet = self._encode_message(body, msg_type)
+        except ValueError:
+            return
 
-        packet = self._encode_message(body, msg_type)
-        max_attempts = self.cfg.tcp.max_resend_attempts
-        for attempt in range(max_attempts):
-            try:
-                if self.client_conn:
-                    self.client_conn.sendall(packet)
-                    return
-            except OSError as e:
-                self.logger.warning("Send error (%d/%d): %s", attempt+1, max_attempts, e)
-                if attempt+1 >= max_attempts:
-                    self.logger.error("Max resend attempts reached; giving up.")
-                    self.online = False
-                    return
-                self._stop.wait(0.01)
+        with self._send_lock:
+            max_attempts = self.cfg.tcp.max_resend_attempts
+            for attempt in range(max_attempts):
+                try:
+                    if self.client_conn:
+                        self.client_conn.sendall(packet)
+                        return
+                except OSError as e:
+                    self.logger.warning("Send error (%d/%d): %s", attempt+1, max_attempts, e)
+                    if attempt+1 >= max_attempts:
+                        self.logger.error("Max resend attempts reached; giving up.")
+                        self.online = False
+                        return
+                    self._stop.wait(0.01)
 
 
     def _encode_message(

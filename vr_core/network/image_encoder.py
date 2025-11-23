@@ -13,7 +13,7 @@ from vr_core.utilities.logger_setup import setup_logger
 # EyeHeader:   [EyeID:1][Width:2][Height:2][ImageSize:4]  ==> 9 bytes total
 # Endianness:  Little-endian to match C# BitConverter.ToUInt16/ToInt32 on little-endian platforms.
 # EyeID:       0 = left, 1 = right (as per your C# comment)
-MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5 MB max per image
+MAX_IMAGE_SIZE = 5 * 4000 * 4000  # 5 MB max per image
 
 Codec = Literal["jpeg", "png"]
 

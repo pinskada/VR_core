@@ -1,7 +1,7 @@
 """Communication router module."""
 
 import time
-from typing import Callable, Dict, Any, Optional
+from typing import Callable, Dict, Any
 from queue import PriorityQueue
 from multiprocessing.shared_memory import SharedMemory
 from multiprocessing.synchronize import Event as MpEvent
