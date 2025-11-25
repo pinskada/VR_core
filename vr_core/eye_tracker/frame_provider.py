@@ -7,6 +7,7 @@ from typing import Any, Optional
 from threading import Event
 from enum import Enum
 from pathlib import Path
+import time
 
 import numpy as np
 from numpy.typing import NDArray
@@ -155,7 +156,11 @@ class FrameProvider(BaseService):
 
     def _run(self) -> None:
         """Main loop for capturing and distributing frames."""
+        prev_time = None
         while not self._stop.is_set():
+            # self.logger.info("FrameProvider _run loop iteration.")
+            # time_0 = time.time()
+            # self.logger.info("time_0: %.4f", time_0)
 
             # Wait until frame provision is enabled
             if not self.provide_frames_s.is_set():
@@ -181,12 +186,43 @@ class FrameProvider(BaseService):
                 self._stop.wait(0.1)
                 continue
 
-            if self.use_test_video:
-                self._stop.wait(0.01)
+            # if self.use_test_video:
+            #     self._stop.wait(0.05)
+
+            self.frame_id += 1
+
+            if self.frame_id == 1:
+                frames = self._capture_frame()
+                if frames is None:
+                    continue
+                left_frame, right_frame = frames
 
             # Start providing frames
-            self._provide_frame()
+            self._provide_frame(left_frame, right_frame)
+
+            # time_1 = time.time()
+            # self.logger.info("time_1: %.4f", time_1)
+
+            frames = self._capture_frame()
+            if frames is None:
+                # self.logger.info("No frames captured, stopping frame provision.")
+                continue
+            left_frame, right_frame = frames
+
+            # time_2 = time.time()
+            # self.logger.info("time_2: %.4f", time_2)
+
             self._wait_for_sync()
+
+            if self.frame_id % 100 == 0:
+                curr_time = time.time()
+
+                if prev_time is not None:
+                    if curr_time - prev_time == 0:
+                        continue
+                    fps = 100 / (curr_time - prev_time)
+                    self.logger.info("FPS: %.2f", fps)
+                prev_time = curr_time
 
 
     def _on_stop(self) -> None:
@@ -211,31 +247,8 @@ class FrameProvider(BaseService):
 
 # ---------- Internals ----------
 
-    def _provide_frame(self) -> None:
+    def _provide_frame(self, left_frame: NDArray[np.uint8], right_frame: NDArray[np.uint8]) -> None:
         """Captures, crops, and writes frames to shared memory."""
-
-        # Capture next frame from video or camera
-        if self.use_test_video:
-            self._stop.wait(self.cfg.camera.exposure / 1000000)  # Simulate exposure time
-            ret, full_frame = self.video_capture.read()
-            if full_frame is None:
-                self.logger.info("End of video reached.")
-                self.i_tracker_control.tracker_control({"mode": "offline"})
-                return
-            full_frame = cv2.cvtColor(full_frame, cv2.COLOR_BGR2GRAY)
-
-            if not ret:
-                self.logger.warning("End of test video or read error.")
-                self.i_tracker_control.tracker_control({"mode": "offline"})
-                self.online = False
-                return
-        else:
-            full_frame = self.i_camera_manager.capture_frame()
-
-
-        # Crop left and right regions from the full frame
-        left_frame = self._crop(full_frame, self.crop_l)
-        right_frame = self._crop(full_frame, self.crop_r)
 
         if self.shm_left is None or self.shm_right is None:
             self.logger.error("Shared memory not allocated.")
@@ -259,8 +272,6 @@ class FrameProvider(BaseService):
             self.online = False
             return
         #self.logger.info("Left shape: %s ; Right shape: %s", self.cfg.tracker.memory_shape_l, self.cfg.tracker.memory_shape_r)
-        # Increment frame ID
-        self.frame_id += 1
 
         # Signal to CommRouter that a new frame is ready
         self.router_frame_ready_s.set()
@@ -279,6 +290,40 @@ class FrameProvider(BaseService):
             })
         #self.logger.info("tracker_cmd_l/r_q: frame ID %d sent.", self.frame_id)
 
+
+    def _capture_frame(self) -> Optional[tuple[NDArray[np.uint8], NDArray[np.uint8]]]:
+        # Capture next frame from video or camera
+        if self.use_test_video:
+            #self._stop.wait(self.cfg.camera.exposure / 1000000)  # Simulate exposure time
+            ret, full_frame = self.video_capture.read()
+            if full_frame is None:
+                self.logger.info("End of video reached.")
+                self.provide_frames_s.clear()
+                return None
+
+            # time_11 = time.time()
+            # self.logger.info("time_11: %.4f", time_11)
+
+            full_frame = cv2.cvtColor(full_frame, cv2.COLOR_BGR2GRAY)
+            # self.logger.info("Converted full fram e to grayscale.")
+            # time_12 = time.time()
+            # self.logger.info("time_12: %.4f", time_12)
+
+            if not ret:
+                self.logger.warning("End of test video or read error.")
+                self.i_tracker_control.tracker_control({"mode": "offline"})
+                self.online = False
+                return None
+        else:
+            full_frame = self.i_camera_manager.capture_frame()
+
+
+        # Crop left and right regions from the full frame
+        left_frame = self._crop(full_frame, self.crop_l)
+        right_frame = self._crop(full_frame, self.crop_r)
+
+
+        return left_frame, right_frame
 
     def _wait_for_sync(self) -> None:
         """Waits for both EyeLoop processes to confirm frame processing."""
@@ -332,8 +377,8 @@ class FrameProvider(BaseService):
 
         self.crop_l = self.cfg.tracker_crop.crop_left
         self.crop_r = self.cfg.tracker_crop.crop_right
-        self.full_frame_width = self.cfg.camera.res_width
-        self.full_frame_height = self.cfg.camera.res_height
+        self.full_frame_width = self.cfg.camera.target_res_width
+        self.full_frame_height = self.cfg.camera.target_res_height
         if self._ready.is_set():
             self.logger.info("Local settings updated from config.")
 
@@ -356,7 +401,7 @@ class FrameProvider(BaseService):
 
     def _deactivate_shm(self) -> None:
         """Deactivates shared memory usage."""
-
+        self.logger.info("Deactivating shared memory.")
         # Signal to consumers that shared memory is being deactivated
         self.shm_active_s.clear()
         # self.logger.info("shm_active_s cleared.")

@@ -5,6 +5,7 @@ import time
 import multiprocessing as mp
 from multiprocessing.synchronize import Event as MpEvent
 import traceback
+import signal
 
 from vr_core.eye_tracker.eyeloop_module.eyeloop.run_eyeloop import EyeLoop
 from vr_core.utilities.logger_setup import setup_logger
@@ -31,6 +32,8 @@ def run_eyeloop(
     Sets up sys.argv so EyeLoop's main() can parse CLI-style arguments,
     and optionally injects a command queue.
     """
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
     if use_gui:
         gui_flag = "1"
     else:

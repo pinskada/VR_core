@@ -140,7 +140,7 @@ class GazePreprocess(BaseService):
 
         self._filter_ipd(float(relat_ipd)) # Apply filtering to the IPD value
 
-        fps = 1 / (time.time() - self.time) if self.time != 0 else 0
+        #fps = 1 / (time.time() - self.time) if self.time != 0 else 0
 
         self.time = time.time()
 
@@ -188,8 +188,8 @@ class GazePreprocess(BaseService):
 
         crop_left = self.cfg.tracker_crop.crop_left
         crop_right = self.cfg.tracker_crop.crop_right
-        full_frame_width = self.cfg.camera.res_width
-        full_frame_height = self.cfg.camera.res_height
+        full_frame_width = self.cfg.camera.target_res_width
+        full_frame_height = self.cfg.camera.target_res_height
         self.full_frame_width = full_frame_width
 
         self.x_left_start = crop_left[0][0] * full_frame_width

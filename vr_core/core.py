@@ -70,12 +70,12 @@ class Core:
         self.services: Dict[str, BaseService] = {}
         self._stop_requested = Event()
 
-        self.tcp_mock_mode = False
-        self.config_mock_mode = False
+        self.tcp_mock_mode = True
+        self.config_mock_mode = True
         self.esp_mock_mode_s = True
         self.imu_mock_mode_s = True
-        self.camera_mock_mode = False
-        self.fr_pr_test_video = False
+        self.camera_mock_mode = True
+        self.fr_pr_test_video = True
         self.use_eyeloop_gui = True
 
     # -------- build: construct everything & inject dependencies --------
@@ -220,10 +220,10 @@ class Core:
             "CameraManager": camera_manager,
             "ESP32": esp32,
             "IMU": imu,
-            "FrameProvider": frame_provider,
             "TrackerProcess": tracker_process,
             "TrackerSync": tracker_sync,
             "TrackerControl": tracker_control,
+            "FrameProvider": frame_provider,
             "GazeCalib": gaze_calib,
             "GazeCalc": gaze_calc,
             "GazePreprocess": gaze_preprocess,
@@ -281,36 +281,39 @@ class Core:
 
         # Request stop
         for name in stop_order:
+            svc = self.services[name]
+
             try:
                 #self.logger.info("-> stop %s", name)
-                self.services[name].stop()
+                svc.stop()
             except (RuntimeError, ValueError, OSError) as e:
                 # Common states: not started, already closed, socket already closed
                 self.logger.warning("Benign stop error in %s: %s", name, e, exc_info=True)
+                continue
             except Exception:  # pylint: disable=broad-except
                 self.logger.exception("Unexpected error calling stop() on %s", name)
-
-        # Join
-        for name in stop_order:
-            svc = self.services[name]
-            if not getattr(svc, "alive", False):
-                self.logger.info("Service %s thread not running, skipping join.", name)
                 continue
+
             try:
-                svc.join(timeout=5)
-            except (RuntimeError, ValueError) as e:
-                self.logger.warning("Join error in %s: %s", name, e, exc_info=True)
-            except Exception:  # pylint: disable=broad-except
-                self.logger.exception("Unexpected exception joining %s", name)
-            else:
-                # No exception: verify thread actually stopped
-                if getattr(svc, "alive", None):
-                    try:
-                        still_alive = svc.alive  # BaseService exposes this
-                    except Exception:  # pylint: disable=broad-except
-                        still_alive = False
-                    if still_alive:
+                # BaseService now exposes stopped() and alive
+                if getattr(svc, "alive", False):
+                    # Wait on the stopped event first
+                    if hasattr(svc, "stopped"):
+                        ok = svc.stopped(timeout=5.0)
+                        if not ok:
+                            self.logger.error("%s did not report stopped within 5s.", name)
+                    else:
+                        # Fallback: use join if stopped() is not available
+                        svc.join(timeout=5.0)
+
+                    # Verify thread status if possible
+                    if getattr(svc, "alive", False):
                         self.logger.error("%s did not stop within 5s (still alive).", name)
+
+            except (RuntimeError, ValueError) as e:
+                self.logger.warning("Join/stop wait error in %s: %s", name, e, exc_info=True)
+            except Exception:  # pylint: disable=broad-except
+                self.logger.exception("Unexpected exception waiting for %s to stop", name)
 
         self.logger.info("All services stopped.")
 
@@ -321,15 +324,17 @@ class Core:
         cycle_count = 0
         try:
             while not self._stop_requested.is_set():
+                tracker_control = self.services.get("TrackerControl")
+                if not isinstance(tracker_control, TrackerControl):
+                    return
                 cycle_count += 1
                 time.sleep(0.5)
+                if cycle_count == 1:
+                    tracker_control.tracker_control({'mode': 'online'})
 
-                # if cycle_count == 1:
-                #     tracker_control = self.services.get("TrackerControl")
-                #     tracker_control.tracker_control({'mode': 'online'})
 
         except KeyboardInterrupt:
-            # If SIGINT wasn’t caught by our handler, catch the raw KeyboardInterrupt
+            # If SIGINT wasn’t caught by handler, catch the raw KeyboardInterrupt
             self.logger.info("KeyboardInterrupt received, shutting down…")
             self._stop_requested.set()
 

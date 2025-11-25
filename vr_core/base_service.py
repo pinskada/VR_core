@@ -35,8 +35,9 @@ class BaseService(ABC):
         self.name = name
 
         # Shutdown & readiness coordination
-        self._stop = threading.Event()
         self._ready = threading.Event()
+        self._stop = threading.Event()
+        self._service_stopped = threading.Event()
 
         # Main service thread (non-daemon so we can shut down cleanly)
         self._thread = threading.Thread(
@@ -125,6 +126,8 @@ class BaseService(ABC):
                 self._on_stop()
             except Exception:  # pylint: disable=broad-except
                 log.exception("[%s] error during _on_stop()", self.name)
+            finally:
+                self._service_stopped.set()
 
 
     # ---------------- Hooks for subclasses ----------------
@@ -168,3 +171,11 @@ class BaseService(ABC):
     def stop_requested(self) -> bool:
         """True if stop() has been called."""
         return self._stop.is_set()
+
+
+    def stopped(self, timeout: Optional[float] = None) -> bool:
+        """
+        Block until the service has fully stopped and cleanup is done.
+        Returns True if the service stopped before the timeout.
+        """
+        return self._service_stopped.wait(timeout=timeout)

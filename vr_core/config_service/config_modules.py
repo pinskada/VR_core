@@ -74,22 +74,6 @@ class Tracker:
     # eyeloop_model: str = "circular"
     eyeloop_model: str = "ellipsoid"
 
-@dataclass
-class TrackerCrop:
-    """Defines crop region for the tracker."""
-
-    # Relative region (x1, x2, y1, y2) for the left eye
-    # crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.0, 0.5), (0.0, 1.0))
-    # # Relative region (x1, x2, y1, y2) for the right eye
-    # crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.5, 1.0), (0.0, 1.0))
-
-    crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.1, 0.35), (0.20, 0.7))
-    # Relative region (x1, x2, y1, y2) for the right eye
-    crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.65, 0.9), (0.2, 0.7))
-
-    # crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.2, 0.45), (0.6, 0.95))
-    # # Relative region (x1, x2, y1, y2) for the right eye
-    # crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.5, 0.75), (0.6, 0.95))
 
 @dataclass
 class Gaze:
@@ -120,10 +104,48 @@ class Gaze:
 
 
 @dataclass
+class TrackerCrop:
+    """Defines crop region for the tracker."""
+
+    # Relative region (x1, x2, y1, y2) for the left eye
+    # crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.0, 0.5), (0.0, 1.0))
+    # # Relative region (x1, x2, y1, y2) for the right eye
+    # crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.5, 1.0), (0.0, 1.0))
+
+    crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.25, 0.45), (0.35, 0.6))
+    # Relative region (x1, x2, y1, y2) for the right eye
+    crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.5, 0.7), (0.35, 0.6))
+
+    # crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.2, 0.45), (0.6, 0.95))
+    # # Relative region (x1, x2, y1, y2) for the right eye
+    # crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.5, 0.75), (0.6, 0.95))
+
+# 2300 x 2592 -> 1000x1200
+
+@dataclass
+class Eyeloop:
+    """Eyeloop configuration settings."""
+    left_threshold: int = 62  # Threshold for pupil detection in the left eye
+    left_blur_size: int = 3  # Size of the blur applied to the image
+    left_min_radius: int = 9  # Minimum radius for pupil detection
+    left_max_radius: int = 30  # Maximum radius for pupil detection
+    left_search_step: int = 5  # Step size for searching the pupil
+
+    right_threshold: int = 62  # Threshold for pupil detection in the right eye
+    right_blur_size: int = 3  # Size of the blur applied to the image
+    right_min_radius: int = 9  # Minimum radius for pupil detection
+    right_max_radius: int = 30  # Maximum radius for pupil detection
+    right_search_step: int = 5  # Step size for searching the pupil
+
+
+@dataclass
 class Camera:
     """Camera configuration settings."""
-    res_width: int = 4608
-    res_height: int = 2592
+    full_res_width: int = 4608
+    full_res_height: int = 2592
+
+    target_res_width: int = 1152
+    target_res_height: int = 648
 
     focus: int = 30 # Only used if autofocus is False
     exposure: int = 10000  # In microseconds
@@ -194,22 +216,6 @@ class Health:
     """Health monitor configuration settings."""
     enabled: bool = True
     log_interval_s: int = 60
-
-
-@dataclass
-class Eyeloop:
-    """Eyeloop configuration settings."""
-    left_threshold: int = 63  # Threshold for pupil detection in the left eye
-    left_blur_size: int = 3  # Size of the blur applied to the image
-    left_min_radius: int = 7  # Minimum radius for pupil detection
-    left_max_radius: int = 200  # Maximum radius for pupil detection
-    left_search_step: int = 5  # Step size for searching the pupil
-
-    right_threshold: int = 63  # Threshold for pupil detection in the right eye
-    right_blur_size: int = 3  # Size of the blur applied to the image
-    right_min_radius: int = 4  # Minimum radius for pupil detection
-    right_max_radius: int = 200  # Maximum radius for pupil detection
-    right_search_step: int = 5  # Step size for searching the pupil
 
 
 @dataclass

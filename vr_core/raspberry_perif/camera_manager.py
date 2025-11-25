@@ -4,6 +4,7 @@ import sys
 from typing import TYPE_CHECKING, Any, Optional
 from threading import Event
 
+import cv2
 import numpy as np
 from numpy.typing import NDArray
 
@@ -71,8 +72,11 @@ class CameraManager(BaseService, ICameraService):
         self.online = False
         self.frame_id = 0
         self._current_size: Optional[tuple[int, int]] = None
-        self.res_width: int
-        self.res_height: int
+
+        self.full_res_width: int
+        self.full_res_height: int
+        self.target_res_width: int
+        self.target_res_height: int
 
         self.reconfiguring_s = Event()
 
@@ -150,14 +154,14 @@ class CameraManager(BaseService, ICameraService):
         if self.mock_mode:
             self.logger.debug("Mock mode: returning empty frame.")
             return np.zeros(
-                (int(self.res_height), int(self.res_width)),
+                (int(self.target_res_height), int(self.target_res_width)),
                 dtype=np.uint8
             )
 
         if self.picam2 is None:
             self.logger.error("capture_frame() called but Picamera2 is unavailable.")
             return np.zeros(
-                (int(self.res_height), int(self.res_width)),
+                (int(self.target_res_height), int(self.target_res_width)),
                 dtype=np.uint8
             )
 
@@ -175,8 +179,18 @@ class CameraManager(BaseService, ICameraService):
                 if req is None:
                     raise TimeoutError("capture_request() returned None")
 
-                arr = req.make_array("main")[0:self.res_height, 0:self.res_width]  # Y plane
-                gray = np.ascontiguousarray(arr)
+                arr = req.make_array("main")[0:self.full_res_height, 0:self.full_res_width]  # Y plane
+                full_gray = np.ascontiguousarray(arr)
+
+                if (self.full_res_width, self.full_res_height) != (self.target_res_width, self.target_res_height):
+                    gray_resized = cv2.resize(
+                        full_gray,
+                        (self.target_res_width, self.target_res_height),
+                        interpolation=cv2.INTER_AREA
+                    )
+                    gray = np.asarray(gray_resized, dtype=np.uint8)
+                else:
+                    gray = full_gray
 
                 last_exc = None
                 break
@@ -195,7 +209,7 @@ class CameraManager(BaseService, ICameraService):
             self.logger.error("Capture failed after retries: %s", last_exc)
             self.online = False
             return np.zeros(
-                (int(self.res_height), int(self.res_width)),
+                (int(self.target_res_height), int(self.target_res_width)),
                 dtype=np.uint8
             )
 
@@ -244,15 +258,14 @@ class CameraManager(BaseService, ICameraService):
 
         # Apply image resolution and buffer settings
         cfg = self.picam2.create_video_configuration(
-            main={"size": (self.res_width, self.res_height), "format": "YUV420"},
+            main={"size": (self.target_res_width, self.target_res_height), "format": "YUV420"},
             buffer_count=buffer_count,
         )
 
         try:
             self.picam2.configure(cfg)
-            self._current_size = (self.res_width, self.res_height)
             self.logger.info("Configured video pipeline: %dx%d (buffers=%d).",
-                self.res_width, self.res_height, buffer_count)
+                self.target_res_width, self.target_res_height, buffer_count)
         except (OSError, RuntimeError, PiCameraError, ControlError) as e:
             self.logger.exception("Failed to configure camera: %s", e)
             return
@@ -275,8 +288,11 @@ class CameraManager(BaseService, ICameraService):
 
     def _copy_config_to_local(self) -> None:
         """ Copy relevant config settings to local variables."""
-        self.res_width = self.cfg.camera.res_width
-        self.res_height = self.cfg.camera.res_height
+        self.full_res_width = self.cfg.camera.full_res_width
+        self.full_res_height = self.cfg.camera.full_res_height
+
+        self.target_res_width = self.cfg.camera.target_res_width
+        self.target_res_height = self.cfg.camera.target_res_height
 
 
     #  pylint: disable=unused-argument
