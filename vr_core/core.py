@@ -76,7 +76,7 @@ class Core:
         self.imu_mock_mode_s = True
         self.camera_mock_mode = True
         self.fr_pr_test_video = True
-        self.use_eyeloop_gui = True
+        self.use_eyeloop_gui = False
 
     # -------- build: construct everything & inject dependencies --------
 
