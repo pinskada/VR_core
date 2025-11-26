@@ -127,13 +127,13 @@ class Eyeloop:
     """Eyeloop configuration settings."""
     left_threshold: int = 62  # Threshold for pupil detection in the left eye
     left_blur_size: int = 3  # Size of the blur applied to the image
-    left_min_radius: int = 9  # Minimum radius for pupil detection
+    left_min_radius: int = 10  # Minimum radius for pupil detection
     left_max_radius: int = 30  # Maximum radius for pupil detection
     left_search_step: int = 5  # Step size for searching the pupil
 
     right_threshold: int = 62  # Threshold for pupil detection in the right eye
     right_blur_size: int = 3  # Size of the blur applied to the image
-    right_min_radius: int = 9  # Minimum radius for pupil detection
+    right_min_radius: int = 10  # Minimum radius for pupil detection
     right_max_radius: int = 30  # Maximum radius for pupil detection
     right_search_step: int = 5  # Step size for searching the pupil
 
