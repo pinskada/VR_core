@@ -1,26 +1,29 @@
+# ruff: noqa: ERA001
+
 """Handles the communication between the EyeLoop processes and the main process."""
 
 import itertools
-import queue
 import multiprocessing as mp
-from enum import Enum
+import queue
 import threading
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from enum import Enum
+from typing import Any
 
+import cv2
 import numpy as np
 from numpy.typing import NDArray
-import cv2
 
-from vr_core.network.comm_contracts import MessageType
 from vr_core.base_service import BaseService
 from vr_core.config_service.config import Config
+from vr_core.network.comm_contracts import MessageType
 from vr_core.ports.signals import TrackerDataSignals, TrackerSignals
 from vr_core.utilities.logger_setup import setup_logger
 
 
 class Eye(Enum):
     """Enum for eye identification."""
+
     LEFT = 0
     RIGHT = 1
 
@@ -28,14 +31,16 @@ class Eye(Enum):
 @dataclass
 class _HalfFrame:
     """Holds data for one half of a frame."""
+
     data: Any
 
 
 @dataclass
 class _SyncBucket:
     """Holds L/R halves for a given frame_id."""
-    left: Optional[_HalfFrame] = None
-    right: Optional[_HalfFrame] = None
+
+    left: _HalfFrame | None = None
+    right: _HalfFrame | None = None
 
     def complete(self) -> bool:
         """Returns True if both left and right halves are present."""
@@ -43,8 +48,7 @@ class _SyncBucket:
 
 
 class TrackerSync(BaseService):
-    """
-    Receives messages from EyeLoop processes and routes them to the appropriate queues.
+    """Receives messages from EyeLoop processes and routes them to the appropriate queues.
     Synchronizes frames between left and right EyeLoop processes.
     """
 
@@ -58,7 +62,7 @@ class TrackerSync(BaseService):
         tracker_health_q: queue.Queue,
         tracker_response_l_q: mp.Queue,
         tracker_response_r_q: mp.Queue,
-        config: Config
+        config: Config,
     ) -> None:
         super().__init__(name="TrackerSync")
 
@@ -95,8 +99,8 @@ class TrackerSync(BaseService):
 
 
         # Per-kind sync buffers: frame_id -> _SyncBucket
-        self._eye_data_buf: Dict[int, _SyncBucket] = {}
-        self._image_buf: Dict[int, _SyncBucket] = {}
+        self._eye_data_buf: dict[int, _SyncBucket] = {}
+        self._image_buf: dict[int, _SyncBucket] = {}
 
         self.print_count = 0
 
@@ -109,18 +113,17 @@ class TrackerSync(BaseService):
 
     def _on_start(self) -> None:
         """Initializes the QueueHandler service."""
-
         self._t_left = threading.Thread(
             target=self._response_loop,
             name="eye-left-rx",
             args=(self.tracker_response_l_q, Eye.LEFT),
-            daemon=True
+            daemon=True,
         )
         self._t_right = threading.Thread(
             target=self._response_loop,
             name="eye-right-rx",
             args=(self.tracker_response_r_q, Eye.RIGHT),
-            daemon=True
+            daemon=True,
         )
         self._t_left.start()
         self._t_right.start()
@@ -152,10 +155,9 @@ class TrackerSync(BaseService):
     def _response_loop(
         self,
         response_queue: mp.Queue,
-        eye: Eye
+        eye: Eye,
     ) -> None:
         """Loop to handle responses from EyeLoop processes."""
-
         #self.logger.info("Service %s started.", eye)
 
         while not self._stop.is_set():
@@ -175,12 +177,10 @@ class TrackerSync(BaseService):
     def _dispatch_message(
         self,
         message: Any,
-        eye: Eye
+        eye: Eye,
     ) -> None:
+        """Dispatches a message to the appropriate queue based on its content.
         """
-        Dispatches a message to the appropriate queue based on its content.
-        """
-
         if isinstance(message, dict):
             payload_type = message.get("type")
 
@@ -200,7 +200,7 @@ class TrackerSync(BaseService):
             self.logger.warning("Unexpected message format: %s", type(message))
 
 
-    def _extract_image_preview(self, message: Dict) -> Optional[NDArray[np.uint8]]:
+    def _extract_image_preview(self, message: dict) -> NDArray[np.uint8] | None:
         h = int(message.get("height", 0))
         w = int(message.get("width", 0))
         bit_map = message.get("bitmap")
@@ -227,12 +227,11 @@ class TrackerSync(BaseService):
 
     def _try_sync(
         self,
-        message: Dict,
+        message: dict,
         eye: Eye,
         message_type: MessageType,
     ) -> None:
         """Attempts to synchronize frames from left and right EyeLoop processes."""
-
         frame_id = message.get("frame_id")
 
 
@@ -357,7 +356,7 @@ class TrackerSync(BaseService):
 
     def _trim_buffer(
         self,
-        buf: Dict[int, _SyncBucket],
+        buf: dict[int, _SyncBucket],
     ) -> None:
         """Trim sync buffers by *size only* (no time-based GC).
 
@@ -365,7 +364,6 @@ class TrackerSync(BaseService):
         Assumes frame_id is an increasing integer; if not guaranteed, trimming
         still works but keeps arbitrary newer entries.
         """
-
         cap = int(self.cfg.tracker.sync_buffer_size)
 
         if len(buf) <= cap:
@@ -381,9 +379,8 @@ class TrackerSync(BaseService):
 
 
     @staticmethod
-    def _eye_to_unity_format(eye_dict: Dict) -> Dict[str, float]:
-        """
-        Convert EyeLoop eye data:
+    def _eye_to_unity_format(eye_dict: dict) -> dict[str, float]:
+        """Convert EyeLoop eye data:
             {'pupil': ((cx, cy), rx, ry, something)}
         into Unity's EyeData JSON:
             {center_x, center_y, radius_x, radius_y, is_valid}

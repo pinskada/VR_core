@@ -1,15 +1,14 @@
 """Control service for eye-tracking module."""
 
 import itertools
-import queue
 import multiprocessing as mp
+import queue
 from typing import Any
-from typing import Tuple
 
 from vr_core.base_service import BaseService
 from vr_core.config_service.config import Config
+from vr_core.ports.interfaces import ITrackerControl, ITrackerService
 from vr_core.ports.signals import CommRouterSignals, TrackerDataSignals, TrackerSignals
-from vr_core.ports.interfaces import ITrackerService, ITrackerControl
 from vr_core.utilities.logger_setup import setup_logger
 
 
@@ -36,7 +35,7 @@ class TrackerControl(BaseService, ITrackerControl):
         tracker_data_signals: TrackerDataSignals,
         tracker_signals: TrackerSignals,
         i_tracker_process: ITrackerService,
-        config: Config
+        config: Config,
     ) -> None:
 
         super().__init__("TrackerControl")
@@ -75,7 +74,7 @@ class TrackerControl(BaseService, ITrackerControl):
 # ---------- BaseService lifecycle ----------
 
     def _on_start(self) -> None:
-        """ Start the tracker module. """
+        """Start the tracker module."""
         self.online = True
         self._ready.set()
 
@@ -83,13 +82,13 @@ class TrackerControl(BaseService, ITrackerControl):
 
 
     def _run(self) -> None:
-        """ Main loop for the tracker control service. """
+        """Run the main loop for the tracker control service."""
         while not self._stop.is_set():
             self._stop.wait(0.1)
 
 
     def _on_stop(self) -> None:
-        """ Stop the tracker module. """
+        """Stop the tracker module."""
         self.online = False
         #self._offline_mode()
         self._unsubscribe()
@@ -100,7 +99,6 @@ class TrackerControl(BaseService, ITrackerControl):
 
     def tracker_control(self, msg: dict) -> None:
         """Control the tracker module based on incoming messages."""
-
         cmd_type = msg.get("mode")
 
         match cmd_type:
@@ -119,8 +117,7 @@ class TrackerControl(BaseService, ITrackerControl):
 # ---------- Mode setters ----------
 
     def _offline_mode(self) -> None:
-        """Sets the tracker module to offline mode."""
-
+        """Set the tracker module to offline mode."""
         self.logger.info("Setting tracker to offline mode.")
 
         self._stop_all_actions()
@@ -132,8 +129,7 @@ class TrackerControl(BaseService, ITrackerControl):
 
 
     def _camera_preview_mode(self) -> None:
-        """Sets the tracker module to camera preview mode."""
-
+        """Set the tracker module to camera preview mode."""
         self.logger.info("Setting tracker to camera preview mode.")
 
         self._stop_all_actions()
@@ -146,8 +142,7 @@ class TrackerControl(BaseService, ITrackerControl):
 
 
     def _tracker_preview_mode(self) -> None:
-        """Sets the tracker module to eye-tracker preview mode."""
-
+        """Set the tracker module to eye-tracker preview mode."""
         self.logger.info("Setting tracker to eye-tracker preview mode.")
 
         self._stop_all_actions()
@@ -173,8 +168,7 @@ class TrackerControl(BaseService, ITrackerControl):
 
 
     def _online_mode(self) -> None:
-        """Sets the tracker module to online mode."""
-
+        """Set the tracker module to online mode."""
         self.logger.info("Setting tracker to online mode.")
 
         self._stop_all_actions()
@@ -201,8 +195,7 @@ class TrackerControl(BaseService, ITrackerControl):
 # ---------- Helpers ----------
 
     def _stop_all_actions(self) -> None:
-        """Stops all resources."""
-
+        """Stop all resources."""
         self.provide_frames_s.clear()
         if not self.shm_cleared_s.wait(5):
             self.logger.error("SHM has not been closed in time.")
@@ -244,41 +237,37 @@ class TrackerControl(BaseService, ITrackerControl):
                     break
 
     def prompt_preview(self, send_preview: bool) -> None:
+        """Updates Eyeloop whether to send preview.
         """
-        Updates Eyeloop whether to send preview.
-        """
-
         self.tracker_cmd_l_q.put(
         {
             "type": "config",
             "param": "preview",
-            "value": send_preview
+            "value": send_preview,
         })
         self.tracker_cmd_r_q.put(
         {
             "type": "config",
             "param": "preview",
-            "value": send_preview
+            "value": send_preview,
         })
         # self.logger.info("tracker_cmd_l_q: Prompted preview : %s", send_preview)
 
 
     def update_eyeloop_autosearch(self, autosearch: bool) -> None:
+        """Updates the EyeLoop process with the new autosearch configuration.
         """
-        Updates the EyeLoop process with the new autosearch configuration.
-        """
-
         self.tracker_cmd_l_q.put(
         {
             "type": "config",
             "param": "auto_search",
-            "value": autosearch
+            "value": autosearch,
         })
         self.tracker_cmd_r_q.put(
         {
             "type": "config",
             "param": "auto_search",
-            "value": autosearch
+            "value": autosearch,
         })
         # self.logger.info("tracker_cmd_l_q: Prompted auto_search : %s", autosearch)
 
@@ -306,29 +295,28 @@ class TrackerControl(BaseService, ITrackerControl):
     def _send_config_to_eyeloop(
         self,
         field: str,
-        value: Any
+        value: Any,
     ) -> None:
         """Sends the current configuration to both EyeLoop processes."""
-
         if "left" in field:
             self.tracker_cmd_l_q.put(
             {
                 "type": "config",
                 "param": field.removeprefix("right_").removeprefix("left_"),
-                "value": value
+                "value": value,
             })
         elif "right" in field:
             self.tracker_cmd_r_q.put(
             {
                 "type": "config",
                 "param": field.removeprefix("right_").removeprefix("left_"),
-                "value": value
+                "value": value,
             })
         else:
             self.logger.error("Unknown configuration for field: %s", field)
 
 
-    def _split_path(self, path: str, split_symbol: str) -> Tuple[str, str]:
+    def _split_path(self, path: str, split_symbol: str) -> tuple[str, str]:
         """Splits a dotted path with 2 strings into section and field."""
         parts = path.split(split_symbol)
 

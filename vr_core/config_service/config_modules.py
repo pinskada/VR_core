@@ -1,12 +1,16 @@
+# ruff: noqa: ERA001
+
 """Config module dataclasses."""
 
 from dataclasses import dataclass, field
 from typing import Any
 
+
 @dataclass
 class TCP:
     """Network configuration settings."""
-    host: str = '0.0.0.0' # Listen on all interfaces
+
+    host: str = "0.0.0.0" # Listen on all interfaces
     port: int = 65432     # Port for the TCP server
 
     static_ip_prefix: str = "192.168.2." # Static IP prefix for the device
@@ -30,6 +34,7 @@ class TCP:
 @dataclass
 class Tracker:
     """Tracker configuration settings."""
+
     frame_provider_max_fps: int = 1000 # Maximum FPS for the frame provider
     png_compression: int = 3  # PNG compression level (0-9)
     sync_timeout: float = 0.2  # Timeout for EyeLoop response in seconds
@@ -72,12 +77,12 @@ class Tracker:
     sync_buffer_size: int = 32  # Maximum number of frames to hold for synchronization
 
     # eyeloop_model: str = "circular"
-    eyeloop_model: str = "ellipsoid"
-
+    eyeloop_model: str = "fast_elliptical"
 
 @dataclass
 class Gaze:
     """Gaze configuration settings."""
+
     print_ipd_state: int = 50  # Flag to indicate if the system should print the IPD state
     filter_alpha: float = 0.5  # Alpha value for the low-pass filter (0-1)
     # Factor to determine the amount of data to discard from the start and end of the buffer
@@ -125,22 +130,22 @@ class TrackerCrop:
 @dataclass
 class Eyeloop:
     """Eyeloop configuration settings."""
-    left_threshold: int = 62  # Threshold for pupil detection in the left eye
-    left_blur_size: int = 3  # Size of the blur applied to the image
-    left_min_radius: int = 10  # Minimum radius for pupil detection
-    left_max_radius: int = 30  # Maximum radius for pupil detection
-    left_search_step: int = 5  # Step size for searching the pupil
 
-    right_threshold: int = 62  # Threshold for pupil detection in the right eye
-    right_blur_size: int = 3  # Size of the blur applied to the image
-    right_min_radius: int = 10  # Minimum radius for pupil detection
-    right_max_radius: int = 30  # Maximum radius for pupil detection
-    right_search_step: int = 5  # Step size for searching the pupil
+    left_threshold_pupil: int = 62  # Threshold for pupil detection in the left eye
+    left_blur_size_pupil: int = 3  # Size of the blur applied to the image
+    left_min_radius_pupil: int = 5  # Minimum radius for pupil detection
+    left_max_radius_pupil: int = 50  # Maximum radius for pupil detection
+
+    right_threshold_pupil: int = 62  # Threshold for pupil detection in the right eye
+    right_blur_size_pupil: int = 3  # Size of the blur applied to the image
+    right_min_radius_pupil: int = 5  # Minimum radius for pupil detection
+    right_max_radius_pupil: int = 50  # Maximum radius for pupil detection
 
 
 @dataclass
 class Camera:
     """Camera configuration settings."""
+
     full_res_width: int = 4608
     full_res_height: int = 2592
 
@@ -163,6 +168,7 @@ class Camera:
 @dataclass
 class IMU:
     """IMU configuration settings."""
+
     update_rate: float = 0.01  # in seconds (100 Hz)
     retry_attempts: int = 10  # Number of attempts to read data from the gyroscope
 
@@ -195,8 +201,9 @@ class IMU:
 @dataclass
 class ESP32:
     """ESP32 configuration settings."""
+
     # Serial port for ESP32 (e.g., /dev/serial0 on Raspberry Pi)
-    port: str = '/dev/ttyAMA0' # "/dev/serial0"
+    port: str = "/dev/ttyAMA0" # "/dev/serial0"
     baudrate: int = 115200  # Baud rate for the serial connection
     timeout: float = 5  # Timeout for the serial connection (in seconds)
 
@@ -214,6 +221,7 @@ class ESP32:
 @dataclass
 class Health:
     """Health monitor configuration settings."""
+
     enabled: bool = True
     log_interval_s: int = 60
 
@@ -221,6 +229,7 @@ class Health:
 @dataclass
 class RootConfig:
     """Root configuration holding all modules."""
+
     tcp: TCP = field(default_factory=TCP)
     tracker: Tracker = field(default_factory=Tracker)
     tracker_crop: TrackerCrop = field(default_factory=TrackerCrop)

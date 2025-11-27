@@ -1,23 +1,23 @@
 """Launches and monitors the eye tracker processes."""
 
-from multiprocessing import Process
 import multiprocessing as mp
 import queue
-from typing import Optional, Literal
+from multiprocessing import Process
+from typing import Literal
 
-from vr_core.eye_tracker.run_eyeloop import run_eyeloop
 from vr_core.base_service import BaseService
 from vr_core.config_service.config import Config
-from vr_core.ports.signals import EyeTrackerSignals, TrackerSignals
+from vr_core.eye_tracker.run_eyeloop import run_eyeloop
 from vr_core.ports.interfaces import ITrackerService
+from vr_core.ports.signals import EyeTrackerSignals, TrackerSignals
 from vr_core.utilities.logger_setup import setup_logger
-
 
 TrackerState = Literal["idle","starting","running","stopping","error"]
 
 
 class TrackerProcess(BaseService, ITrackerService):
     """Launches and monitors the eye tracker processes."""
+
     def __init__(
         self,
         tracker_cmd_q_l: mp.Queue,
@@ -60,14 +60,14 @@ class TrackerProcess(BaseService, ITrackerService):
 
         self.use_gui = use_gui
 
-        self.proc_left: Optional[Process] = None
-        self.proc_right: Optional[Process] = None
+        self.proc_left: Process | None = None
+        self.proc_right: Process | None = None
 
         self.running_left = False
         self.running_right = False
 
         self.tracker_state: TrackerState = "idle"
-        self.last_error: Optional[str] = None
+        self.last_error: str | None = None
 
         self.online = False
 
@@ -78,7 +78,6 @@ class TrackerProcess(BaseService, ITrackerService):
 
     def _on_start(self) -> None:
         """Starts the Eyeloop processes."""
-
         self.online = True
         self._ready.set()
         #self.logger.info("Service _ready is set.")
@@ -104,10 +103,9 @@ class TrackerProcess(BaseService, ITrackerService):
 
     def start_tracker(
         self,
-        test_mode: bool = False
+        test_mode: bool = False,
     ) -> None:
         """Starts the tracker processes."""
-
         #self.logger.info("Starting tracker processes.")
 
         if self.tracker_state in ("starting","running"):
@@ -132,7 +130,7 @@ class TrackerProcess(BaseService, ITrackerService):
                       self.tracker_shm_is_closed_l_s,
                       self.tracker_running_l_s,
                       self.use_gui,
-                      test_mode
+                      test_mode,
                 ),
                 daemon=False,
             )
@@ -161,7 +159,7 @@ class TrackerProcess(BaseService, ITrackerService):
                       self.tracker_shm_is_closed_r_s,
                       self.tracker_running_r_s,
                       self.use_gui,
-                      test_mode
+                      test_mode,
                     ),
                 daemon=False,
             )
@@ -212,7 +210,6 @@ class TrackerProcess(BaseService, ITrackerService):
 
     def _terminate_side(self, side: str) -> None:
         """Terminates the Eyeloop process for the given side."""
-
         proc = self.proc_left if side == "left" else self.proc_right
         if not proc:
             self.logger.warning("Process for %s eyeloop not existings, skipping termination.", side)
@@ -269,7 +266,6 @@ class TrackerProcess(BaseService, ITrackerService):
     # pylint: disable=unused-variable
     def _monitor_children(self) -> None:
         """Monitors the health of the Eyeloop processes."""
-
         if self.proc_left and self.running_left and not self.proc_left.is_alive():
             self.running_left = False
             self.last_error = "left process died"

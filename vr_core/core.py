@@ -1,53 +1,47 @@
+# ruff: noqa: ERA001
 """Core engine for RPI."""
 
+import logging
+import os
+import signal
 import sys
 import time
-import logging
-import signal
-from typing import Dict, List
-from threading import Event
-import os
 from datetime import datetime
+from threading import Event
 
 from vr_core.base_service import BaseService
 from vr_core.config_service.config import Config
-from vr_core.utilities.logger_setup import setup_logger
-
-from vr_core.ports.queues import CommQueues
-import vr_core.ports.signals as signals
-
-from vr_core.network.tcp_server import TCPServer
+from vr_core.eye_tracker.frame_provider import FrameProvider
+from vr_core.eye_tracker.tracker_control import TrackerControl
+from vr_core.eye_tracker.tracker_process import TrackerProcess
+from vr_core.eye_tracker.tracker_sync import TrackerSync
+from vr_core.gaze.gaze_calc import GazeCalc
+from vr_core.gaze.gaze_calib import GazeCalib
+from vr_core.gaze.gaze_control import GazeControl
+from vr_core.gaze.gaze_preprocess import GazePreprocess
 from vr_core.network.comm_router import CommRouter
-
+from vr_core.network.tcp_server import TCPServer
+from vr_core.ports import signals
+from vr_core.ports.queues import CommQueues
+from vr_core.raspberry_perif.camera_manager import CameraManager
 from vr_core.raspberry_perif.esp32 import Esp32
 from vr_core.raspberry_perif.imu import Imu
-from vr_core.raspberry_perif.camera_manager import CameraManager
-
-from vr_core.eye_tracker.tracker_control import TrackerControl
-from vr_core.eye_tracker.tracker_sync import TrackerSync
-from vr_core.eye_tracker.tracker_process import TrackerProcess
-from vr_core.eye_tracker.frame_provider import FrameProvider
-
-from vr_core.gaze.gaze_control import GazeControl
-from vr_core.gaze.gaze_calib import GazeCalib
-from vr_core.gaze.gaze_calc import GazeCalc
-from vr_core.gaze.gaze_preprocess import GazePreprocess
+from vr_core.utilities.logger_setup import setup_logger
 
 
 def _ensure_session_id() -> str:
     sid = os.environ.get("VR_SESSION_ID")
     if not sid:
-        sid = datetime.now().strftime("%H-%M-%S")
+        sid = datetime.now().strftime("%H-%M-%S")  # noqa: DTZ005
         os.environ["VR_SESSION_ID"] = sid
     return sid
 
 
 class Core:
-    """
-    Core engine for RPI.
-    """
+    """Core engine for RPI."""
 
-    def __init__(self, argv: List[str] | None = None):
+    def __init__(self, argv: list[str] | None = None) -> None:
+        """Initialize VR Core components."""
         #print("Starting VR Core...")
 
         self.argv = argv or []
@@ -56,8 +50,8 @@ class Core:
         self.config_mock_mode = True
         self.esp_mock_mode_s = True
         self.imu_mock_mode_s = True
-        self.camera_mock_mode = False
-        self.fr_pr_test_video = False
+        self.camera_mock_mode = True
+        self.fr_pr_test_video = True
         self.use_eyeloop_gui = True
 
         self.logger = setup_logger("Core")
@@ -75,14 +69,13 @@ class Core:
         _ = _ensure_session_id()
         self.logger.info("All components initialized.")
 
-        self.services: Dict[str, BaseService] = {}
+        self.services: dict[str, BaseService] = {}
         self._stop_requested = Event()
 
     # -------- build: construct everything & inject dependencies --------
 
-    def build(self):
+    def build(self) -> None:
         """Build and start all core modules."""
-
         config = Config(
             config_ready_s=self.config_signals.config_ready_s,
             mock_mode=self.config_mock_mode,
@@ -161,7 +154,7 @@ class Core:
             tracker_cmd_l_q=self.queues.tracker_cmd_l_q,
             tracker_cmd_r_q=self.queues.tracker_cmd_r_q,
             config=config,
-            use_test_video=self.fr_pr_test_video
+            use_test_video=self.fr_pr_test_video,
         )
 
         gaze_calib = GazeCalib(
@@ -233,8 +226,7 @@ class Core:
     # ------------------------ lifecycle: start/stop ---------------------
 
     def start(self) -> None:
-        """ Start services in dependency order, waiting for readiness on each."""
-
+        """Start services in dependency order, waiting for readiness on each."""
         self.logger.info("Starting services.")
         if not self.services:
             self.logger.warning("No services registered. "
@@ -242,7 +234,7 @@ class Core:
             return
 
         # Order listed in build()
-        start_order: List[str] = list(self.services.keys())
+        start_order: list[str] = list(self.services.keys())
         #self.logger.info("Starting services in order: %s", " -> ".join(start_order))
 
         # Wait for the service to declare readiness
@@ -250,7 +242,7 @@ class Core:
             svc = self.services[name]
             #self.logger.info("-> start %s", name)
 
-            if name == "TCPServer" or name == "ConfigService":
+            if name in {"TCPServer", "ConfigService"}:  # noqa: SIM108
                 # TCP server needs longer timeout since client may take time to connect
                 timeout = 120
                 #timeout = float("inf")
@@ -271,7 +263,7 @@ class Core:
         self.logger.info("All services started and ready.")
 
 
-    def stop(self):
+    def stop(self) -> None:  # noqa: C901
         """Stop services in reverse order and join them."""
         if not self.services:
             return
@@ -318,7 +310,7 @@ class Core:
         self.logger.info("All services stopped.")
 
 
-    def wait_forever(self):
+    def wait_forever(self) -> None:
         """Idle loop for the supervisor. Add supervision/restarts here later if needed."""
         #self.logger.info("Waiting for services to stop...")
         cycle_count = 0
@@ -330,11 +322,11 @@ class Core:
                 cycle_count += 1
                 time.sleep(0.5)
                 if cycle_count == 1:
-                    tracker_control.tracker_control({'mode': 'online'})
+                    tracker_control.tracker_control({"mode": "online"})
 
 
         except KeyboardInterrupt:
-            # If SIGINT wasn’t caught by handler, catch the raw KeyboardInterrupt
+            # If SIGINT wasn't caught by handler, catch the raw KeyboardInterrupt
             self.logger.info("KeyboardInterrupt received, shutting down…")
             self._stop_requested.set()
 
@@ -369,12 +361,16 @@ class Core:
     def install_signal_handlers(self) -> None:
         """Install signal handlers for graceful shutdown."""
 
-        def _handler(signum, _frame):
+        def _handler(
+            signum: int,
+            _frame: object,
+        ) -> None:
+            """Signal handler to request shutdown."""
             self.logger.info("Signal %s received, shutting down…", signum)
             self._stop_requested.set()
 
         signal.signal(signal.SIGINT, _handler)
-        try:
+        try:  # noqa: SIM105
             signal.signal(signal.SIGTERM, _handler)
         except (AttributeError, OSError):
             # Not available on some platforms (e.g., Windows older Pythons)
@@ -384,7 +380,7 @@ class Core:
 # ------------------------------ Entrypoint -----------------------------
 
 def main(argv: list[str] | None = None) -> int:
-    """Main entrypoint for the VR Core application."""
+    """Run the main entrypoint for the VR Core application."""
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
