@@ -1,5 +1,5 @@
 """Camera manager for Raspberry Pi using Picamera2."""
-
+import time
 import sys
 from typing import TYPE_CHECKING, Any, Optional
 from threading import Event
@@ -150,7 +150,6 @@ class CameraManager(BaseService, ICameraService):
 
     def capture_frame(self) -> NDArray[np.uint8]:
         """ Capture a single frame from the camera."""
-
         if self.mock_mode:
             self.logger.debug("Mock mode: returning empty frame.")
             return np.zeros(
@@ -175,13 +174,17 @@ class CameraManager(BaseService, ICameraService):
             req = None
             try:
                 # OR for async non-blocking
+                time_1 = time.perf_counter_ns() / 1e9
                 req = self.picam2.capture_request(wait=self.cfg.camera.capture_timeout_ms)
+                time_2 = time.perf_counter_ns() / 1e9
                 if req is None:
                     raise TimeoutError("capture_request() returned None")
 
                 arr = req.make_array("main")[0:self.full_res_height, 0:self.full_res_width]  # Y plane
                 full_gray = np.ascontiguousarray(arr)
-
+                time_3 = time.perf_counter_ns() / 1e9
+                # self.logger.info("Captured frame %d: size %dx%d",
+                                #   self.frame_id, full_gray.shape[1], full_gray.shape[0])
                 if (self.full_res_width, self.full_res_height) != (self.target_res_width, self.target_res_height):
                     gray_resized = cv2.resize(
                         full_gray,
@@ -189,9 +192,11 @@ class CameraManager(BaseService, ICameraService):
                         interpolation=cv2.INTER_AREA
                     )
                     gray = np.asarray(gray_resized, dtype=np.uint8)
+                    # self.logger.info("Resized frame %d: size %dx%d",
+                    #                   self.frame_id, gray.shape[1], gray.shape[0])
                 else:
                     gray = full_gray
-
+                time_4 = time.perf_counter_ns() / 1e9
                 last_exc = None
                 break
             except (TimeoutError, OSError, RuntimeError, PiCameraError) as e:
@@ -213,6 +218,11 @@ class CameraManager(BaseService, ICameraService):
                 dtype=np.uint8
             )
 
+        self.logger.info("Capture time: %.6f s; Copy: %.6f s; Resize time: %.6f s",
+            (time_2 - time_1),
+            (time_3 - time_2),
+            (time_4 - time_3)
+        )
         return gray
 
 
@@ -258,14 +268,15 @@ class CameraManager(BaseService, ICameraService):
 
         # Apply image resolution and buffer settings
         cfg = self.picam2.create_video_configuration(
-            main={"size": (self.target_res_width, self.target_res_height), "format": "YUV420"},
+            main={"size": (self.full_res_width, self.full_res_height), "format": "YUV420"},
             buffer_count=buffer_count,
         )
+
 
         try:
             self.picam2.configure(cfg)
             self.logger.info("Configured video pipeline: %dx%d (buffers=%d).",
-                self.target_res_width, self.target_res_height, buffer_count)
+                self.full_res_width, self.full_res_height, buffer_count)
         except (OSError, RuntimeError, PiCameraError, ControlError) as e:
             self.logger.exception("Failed to configure camera: %s", e)
             return
@@ -273,10 +284,11 @@ class CameraManager(BaseService, ICameraService):
 
         try:
             controls = {
-                "AfMode": self.cfg.camera.af_mode,
-                "LensPosition": float(self.cfg.camera.focus),
                 "ExposureTime": int(self.cfg.camera.exposure),
                 "AnalogueGain": self.cfg.camera.gain,
+                "AfMode": self.cfg.camera.af_mode,
+                "LensPosition": float(self.cfg.camera.focus),
+                #"FrameDurationLimits": (17800, 17800),
             }
             self.picam2.set_controls(controls)
             self.logger.debug("Controls applied: %s", controls)

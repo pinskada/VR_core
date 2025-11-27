@@ -197,11 +197,10 @@ class FrameProvider(BaseService):
                     continue
                 left_frame, right_frame = frames
 
+            time_1 = time.perf_counter_ns() / 1e9
             # Start providing frames
             self._provide_frame(left_frame, right_frame)
-
-            # time_1 = time.time()
-            # self.logger.info("time_1: %.4f", time_1)
+            time_2 = time.perf_counter_ns() / 1e9
 
             frames = self._capture_frame()
             if frames is None:
@@ -209,10 +208,14 @@ class FrameProvider(BaseService):
                 continue
             left_frame, right_frame = frames
 
-            # time_2 = time.time()
-            # self.logger.info("time_2: %.4f", time_2)
+            time_3 = time.perf_counter_ns() / 1e9
+            # self.logger.info("Frame processing time: %.6f s", (time_3 - time_2))
 
             self._wait_for_sync()
+            time_4 = time.perf_counter_ns() / 1e9
+
+            # self.logger.info("Provide time: %.6f s; Capture time: %.6f s; Sync wait time: %.6f s; Total time: %.6f s",
+            #     (time_2 - time_1), (time_3 - time_2), (time_4 - time_3), (time_4 - time_1))
 
             if self.frame_id % 100 == 0:
                 curr_time = time.time()
@@ -305,7 +308,7 @@ class FrameProvider(BaseService):
             # self.logger.info("time_11: %.4f", time_11)
 
             full_frame = cv2.cvtColor(full_frame, cv2.COLOR_BGR2GRAY)
-            # self.logger.info("Converted full fram e to grayscale.")
+            # self.logger.info("Converted full frame to grayscale.")
             # time_12 = time.time()
             # self.logger.info("time_12: %.4f", time_12)
 
@@ -315,12 +318,14 @@ class FrameProvider(BaseService):
                 self.online = False
                 return None
         else:
+            # time_1 = time.perf_counter_ns() / 1e9
             full_frame = self.i_camera_manager.capture_frame()
-
 
         # Crop left and right regions from the full frame
         left_frame = self._crop(full_frame, self.crop_l)
         right_frame = self._crop(full_frame, self.crop_r)
+        # time_2 = time.perf_counter_ns() / 1e9
+        # self.logger.info("Camera capture time: %.6f s", (time_2 - time_1))
 
 
         return left_frame, right_frame
@@ -507,8 +512,8 @@ class FrameProvider(BaseService):
                 # self.cfg.tracker.memory_shape_r = (memory_shape_x, memory_shape_y)
                 self.cfg.tracker.memory_shape_r = (memory_shape_y, memory_shape_x)
 
-        # self.logger.info("Allocated shared memory for %s eye: %s with size: %s",
-        #                 side_to_allocate, memory_name, (memory_shape_y, memory_shape_x))
+        self.logger.info("Allocated shared memory for %s eye: %s with size: %s",
+                        side_to_allocate, memory_name, (memory_shape_y, memory_shape_x))
 
 
     def _clear_memory(self, side_to_allocate: Eye) -> None:

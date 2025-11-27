@@ -52,6 +52,14 @@ class Core:
 
         self.argv = argv or []
 
+        self.tcp_mock_mode = True
+        self.config_mock_mode = True
+        self.esp_mock_mode_s = True
+        self.imu_mock_mode_s = True
+        self.camera_mock_mode = False
+        self.fr_pr_test_video = False
+        self.use_eyeloop_gui = True
+
         self.logger = setup_logger("Core")
 
         self.queues = CommQueues()
@@ -69,14 +77,6 @@ class Core:
 
         self.services: Dict[str, BaseService] = {}
         self._stop_requested = Event()
-
-        self.tcp_mock_mode = True
-        self.config_mock_mode = True
-        self.esp_mock_mode_s = True
-        self.imu_mock_mode_s = True
-        self.camera_mock_mode = True
-        self.fr_pr_test_video = True
-        self.use_eyeloop_gui = False
 
     # -------- build: construct everything & inject dependencies --------
 
