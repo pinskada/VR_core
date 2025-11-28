@@ -1,14 +1,16 @@
+# ruff: noqa: ERA001
+
 """Gaze model calibration module."""
 
 import itertools
 import math
-from time import monotonic
 import queue
-from queue import Queue, PriorityQueue
-from typing import Any, List
+import threading
 from dataclasses import dataclass
 from enum import Enum
-import threading
+from queue import PriorityQueue, Queue
+from time import monotonic
+from typing import Any
 
 import numpy as np
 from numpy.linalg import LinAlgError
@@ -23,25 +25,29 @@ from vr_core.utilities.logger_setup import setup_logger
 
 class MarkerState(Enum):
     """Marker state for distance calibration."""
+
     START = "start"
     STOP = "stop"
 
 @dataclass
 class IPDSample:
     """A single IPD measurement with a timestamp."""
+
     timestamp: float  # seconds since calibration start (monotonic)
     ipd_value: float
 
 @dataclass
 class DistanceMarker:
     """A calibration marker indicating start or stop at a specific distance."""
+
     timestamp: float
     state: MarkerState
     distance: float
 
 
 class GazeCalib(BaseService, IGazeService, GazeSignals):
-    """ Gaze calibration handler for interpupillary distance (IPD) measurements."""
+    """Gaze calibration handler for interpupillary distance (IPD) measurements."""
+
     def __init__(
         self,
         ipd_q: Queue,
@@ -49,7 +55,8 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
         pq_counter: itertools.count,
         gaze_signals: GazeSignals,
         config: Config,
-    ):
+    ) -> None:
+        """Initialize the GazeCalib service."""
         super().__init__("GazeCalib")
         self.logger = setup_logger("GazeCalib")
 
@@ -67,12 +74,13 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
         self._buf_lock = threading.Lock()
 
         # --- Lists for calibration data ---
-        self.ipd_samples: List[IPDSample] = []
-        self.dist_markers: List[DistanceMarker] = []
+        self.ipd_samples: list[IPDSample] = []
+        self.dist_markers: list[DistanceMarker] = []
 
         self.calib_start_t: float | None = None
 
         self.online = False
+        self.min_distances_for_calib = 3
 
         #self.logger.info("Service initialized.")
 
@@ -80,9 +88,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
 # ---------- BaseService lifecycle ----------
 
     def _on_start(self) -> None:
-        """
-        Start the gaze calibration service.
-        """
+        """Start the gaze calibration service."""
         self.online = True
         self._ready.set()
 
@@ -90,9 +96,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
 
 
     def _run(self) -> None:
-        """
-        Run the gaze calibration service.
-        """
+        """Run the gaze calibration service."""
         while not self._stop.is_set():
 
             self._dequeue_cmds()
@@ -108,9 +112,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
 
 
     def _on_stop(self) -> None:
-        """
-        Stop the gaze calibration service.
-        """
+        """Stop the gaze calibration service."""
         self.online = False
         self._unsubscribe()
 
@@ -120,8 +122,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
 # ---------- Public APIs ----------
 
     def start_of_calibration(self) -> None:
-        """
-        Start the gaze calibration.
+        """Start the gaze calibration.
 
         Signals to start collecting IPD data for calibration.
         During this phase, the system will gather IPD samples,
@@ -136,8 +137,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
 
 
     def end_of_calibration(self) -> None:
-        """
-        Finalize the gaze calibration.
+        """Finalize the gaze calibration.
 
         Called after all distances have been displayed and the model
         can be created upon the measured data.
@@ -154,12 +154,11 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
 
 
     def set_timestamp(self, dist_point: dict) -> None:
-        """
-        Append a distance marker with the current timestamp to dist_markers.
+        """Append a distance marker with the current timestamp to dist_markers.
 
         Args:
-            string_state: either "start" or "stop" message for given distance
-            distance: distance of the virtual object in meters
+            dist_point: a dictionary with keys "state" and "distance".
+
         """
         string_state = dist_point.get("state")
         distance = dist_point.get("distance")
@@ -193,9 +192,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
 # ---------- Internals ----------
 
     def _dequeue_cmds(self) -> None:
-        """
-        Dequeue commands from the command queue.
-        """
+        """Dequeue commands from the command queue."""
         try:
             cmd, data = self.cmd_q.get(timeout=0.1)
             match cmd:
@@ -203,11 +200,11 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
                     ipd_samples, dist_markers = data
                     try:
                         self._finalize_calibration(ipd_samples, dist_markers)
-                    except (ValueError, TypeError, LinAlgError, OverflowError) as e:
+                    except (ValueError, TypeError, LinAlgError, OverflowError):
                         # Expected/known failure modes in calibration & fitting
-                        self.logger.exception("Finalize failed (expected type): %s", e)
+                        self.logger.exception("Finalize failed (expected type)")
                     except Exception:  # pylint: disable=broad-except
-                        # Truly unexpected — still don’t crash the service thread
+                        # Truly unexpected — still don't crash the service thread
                         self.logger.exception("Finalize failed (unexpected error)")
                 case _:
                     self.logger.error("Unknown command: %s", cmd)
@@ -216,9 +213,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
 
 
     def _dequeue_ipd_data(self) -> None:
-        """
-        Dequeue IPD data from the IPD queue.
-        """
+        """Dequeue IPD data from the IPD queue."""
         try:
             relative_ipd = self.ipd_q.get(timeout=self.cfg.gaze.ipd_queue_timeout)
             self._append_ipd(relative_ipd)
@@ -227,9 +222,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
 
 
     def _append_ipd(self, relative_ipd: float) -> None:
-        """
-        Appends the IPD to the ipd_samples list with a timestamp.
-        """
+        """Append the IPD to the ipd_samples list with a timestamp."""
         if self.calib_start_t is None:
             self.logger.error("calib_start_t is not set.")
             return
@@ -238,12 +231,11 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
             self.ipd_samples.append(IPDSample(t, relative_ipd))
 
 
-    def _check_and_validate_distances(
+    def _check_and_validate_distances(  # noqa: C901, PLR0911, PLR0912
         self,
-        dist_markers: List[DistanceMarker],
-    ) -> List[DistanceMarker]:
-        """
-        Checks and validates the distance markers.
+        dist_markers: list[DistanceMarker],
+    ) -> list[DistanceMarker]:
+        """Check and validate the distance markers.
 
         Ensures that there are enough valid distance markers
         to perform calibration and that every distance has a start and stop marker.
@@ -255,7 +247,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
         # Sort by time to have a deterministic pass
         markers = sorted(dist_markers, key=lambda m: m.timestamp)
 
-        validated: List[DistanceMarker] = []
+        validated: list[DistanceMarker] = []
         open_start: DistanceMarker | None = None
         distinct_distances: set[float] = set()
 
@@ -266,7 +258,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
                     self.logger.error(
                         "Invalid markers: START at t=%.6f "
                         "before previous STOP (distance %.3f at t=%.6f).",
-                        m.timestamp, open_start.distance, open_start.timestamp
+                        m.timestamp, open_start.distance, open_start.timestamp,
                     )
                     return []
                 open_start = m
@@ -276,7 +268,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
                 if open_start is None:
                     self.logger.error(
                         "Invalid markers: STOP at t=%.6f without a matching START.",
-                        m.timestamp
+                        m.timestamp,
                     )
                     return []
 
@@ -284,7 +276,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
                 if not np.isclose(m.distance, open_start.distance):
                     self.logger.error(
                         "Invalid markers: STOP distance %.6f does not match START distance %.6f.",
-                        m.distance, open_start.distance
+                        m.distance, open_start.distance,
                     )
                     return []
 
@@ -293,7 +285,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
                     self.logger.error(
                         "Invalid markers: STOP (t=%.6f) not after START "
                         "(t=%.6f) for distance %.6f.",
-                        m.timestamp, open_start.timestamp, m.distance
+                        m.timestamp, open_start.timestamp, m.distance,
                     )
                     return []
 
@@ -306,15 +298,16 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
         if open_start is not None:
             self.logger.error(
                 "Invalid markers: last START at t=%.6f (distance %.6f) has no matching STOP.",
-                open_start.timestamp, open_start.distance
+                open_start.timestamp, open_start.distance,
             )
             return []
 
         # Require at least 3 distinct distances
-        if len(distinct_distances) < 3:
+
+        if len(distinct_distances) < self.min_distances_for_calib:
             self.logger.error(
                 "Not enough distinct distances for calibration: got %d, need at least 3.",
-                len(distinct_distances)
+                len(distinct_distances),
             )
             return []
 
@@ -333,7 +326,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
 
         self.logger.info(
             "Validated %d intervals across %d distinct distances.",
-            len(validated) // 2, len(distinct_distances)
+            len(validated) // 2, len(distinct_distances),
         )
 
         return validated
@@ -341,11 +334,10 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
 
     def _extract_ipd_dist_pairs(
         self,
-        ipd_samples: List[IPDSample],
-        dist_markers: List[DistanceMarker]
-    ) -> tuple[dict[float, tuple[float, float, int]], dict[float, List[IPDSample]]]:
-        """
-        Extracts IPD intervals from self.ipd_list and processes them.
+        ipd_samples: list[IPDSample],
+        dist_markers: list[DistanceMarker],
+    ) -> tuple[dict[float, tuple[float, float, int]], dict[float, list[IPDSample]]]:
+        """Extract IPD intervals from self.ipd_list and processes them.
 
         Compares timestamps between distance markers and IPD samples
         and extracts IPD within the time interval paired with the distance.
@@ -364,7 +356,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
         markers = dist_markers
 
         pairs: dict[float, tuple[float, float, int]] = {}
-        debug_pairs: dict[float, List[IPDSample]] = {}
+        debug_pairs: dict[float, list[IPDSample]] = {}
 
         s_idx = 0
         s_len = len(samples)
@@ -379,7 +371,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
                 s_idx += 1
 
             # Collect samples within [start, stop]
-            interval: List[IPDSample] = []
+            interval: list[IPDSample] = []
             j = s_idx
             while j < s_len and samples[j].timestamp <= stop_m.timestamp:
                 interval.append(samples[j])
@@ -391,14 +383,14 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
             if not interval:
                 self.logger.warning(
                     "No IPD samples found in interval [%.4f, %.4f] for distance %.3f.",
-                    start_m.timestamp, stop_m.timestamp, distance
+                    start_m.timestamp, stop_m.timestamp, distance,
                 )
                 continue
 
             processed = self._process_interval(interval, distance)
             if processed is None:
                 self.logger.warning(
-                    "Interval for distance %.3f rejected by processing; skipping.", distance
+                    "Interval for distance %.3f rejected by processing; skipping.", distance,
                 )
                 continue
 
@@ -410,13 +402,13 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
             self.logger.debug(
                 "Distance %.3f -> mean=%.6f, std=%.6f, n=%d (interval [%.4f, %.4f]).",
                 distance, pairs[distance][0], pairs[distance][1], pairs[distance][2],
-                start_m.timestamp, stop_m.timestamp
+                start_m.timestamp, stop_m.timestamp,
             )
 
-        if len(pairs) < 3:
+        if len(pairs) < self.min_distances_for_calib:
             self.logger.error(
                 "Only %d distances produced valid data after processing (need ≥3).",
-                len(pairs)
+                len(pairs),
             )
             return {}, {}
 
@@ -425,11 +417,10 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
 
     def _process_interval(
         self,
-        ipd_interval: List[IPDSample],
-        distance: float
+        ipd_interval: list[IPDSample],
+        distance: float,
     ) -> tuple[float, float, int] | None:
-        """
-        Processes a single distance interval's collected IPD samples.
+        """Process a single distance interval's collected IPD samples.
 
         Returns a tuple of (mean, std, n_used) if successful, or None if rejected.
         """
@@ -448,7 +439,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
             arr = arr[finite_mask]
             self.logger.debug(
                 "Removed %d non-finite IPD samples (NaN/Inf) for distance %.2f.",
-                n_removed, distance
+                n_removed, distance,
             )
 
         # If all values are invalid, reject interval
@@ -462,7 +453,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
         if crop_n * 2 >= n:
             self.logger.warning(
                 "Interval for distance %.2f invalid after cropping (n=%d, crop_n=%d).",
-                distance, n, crop_n
+                distance, n, crop_n,
             )
             return None
         arr = arr[crop_n:-crop_n]
@@ -470,7 +461,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
         if arr.size < self.cfg.gaze.ipd_min_samples:
             self.logger.warning(
                 "Not enough samples after cropping for distance %.2f: have %d, need at least %d.",
-                distance, arr.size, self.cfg.gaze.ipd_min_samples
+                distance, arr.size, self.cfg.gaze.ipd_min_samples,
             )
             return None
 
@@ -487,12 +478,11 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
 
 
     def _fit_model(self, ipd_dist_pairs: dict[float, tuple[float, float, int]]) -> bool:
-        """
-        Fit the model to the eye data.
+        """Fit the model to the eye data.
 
         Uses the collected calibration data pairs to fit the inverse model.
         """
-        if len(ipd_dist_pairs) < 3:
+        if len(ipd_dist_pairs) < self.min_distances_for_calib:
             self.logger.error("Calibration: Not enough points to fit a model.")
             return False
 
@@ -500,7 +490,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
         ipd_means = np.array([vals[0] for vals in ipd_dist_pairs.values()], dtype=float)
 
         model_params = inverse_model.fit(distances, ipd_means)
-        if model_params is None or len(model_params) != 2:
+        if model_params is None or len(model_params) != 2:  # noqa: PLR2004
             self.logger.error("Calibration: Model fitting failed.")
             return False
 
@@ -513,13 +503,11 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
         return True
 
 
-    def compensate_for_impairment(self):
-        """
-        Compensate for users visual impairment.
-        """
+    def compensate_for_impairment(self) -> None:
+        """Compensate for users visual impairment."""
         model_params = self.cfg.gaze.model_params
 
-        if model_params is None or len(model_params) != 2:
+        if model_params is None or len(model_params) != 2:  # noqa: PLR2004
             self.logger.error("No valid model_params to compensate.")
             return
 
@@ -536,11 +524,11 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
             self.cfg.gaze.corrected_model_params = (a, b)
             return
 
-        if abs(diop) >= 1e-6:
+        if abs(diop) >= 1e-6:  # noqa: PLR2004
             focus_distance = 1.0 / diop  # meters; negative for myopia
             self.logger.info("Impairment: %.3f D (nominal focus at %.3f m).", diop, focus_distance)
         else:
-            focus_distance = float('inf')
+            focus_distance = float("inf")
 
         # Gain from config; cast to float so your int in config still works
         gain = self.cfg.gaze.compensation_factor
@@ -550,10 +538,8 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
         # Keep |delta_b| within a safe band (e.g., 5% of |b|)
         max_shift = self.cfg.gaze.max_shift_factor * max(1.0, abs(b))
 
-        if delta_b >  max_shift:
-            delta_b =  max_shift
-        if delta_b < -max_shift:
-            delta_b = -max_shift
+        delta_b = min(delta_b, max_shift)
+        delta_b = max(delta_b, -max_shift)
 
         b_new = b + delta_b
         a_new = a
@@ -567,11 +553,10 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
 
     def _finalize_calibration(
         self,
-        ipd_samples: List[IPDSample],
-        dist_markers: List[DistanceMarker]
+        ipd_samples: list[IPDSample],
+        dist_markers: list[DistanceMarker],
     ) -> None:
-        """
-        Finalizes the calibration by processing.
+        """Finalize the calibration by processing.
 
         Averages and processes IPDs in each distance interval,
         creating distance-IPD pairs and fitting the model.
@@ -599,14 +584,13 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
 
 
     # pylint: disable=unused-argument
-    def _on_config_changed(self, path: str, old_val: Any, new_val: Any) -> None:
+    def _on_config_changed(self, path: str, old_val: Any, new_val: Any) -> None:  # noqa: ANN401, ARG002
         """Handle configuration changes."""
-        if (
-            path == "gaze.diop_impairment" or
-            path == "gaze.compensation_factor" or
-            path == "gaze.max_diop_impairment" or
-            path == "gaze.max_shift_factor"
-        ):
+        if path in {
+            "gaze.diop_impairment",
+            "gaze.compensation_factor",
+            "gaze.max_diop_impairment",
+            "gaze.max_shift_factor",
+        } and self.cfg.gaze.model_params is not None:
             # Re-apply compensation if impairment setting changes
-            if self.cfg.gaze.model_params is not None:
-                self.compensate_for_impairment()
+            self.compensate_for_impairment()
