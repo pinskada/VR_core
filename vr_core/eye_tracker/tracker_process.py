@@ -130,7 +130,7 @@ class TrackerProcess(BaseService, ITrackerService):
                 target=run_eyeloop,
                 args=("Left",
                     self.cfg.tracker.importer_name,
-                    self.cfg.tracker.sharedmem_name_right,
+                    self.cfg.tracker.sharedmem_name_left,
                     self.cfg.tracker.eyeloop_model,
                     self.tracker_cmd_q_l,
                     self.tracker_resp_q_l,

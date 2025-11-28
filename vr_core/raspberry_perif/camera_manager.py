@@ -218,11 +218,11 @@ class CameraManager(BaseService, ICameraService):
                 dtype=np.uint8
             )
 
-        self.logger.info("Capture time: %.6f s; Copy: %.6f s; Resize time: %.6f s",
-            (time_2 - time_1),
-            (time_3 - time_2),
-            (time_4 - time_3)
-        )
+        # self.logger.info("Capture time: %.6f s; Copy: %.6f s; Resize time: %.6f s",
+        #     (time_2 - time_1),
+        #     (time_3 - time_2),
+        #     (time_4 - time_3)
+        # )
         return gray
 
 
@@ -288,7 +288,7 @@ class CameraManager(BaseService, ICameraService):
                 "AnalogueGain": self.cfg.camera.gain,
                 "AfMode": self.cfg.camera.af_mode,
                 "LensPosition": float(self.cfg.camera.focus),
-                #"FrameDurationLimits": (17800, 17800),
+                "FrameDurationLimits": (10000, 10000),
             }
             self.picam2.set_controls(controls)
             self.logger.debug("Controls applied: %s", controls)

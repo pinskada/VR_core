@@ -348,6 +348,7 @@ class FrameProvider(BaseService):
         else:
             # time_1 = time.perf_counter_ns() / 1e9
             full_frame = self.i_camera_manager.capture_frame()
+            time_2 = time.perf_counter_ns() / 1e9
 
         # Crop left and right regions from the full frame
         left_frame = self._crop(full_frame, self.crop_l)
@@ -355,18 +356,25 @@ class FrameProvider(BaseService):
         time_4 = time.perf_counter_ns() / 1e9
 
         self.time_vc_total += time_2 - time_1
-        self.time_cvt_total += time_3 - time_2
-        self.time_crop_total += time_4 - time_3
-        self.time_cap_total += time_4 - time_1
+
+        if self.use_test_video:
+            self.time_cvt_total += time_3 - time_2
+            self.time_crop_total += time_4 - time_3
+            self.time_cap_total += time_4 - time_1
 
         if self.timing_cycle == self.print_cycle:
             if self.capture_timing:
-                self.logger.info("VC: %.3fms; CVT: %.3fms; CROP: %.3fms; T: %.3fms",
-                                (time_2 - time_1) * 1000,
-                                (time_3 - time_2) * 1000,
-                                (time_4 - time_3) * 1000,
-                                (time_4 - time_1) * 1000,
-                )
+                if self.use_test_video:
+                    self.logger.info("VC: %.3fms; CVT: %.3fms; CROP: %.3fms; T: %.3fms",
+                                    (self.time_vc_total / self.print_cycle) * 1000,
+                                    (self.time_cvt_total / self.print_cycle) * 1000,
+                                    (self.time_crop_total / self.print_cycle) * 1000,
+                                    (self.time_cap_total / self.print_cycle) * 1000,
+                    )
+                else:
+                    self.logger.info("CAPTURE: %.3fms",
+                                    (self.time_vc_total / self.print_cycle) * 1000,
+                    )
             self.time_vc_total = 0.0
             self.time_cvt_total = 0.0
             self.time_crop_total = 0.0
@@ -550,8 +558,8 @@ class FrameProvider(BaseService):
                 # self.cfg.tracker.memory_shape_r = (memory_shape_x, memory_shape_y)
                 self.cfg.tracker.memory_shape_r = (memory_shape_y, memory_shape_x)
 
-        # self.logger.info("Allocated shared memory for %s eye: %s with size: %s",
-        #                 side_to_allocate, memory_name, (memory_shape_y, memory_shape_x))
+        self.logger.info("Allocated shared memory for %s eye: %s with size: %s",
+                        side_to_allocate, memory_name, (memory_shape_y, memory_shape_x))
 
 
     def _clear_memory(self, side_to_allocate: Eye) -> None:

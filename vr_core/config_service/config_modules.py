@@ -113,13 +113,13 @@ class TrackerCrop:
     """Defines crop region for the tracker."""
 
     # Relative region (x1, x2, y1, y2) for the left eye
-    # crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.0, 0.5), (0.0, 1.0))
-    # # Relative region (x1, x2, y1, y2) for the right eye
-    # crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.5, 1.0), (0.0, 1.0))
-
-    crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.25, 0.45), (0.35, 0.6))
+    crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.0, 0.5), (0.0, 1.0))
     # Relative region (x1, x2, y1, y2) for the right eye
-    crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.5, 0.7), (0.35, 0.6))
+    crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.5, 1.0), (0.0, 1.0))
+
+    # crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.0, 0.4), (0.3, 0.7))
+    # # Relative region (x1, x2, y1, y2) for the right eye
+    # crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.6, 1), (0.3, 0.7))
 
     # crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.2, 0.45), (0.6, 0.95))
     # # Relative region (x1, x2, y1, y2) for the right eye
@@ -131,30 +131,57 @@ class TrackerCrop:
 class Eyeloop:
     """Eyeloop configuration settings."""
 
-    left_threshold_pupil: int = 62  # Threshold for pupil detection in the left eye
-    left_blur_size_pupil: int = 3  # Size of the blur applied to the image
+    # left_threshold_pupil: int = 62  # Threshold for pupil detection in the left eye
+    # left_blur_size_pupil: int = 3  # Size of the blur applied to the image
+    # left_min_radius_pupil: int = 5  # Minimum radius for pupil detection
+    # left_max_radius_pupil: int = 50  # Maximum radius for pupil detection
+
+    # right_threshold_pupil: int = 62  # Threshold for pupil detection in the right eye
+    # right_blur_size_pupil: int = 3  # Size of the blur applied to the image
+    # right_min_radius_pupil: int = 5  # Minimum radius for pupil detection
+    # right_max_radius_pupil: int = 50  # Maximum radius for pupil detection
+
+
+    left_threshold_pupil: int = 55  # Threshold for pupil detection in the left eye
+    left_blur_size_pupil: int = 6  # Size of the blur applied to the image
     left_min_radius_pupil: int = 5  # Minimum radius for pupil detection
     left_max_radius_pupil: int = 50  # Maximum radius for pupil detection
 
-    right_threshold_pupil: int = 62  # Threshold for pupil detection in the right eye
-    right_blur_size_pupil: int = 3  # Size of the blur applied to the image
+    right_threshold_pupil: int = 55  # Threshold for pupil detection in the right eye
+    right_blur_size_pupil: int = 6  # Size of the blur applied to the image
     right_min_radius_pupil: int = 5  # Minimum radius for pupil detection
     right_max_radius_pupil: int = 50  # Maximum radius for pupil detection
+
+    left_threshold_cr: int = 150  # Threshold for cr detection in the left eye
+    left_blur_size_cr: int = 0  # Size of the blur applied to the image
+    left_min_radius_cr: int = 0  # Minimum radius for cr detection
+    left_max_radius_cr: int = 20  # Maximum radius for cr detection
+
+    right_threshold_cr: int = 150  # Threshold for cr detection in the right eye
+    right_blur_size_cr: int = 0  # Size of the blur applied to the image
+    right_min_radius_cr: int = 0  # Minimum radius for cr detection
+    right_max_radius_cr: int = 20  # Maximum radius for cr detection
 
 
 @dataclass
 class Camera:
     """Camera configuration settings."""
 
-    full_res_width: int = 4608
-    full_res_height: int = 2592
+    full_res_width: int = 1536
+    full_res_height: int = 864
 
-    target_res_width: int = 1152
-    target_res_height: int = 648
+    target_res_width: int = 1536
+    target_res_height: int = 864
 
-    focus: int = 30 # Only used if autofocus is False
+    # full_res_width: int = 2304
+    # full_res_height: int = 1296
+
+    # target_res_width: int = 2304
+    # target_res_height: int = 1296
+
+    focus: int = 22 # Only used if autofocus is False
     exposure: int = 10000  # In microseconds
-    gain: float = 25  # Brightness boost
+    gain: float = 5  # Brightness boost
     af_mode: int = 0  # 0 = manual, 1 = auto
     buffer_count: int = 2  # Number of buffers for the camera
 

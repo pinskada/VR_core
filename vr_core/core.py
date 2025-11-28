@@ -46,18 +46,18 @@ class Core:
 
         self.argv = argv or []
 
-        self.engine_timing: str = "Left"
+        self.engine_timing: str = "None"
         self.processor_timing: str = "None"
-        self.frame_provider_timing: bool = False
+        self.frame_provider_timing: bool = True
         self.capture_timing: bool = False
 
         self.tcp_mock_mode = True
         self.config_mock_mode = True
         self.esp_mock_mode_s = True
         self.imu_mock_mode_s = True
-        self.camera_mock_mode = True
-        self.fr_pr_test_video = True
-        self.use_eyeloop_gui = False
+        self.camera_mock_mode = False
+        self.fr_pr_test_video = False
+        self.use_eyeloop_gui = True
 
         self.logger = setup_logger("Core")
 
