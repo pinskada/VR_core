@@ -113,13 +113,13 @@ class TrackerCrop:
     """Defines crop region for the tracker."""
 
     # Relative region (x1, x2, y1, y2) for the left eye
-    crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.0, 0.5), (0.0, 1.0))
-    # Relative region (x1, x2, y1, y2) for the right eye
-    crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.5, 1.0), (0.0, 1.0))
-
-    # crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.0, 0.4), (0.3, 0.7))
+    # crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.0, 0.5), (0.0, 1.0))
     # # Relative region (x1, x2, y1, y2) for the right eye
-    # crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.6, 1), (0.3, 0.7))
+    # crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.5, 1.0), (0.0, 1.0))
+
+    crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.0, 0.4), (0.3, 0.7))
+    # Relative region (x1, x2, y1, y2) for the right eye
+    crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.6, 1), (0.3, 0.7))
 
     # crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.2, 0.45), (0.6, 0.95))
     # # Relative region (x1, x2, y1, y2) for the right eye
@@ -143,25 +143,40 @@ class Eyeloop:
 
 
     left_threshold_pupil: int = 55  # Threshold for pupil detection in the left eye
-    left_blur_size_pupil: int = 6  # Size of the blur applied to the image
-    left_min_radius_pupil: int = 5  # Minimum radius for pupil detection
+    left_blur_size_pupil: int = 10  # Size of the blur applied to the image
+    left_min_radius_pupil: int = 20  # Minimum radius for pupil detection
     left_max_radius_pupil: int = 50  # Maximum radius for pupil detection
 
-    right_threshold_pupil: int = 55  # Threshold for pupil detection in the right eye
-    right_blur_size_pupil: int = 6  # Size of the blur applied to the image
-    right_min_radius_pupil: int = 5  # Minimum radius for pupil detection
+    right_threshold_pupil: int = 52  # Threshold for pupil detection in the right eye
+    right_blur_size_pupil: int = 10  # Size of the blur applied to the image
+    right_min_radius_pupil: int = 20  # Minimum radius for pupil detection
     right_max_radius_pupil: int = 50  # Maximum radius for pupil detection
 
-    left_threshold_cr: int = 150  # Threshold for cr detection in the left eye
+    left_threshold_cr: int = 140  # Threshold for cr detection in the left eye
     left_blur_size_cr: int = 0  # Size of the blur applied to the image
-    left_min_radius_cr: int = 0  # Minimum radius for cr detection
-    left_max_radius_cr: int = 20  # Maximum radius for cr detection
+    left_min_radius_cr: int = 2  # Minimum radius for cr detection
+    left_max_radius_cr: int = 10  # Maximum radius for cr detection
 
-    right_threshold_cr: int = 150  # Threshold for cr detection in the right eye
+    right_threshold_cr: int = 140 # Threshold for cr detection in the right eye
     right_blur_size_cr: int = 0  # Size of the blur applied to the image
-    right_min_radius_cr: int = 0  # Minimum radius for cr detection
-    right_max_radius_cr: int = 20  # Maximum radius for cr detection
+    right_min_radius_cr: int = 2  # Minimum radius for cr detection
+    right_max_radius_cr: int = 10  # Maximum radius for cr detection
 
+    left_min_circularity_pupil: float = 0.5  # Minimum circularity for pupil detection
+    left_max_circularity_pupil: float = 1.8  # Maximum circularity for pupil detection
+    left_max_aspect_ratio_pupil: float = 2.2  # Maximum aspect ratio for pupil detection
+
+    right_min_circularity_pupil: float = 0.5  # Minimum circularity for pupil detection
+    right_max_circularity_pupil: float = 1.8  # Maximum circularity for pupil detection
+    right_max_aspect_ratio_pupil: float = 2.2  # Maximum aspect ratio for pupil detection
+
+    left_min_circularity_cr: float = 0.0 # Minimum circularity for pupil detection
+    left_max_circularity_cr: float = 1.8  # Maximum circularity for pupil detection
+    left_max_aspect_ratio_cr: float = 2.2  # Maximum aspect ratio for pupil detection
+
+    right_min_circularity_cr: float = 0.0  # Minimum circularity for pupil detection
+    right_max_circularity_cr: float = 1.8  # Maximum circularity for pupil detection
+    right_max_aspect_ratio_cr: float = 2.2  # Maximum aspect ratio for pupil detection
 
 @dataclass
 class Camera:
@@ -181,7 +196,7 @@ class Camera:
 
     focus: int = 22 # Only used if autofocus is False
     exposure: int = 10000  # In microseconds
-    gain: float = 5  # Brightness boost
+    gain: float = 25  # Brightness boost
     af_mode: int = 0  # 0 = manual, 1 = auto
     buffer_count: int = 2  # Number of buffers for the camera
 

@@ -48,7 +48,7 @@ class Core:
 
         self.engine_timing: str = "None"
         self.processor_timing: str = "None"
-        self.frame_provider_timing: bool = True
+        self.frame_provider_timing: bool = False
         self.capture_timing: bool = False
 
         self.tcp_mock_mode = True
