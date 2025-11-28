@@ -46,13 +46,18 @@ class Core:
 
         self.argv = argv or []
 
+        self.engine_timing: str = "Left"
+        self.processor_timing: str = "None"
+        self.frame_provider_timing: bool = False
+        self.capture_timing: bool = False
+
         self.tcp_mock_mode = True
         self.config_mock_mode = True
         self.esp_mock_mode_s = True
         self.imu_mock_mode_s = True
         self.camera_mock_mode = True
         self.fr_pr_test_video = True
-        self.use_eyeloop_gui = True
+        self.use_eyeloop_gui = False
 
         self.logger = setup_logger("Core")
 
@@ -131,6 +136,8 @@ class Core:
             tracker_signals=self.tracker_signals,
             config=config,
             use_gui=self.use_eyeloop_gui,
+            processor_timing=self.processor_timing,
+            engine_timing=self.engine_timing,
         )
 
         tracker_control = TrackerControl(
@@ -155,6 +162,8 @@ class Core:
             tracker_cmd_r_q=self.queues.tracker_cmd_r_q,
             config=config,
             use_test_video=self.fr_pr_test_video,
+            frame_provider_timing=self.frame_provider_timing,
+            capture_timing=self.capture_timing,
         )
 
         gaze_calib = GazeCalib(

@@ -58,7 +58,7 @@ class Tracker:
     blink_calibration_l: str = "blink_calibration/blink_calibration_cropL.npy"
     blink_calibration_r: str = "blink_calibration/blink_calibration_cropR.npy"
 
-    eyeloop_start_timeout: float = 10
+    eyeloop_start_timeout: float = 5
 
     # Importer name for the EyeLoop process
     importer_name: str = "shared_memory_importer"

@@ -1,33 +1,39 @@
-"""Frame Provider Module"""
+# ruff: noqa: ERA001, PLR0913, C901, TRY400, ANN401
 
-from multiprocessing.shared_memory import SharedMemory
-from multiprocessing.synchronize import Event as MpEvent
+"""Frame Provider Module."""
+
 import multiprocessing as mp
-from typing import Any, Optional
-from threading import Event
-from enum import Enum
-from pathlib import Path
 import time
+from enum import Enum
+from multiprocessing.shared_memory import SharedMemory
+from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from multiprocessing.synchronize import Event as MpEvent
+from pathlib import Path
+from threading import Event
+from typing import Any
+
+import cv2
 import numpy as np
 from numpy.typing import NDArray
-import cv2
 
 from vr_core.base_service import BaseService
 from vr_core.config_service.config import Config
-from vr_core.ports.signals import CommRouterSignals, EyeTrackerSignals, TrackerSignals
 from vr_core.ports.interfaces import ICameraService, ITrackerControl
+from vr_core.ports.signals import CommRouterSignals, EyeTrackerSignals, TrackerSignals
 from vr_core.utilities.logger_setup import setup_logger
 
 
 class Eye(Enum):
     """Enum for eye identification."""
+
     LEFT = 0
     RIGHT = 1
 
 
 class FrameProvider(BaseService):
-    """Handles video acquisition, cropping, and shared memory distribution
+    """Handles video acquisition, cropping, and shared memory distribution.
 
     This module captures frames from a camera or a test video, crops them for left and right eyes,
     and writes them to shared memory for consumption by EyeLoop tracker processes or CommRouter.
@@ -52,8 +58,12 @@ class FrameProvider(BaseService):
         tracker_cmd_l_q: mp.Queue,
         tracker_cmd_r_q: mp.Queue,
         config: Config,
-        use_test_video: bool = False
+        *,
+        use_test_video: bool = False,
+        frame_provider_timing: bool = False,
+        capture_timing: bool = False,
     ) -> None:
+        """Initialize the FrameProvider with necessary interfaces and signals."""
         super().__init__(name="FrameProvider")
 
         self.logger = setup_logger("FrameProvider")
@@ -86,8 +96,8 @@ class FrameProvider(BaseService):
         self._unsubscribe = config.subscribe("tracker_crop", self._on_config_changed)
 
         self.online = False
-        self.shm_left: Optional[SharedMemory] = None
-        self.shm_right: Optional[SharedMemory] = None
+        self.shm_left: SharedMemory | None = None
+        self.shm_right: SharedMemory | None = None
 
         self.hold_frames: bool = False
         self.is_holding_frames: Event = Event()
@@ -103,7 +113,24 @@ class FrameProvider(BaseService):
         self.frame_id: int
 
         self.use_test_video = use_test_video
+        self.frame_provider_timing = frame_provider_timing
+        self.capture_timing = capture_timing
+
         self.test_mode = False  # Flag for test mode
+
+        self.time_p: float = 0.0
+        self.time_c: float = 0.0
+        self.time_s: float = 0.0
+        self.time_total: float = 0.0
+
+        self.time_vc_total: float = 0.0
+        self.time_cvt_total: float = 0.0
+        self.time_crop_total: float = 0.0
+        self.time_cap_total: float = 0.0
+
+        self.timing_cycle: int = 0
+        self.cap_timing_cycle: int = 0
+        self.print_cycle: int = 100
 
         #self.logger.info("FrameProvider initialized.")
 
@@ -111,8 +138,7 @@ class FrameProvider(BaseService):
 # ---------- BaseService lifecycle ----------
 
     def _on_start(self) -> None:
-        """Starts the FrameProvider service by allocating resources."""
-
+        """Start the FrameProvider service by allocating resources."""
         # Choose between test video or live camera
         if self.use_test_video:
             path = Path(self.cfg.tracker.test_video_path)
@@ -155,13 +181,8 @@ class FrameProvider(BaseService):
 
 
     def _run(self) -> None:
-        """Main loop for capturing and distributing frames."""
-        prev_time = None
+        """Capture and distribute frames."""
         while not self._stop.is_set():
-            # self.logger.info("FrameProvider _run loop iteration.")
-            # time_0 = time.time()
-            # self.logger.info("time_0: %.4f", time_0)
-
             # Wait until frame provision is enabled
             if not self.provide_frames_s.is_set():
 
@@ -186,10 +207,8 @@ class FrameProvider(BaseService):
                 self._stop.wait(0.1)
                 continue
 
-            # if self.use_test_video:
-            #     self._stop.wait(0.05)
-
             self.frame_id += 1
+            self.timing_cycle += 1
 
             if self.frame_id == 1:
                 frames = self._capture_frame()
@@ -200,6 +219,7 @@ class FrameProvider(BaseService):
             time_1 = time.perf_counter_ns() / 1e9
             # Start providing frames
             self._provide_frame(left_frame, right_frame)
+
             time_2 = time.perf_counter_ns() / 1e9
 
             frames = self._capture_frame()
@@ -209,27 +229,35 @@ class FrameProvider(BaseService):
             left_frame, right_frame = frames
 
             time_3 = time.perf_counter_ns() / 1e9
-            # self.logger.info("Frame processing time: %.6f s", (time_3 - time_2))
 
             self._wait_for_sync()
             time_4 = time.perf_counter_ns() / 1e9
 
-            # self.logger.info("Provide time: %.6f s; Capture time: %.6f s; Sync wait time: %.6f s; Total time: %.6f s",
-            #     (time_2 - time_1), (time_3 - time_2), (time_4 - time_3), (time_4 - time_1))
+            self.time_p += time_2 - time_1
+            self.time_c += time_3 - time_2
+            self.time_s += time_4 - time_3
+            self.time_total += time_4 - time_1
 
-            if self.frame_id % 100 == 0:
-                curr_time = time.time()
+            if self.timing_cycle == self.print_cycle:
+                if self.frame_provider_timing:
+                    self.logger.info(
+                        "P: %.1fms; C: %.1fms; S: %.1fms; T: %.1fms; FPS: %f",
+                        (self.time_p / self.print_cycle) * 1000,
+                        (self.time_c / self.print_cycle) * 1000,
+                        (self.time_s / self.print_cycle) * 1000,
+                        (self.time_total / self.print_cycle) * 1000,
+                        self.print_cycle / (self.time_total),
+                    )
+                self.time_p = 0.0
+                self.time_c = 0.0
+                self.time_s = 0.0
+                self.time_total = 0.0
+                self.timing_cycle = 0
 
-                if prev_time is not None:
-                    if curr_time - prev_time == 0:
-                        continue
-                    fps = 100 / (curr_time - prev_time)
-                    self.logger.info("FPS: %.2f", fps)
-                prev_time = curr_time
 
 
     def _on_stop(self) -> None:
-        """Stops the FrameProvider and cleans up resources."""
+        """Stop the FrameProvider and cleans up resources."""
         self.logger.info("Service stopping.")
 
         self.online = False
@@ -251,8 +279,7 @@ class FrameProvider(BaseService):
 # ---------- Internals ----------
 
     def _provide_frame(self, left_frame: NDArray[np.uint8], right_frame: NDArray[np.uint8]) -> None:
-        """Captures, crops, and writes frames to shared memory."""
-
+        """Capture, crop, and write frames to shared memory."""
         if self.shm_left is None or self.shm_right is None:
             self.logger.error("Shared memory not allocated.")
             self.online = False
@@ -263,18 +290,19 @@ class FrameProvider(BaseService):
             np.ndarray(
                 self.cfg.tracker.memory_shape_l,
                 dtype=np.dtype(self.cfg.tracker.memory_dtype),
-                buffer=self.shm_left.buf
+                buffer=self.shm_left.buf,
                 )[:] = left_frame
             np.ndarray(
                 self.cfg.tracker.memory_shape_r,
                 dtype=np.dtype(self.cfg.tracker.memory_dtype),
-                buffer=self.shm_right.buf
+                buffer=self.shm_right.buf,
             )[:] = right_frame
         except (ValueError, TypeError, MemoryError, BufferError) as e:
             self.logger.error("Failed to write to shared memory: %s", e)
             self.online = False
             return
-        #self.logger.info("Left shape: %s ; Right shape: %s", self.cfg.tracker.memory_shape_l, self.cfg.tracker.memory_shape_r)
+        #self.logger.info("Left shape: %s ; Right shape: %s",
+        #   self.cfg.tracker.memory_shape_l, self.cfg.tracker.memory_shape_r)
 
         # Signal to CommRouter that a new frame is ready
         self.router_frame_ready_s.set()
@@ -294,7 +322,10 @@ class FrameProvider(BaseService):
         #self.logger.info("tracker_cmd_l/r_q: frame ID %d sent.", self.frame_id)
 
 
-    def _capture_frame(self) -> Optional[tuple[NDArray[np.uint8], NDArray[np.uint8]]]:
+    def _capture_frame(self) -> tuple[NDArray[np.uint8], NDArray[np.uint8]] | None:
+        self.cap_timing_cycle += 1
+
+        time_1 = time.perf_counter_ns() / 1e9
         # Capture next frame from video or camera
         if self.use_test_video:
             #self._stop.wait(self.cfg.camera.exposure / 1000000)  # Simulate exposure time
@@ -304,13 +335,10 @@ class FrameProvider(BaseService):
                 self.provide_frames_s.clear()
                 return None
 
-            # time_11 = time.time()
-            # self.logger.info("time_11: %.4f", time_11)
+            time_2 = time.perf_counter_ns() / 1e9
 
             full_frame = cv2.cvtColor(full_frame, cv2.COLOR_BGR2GRAY)
-            # self.logger.info("Converted full frame to grayscale.")
-            # time_12 = time.time()
-            # self.logger.info("time_12: %.4f", time_12)
+            time_3 = time.perf_counter_ns() / 1e9
 
             if not ret:
                 self.logger.warning("End of test video or read error.")
@@ -324,15 +352,31 @@ class FrameProvider(BaseService):
         # Crop left and right regions from the full frame
         left_frame = self._crop(full_frame, self.crop_l)
         right_frame = self._crop(full_frame, self.crop_r)
-        # time_2 = time.perf_counter_ns() / 1e9
-        # self.logger.info("Camera capture time: %.6f s", (time_2 - time_1))
+        time_4 = time.perf_counter_ns() / 1e9
 
+        self.time_vc_total += time_2 - time_1
+        self.time_cvt_total += time_3 - time_2
+        self.time_crop_total += time_4 - time_3
+        self.time_cap_total += time_4 - time_1
+
+        if self.timing_cycle == self.print_cycle:
+            if self.capture_timing:
+                self.logger.info("VC: %.3fms; CVT: %.3fms; CROP: %.3fms; T: %.3fms",
+                                (time_2 - time_1) * 1000,
+                                (time_3 - time_2) * 1000,
+                                (time_4 - time_3) * 1000,
+                                (time_4 - time_1) * 1000,
+                )
+            self.time_vc_total = 0.0
+            self.time_cvt_total = 0.0
+            self.time_crop_total = 0.0
+            self.time_cap_total = 0.0
+            self.cap_timing_cycle = 0
 
         return left_frame, right_frame
 
     def _wait_for_sync(self) -> None:
-        """Waits for both EyeLoop processes to confirm frame processing."""
-
+        """Wait for both EyeLoop processes to confirm frame processing."""
         # Skip sync wait during tests
         if self.test_mode:
             return
@@ -350,13 +394,9 @@ class FrameProvider(BaseService):
         #self.logger.info("left/right_eye_ready_s signals cleared.")
 
     # pylint: disable=unused-argument
-    def _on_config_changed(self, path: str, old_val: Any, new_val: Any) -> None:
+    def _on_config_changed(self, path: str, old_val: Any, new_val: Any) -> None:  # noqa: ARG002
         """Handle configuration changes."""
-
-        if (path == "tracker_crop.crop_left" or
-            path == "tracker_crop.crop_right" or
-            path == "camera.res_width" or
-            path == "camera.res_height"
+        if (path in {"tracker_crop.crop_left", "tracker_crop.crop_right", "camera.res_width", "camera.res_height"}
         ):
             if not self.shm_active_s.is_set():
                 self._validate_crop()
@@ -379,7 +419,6 @@ class FrameProvider(BaseService):
 
     def _copy_settings_to_local(self) -> None:
         """Copies/binds relevant tracker settings to local variables."""
-
         self.crop_l = self.cfg.tracker_crop.crop_left
         self.crop_r = self.cfg.tracker_crop.crop_right
         self.full_frame_width = self.cfg.camera.target_res_width
@@ -422,7 +461,7 @@ class FrameProvider(BaseService):
         self._clear_memory(Eye.RIGHT)
 
         self.shm_cleared_s.set()
-        self.logger.info("shm_cleared_s is set")
+        # self.logger.info("shm_cleared_s is set")
 
 
     def _allocate_memory(
@@ -430,7 +469,6 @@ class FrameProvider(BaseService):
         side_to_allocate: Eye,
     ) -> None:
         """Allocates shared memory for eye frames based on current crop settings."""
-
         self.shm_cleared_s.clear()
 
         # Extract full frame dimensions
@@ -488,9 +526,9 @@ class FrameProvider(BaseService):
                 shm = SharedMemory(
                     name=memory_name,
                     create=True,
-                    size=memory_size
+                    size=memory_size,
                 )
-            except Exception as e2:
+            except Exception as e2:  # noqa: BLE001
                 self.logger.error("Failed to recreate shared memory after unlink: %s", e2)
                 self.online = False
                 return
@@ -512,13 +550,12 @@ class FrameProvider(BaseService):
                 # self.cfg.tracker.memory_shape_r = (memory_shape_x, memory_shape_y)
                 self.cfg.tracker.memory_shape_r = (memory_shape_y, memory_shape_x)
 
-        self.logger.info("Allocated shared memory for %s eye: %s with size: %s",
-                        side_to_allocate, memory_name, (memory_shape_y, memory_shape_x))
+        # self.logger.info("Allocated shared memory for %s eye: %s with size: %s",
+        #                 side_to_allocate, memory_name, (memory_shape_y, memory_shape_x))
 
 
     def _clear_memory(self, side_to_allocate: Eye) -> None:
-        """Cleans up shared memory resources."""
-
+        """Clean up shared memory resources."""
         match side_to_allocate:
             case Eye.LEFT:
                 shm = self.shm_left
@@ -529,7 +566,7 @@ class FrameProvider(BaseService):
             if shm is not None:
                 shm.close()
                 shm.unlink()
-                self.logger.info("%s shm has been cleared.", side_to_allocate)
+                # self.logger.info("%s shm has been cleared.", side_to_allocate)
             else:
                 self.logger.warning("No shared memory to clean "
                     "for %s eye.", side_to_allocate)
@@ -546,32 +583,30 @@ class FrameProvider(BaseService):
 
 
     def _close_consumer_shm(self) -> None:
-        """Closes shared memory in consumer processes.
+        """Close shared memory in consumer processes.
 
         On Windows, shared memory segments are not released until all
         processes have closed their references. On the RPI memory will close automatically.
         This method signals the consumer processes to close their shared memory references.
         """
-
         # Signal CommRouter to close shared memory if TCP is enabled
-        if self.tcp_enabled_s.is_set():
-            if not self.router_shm_is_closed_s.wait(self.cfg.tracker.memory_unlink_timeout):
+        if self.tcp_enabled_s.is_set() and not self.router_shm_is_closed_s.wait(self.cfg.tracker.memory_unlink_timeout):
                 self.logger.error("Timeout waiting for CommRouter "
                       "to close shared memory.")
 
         # Signal left EyeLoop tracker to close shared memory
-        if self.tracker_running_l_s.is_set():
+        if (self.tracker_running_l_s.is_set() and
+            not self.tracker_shm_is_closed_l_s.wait(self.cfg.tracker.memory_unlink_timeout)):
             # self.logger.info("Waiting for right EyeLoop tracker to close shared memory.")
-            if not self.tracker_shm_is_closed_l_s.wait(self.cfg.tracker.memory_unlink_timeout):
                 self.logger.error("Timeout waiting for left EyeLoop "
                       "tracker to close shared memory.")
             # else:
             #     self.logger.info("Left EyeLoop tracker has closed shared memory.")
 
         # Signal right EyeLoop tracker to close shared memory
-        if self.tracker_running_r_s.is_set():
+        if (self.tracker_running_r_s.is_set() and
+            not self.tracker_shm_is_closed_r_s.wait(self.cfg.tracker.memory_unlink_timeout)):
             # self.logger.info("Waiting for right EyeLoop tracker to close shared memory.")
-            if not self.tracker_shm_is_closed_r_s.wait(self.cfg.tracker.memory_unlink_timeout):
                 self.logger.error("Timeout waiting for right EyeLoop "
                       "tracker to close shared memory.")
             # else:
@@ -579,23 +614,22 @@ class FrameProvider(BaseService):
 
 
     def _cmd_tracker_shm_state(self) -> None:
-        """Sends command to EyeLoop tracker to reconfigure shared memory."""
-
+        """Send command to EyeLoop tracker to reconfigure shared memory."""
         if self.shm_active_s.is_set():
             if self.tracker_running_l_s.is_set():
                 self.tracker_cmd_l_q.put({
                     "type": "shm_connect",
                     "frame_shape": self.cfg.tracker.memory_shape_l,
-                    "frame_dtype": self.cfg.tracker.memory_dtype
+                    "frame_dtype": self.cfg.tracker.memory_dtype,
                 })
 
             if self.tracker_running_r_s.is_set():
                 self.tracker_cmd_r_q.put({
                     "type": "shm_connect",
                     "frame_shape": self.cfg.tracker.memory_shape_r,
-                    "frame_dtype": self.cfg.tracker.memory_dtype
+                    "frame_dtype": self.cfg.tracker.memory_dtype,
                 })
-            self.logger.info("tracker_cmd_l/r_q: shm_connect sent.")
+            # self.logger.info("tracker_cmd_l/r_q: shm_connect sent.")
 
         else:
             if self.tracker_running_l_s.is_set():
@@ -607,21 +641,20 @@ class FrameProvider(BaseService):
                 self.tracker_cmd_r_q.put({
                     "type": "shm_detach",
                 })
-            self.logger.info("tracker_cmd_l/r_q: shm_detach sent.")
+            # self.logger.info("tracker_cmd_l/r_q: shm_detach sent.")
 
 
     def _validate_crop(self) -> None:
-        """Validates crop dimensions and resets to default if invalid."""
-
+        """Validate crop dimensions and resets to default if invalid."""
         (x0_l, x1_l), (y0_l, y1_l) = self.cfg.tracker_crop.crop_left
         (x0_r, x1_r), (y0_r, y1_r) = self.cfg.tracker_crop.crop_right
 
-        if x0_l < 0 or x1_l > 0.5 or y0_l < 0 or y1_l > 1 or x0_l > x1_l or y0_l > y1_l:
+        if x0_l < 0 or x1_l > 0.5 or y0_l < 0 or y1_l > 1 or x0_l > x1_l or y0_l > y1_l:  # noqa: PLR2004
             self.logger.warning("Invalid crop dimensions for left eye: "
                   "%s, resetting to default.", self.cfg.tracker_crop.crop_left)
             self.cfg.set("tracker_crop.crop_left", ((0, 0.5), (0, 1)))
 
-        if x0_r < 0.5 or x1_r > 1 or y0_r < 0 or y1_r > 1 or x0_r > x1_r or y0_r > y1_r:
+        if x0_r < 0.5 or x1_r > 1 or y0_r < 0 or y1_r > 1 or x0_r > x1_r or y0_r > y1_r:  # noqa: PLR2004
             self.logger.warning("Invalid crop dimensions for right eye: "
                   "%s, resetting to default.", self.cfg.tracker_crop.crop_right)
             self.cfg.set("tracker_crop.crop_right", ((0.5, 1), (0, 1)))
@@ -629,7 +662,6 @@ class FrameProvider(BaseService):
 
     def _crop(self, frame: NDArray[np.uint8], region: tuple) -> NDArray[np.uint8]:
         """Crops a region from the given frame based on relative coordinates."""
-
         (x_rel_start, x_rel_end), (y_rel_start, y_rel_end) = region
 
         # frame_width, frame_height = frame.shape[:2]

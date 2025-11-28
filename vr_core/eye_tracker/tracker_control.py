@@ -182,14 +182,14 @@ class TrackerControl(BaseService, ITrackerControl):
             return
 
         self.provide_frames_s.set()
-        self.logger.info("providet_frame_s is set.")
+        # self.logger.info("providet_frame_s is set.")
 
         self.tracker_data_to_tcp_s.clear()
         self.tracker_data_to_gaze_s.clear()
         self.router_sync_frames_s.clear()
         self.tcp_shm_send_s.clear()
 
-        self._setup_eyeloop(send_preview=True)
+        self._setup_eyeloop(send_preview=False)
 
 
 # ---------- Helpers ----------
