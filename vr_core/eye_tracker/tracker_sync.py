@@ -380,10 +380,12 @@ class TrackerSync(BaseService):
 
     @staticmethod
     def _eye_to_unity_format(eye_dict: dict) -> dict[str, float]:
-        """Convert EyeLoop eye data:
-            {'pupil': ((cx, cy), rx, ry, something)}
-        into Unity's EyeData JSON:
-            {center_x, center_y, radius_x, radius_y, is_valid}
+        """Convert EyeLoop eye data.
+
+        EyeLoop eye data:
+        {'pupil': ((cx, cy), rx, ry, something)}
+        Unity's EyeData JSON:
+        {center_x, center_y, radius_x, radius_y, is_valid}
         """
         pupil = eye_dict.get("pupil")
         if not pupil:
