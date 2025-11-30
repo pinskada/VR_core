@@ -15,10 +15,9 @@ from vr_core.eye_tracker.frame_provider import FrameProvider
 from vr_core.eye_tracker.tracker_control import TrackerControl
 from vr_core.eye_tracker.tracker_process import TrackerProcess
 from vr_core.eye_tracker.tracker_sync import TrackerSync
-from vr_core.gaze_v1.gaze_calc import GazeCalc
-from vr_core.gaze_v1.gaze_calib import GazeCalib
-from vr_core.gaze_v1.gaze_control import GazeControl
-from vr_core.gaze_v1.gaze_preprocess import GazePreprocess
+from vr_core.gaze_v2.gaze_calib import GazeCalib
+from vr_core.gaze_v2.gaze_control import GazeControl
+from vr_core.gaze_v2.gaze_vector_extractor import GazeVectorExtractor
 from vr_core.network.comm_router import CommRouter
 from vr_core.network.tcp_server import TCPServer
 from vr_core.ports import signals
@@ -58,6 +57,7 @@ class Core:
         self.camera_mock_mode = True
         self.fr_pr_test_video = True
         self.use_eyeloop_gui = True
+        self.log_calibration = False
 
         self.logger = setup_logger("Core")
 
@@ -167,32 +167,33 @@ class Core:
         )
 
         gaze_calib = GazeCalib(
-            ipd_q=self.queues.ipd_q,
+            vectors_queue=self.queues.ipd_q,
             comm_router_q=self.queues.comm_router_q,
             pq_counter=self.queues.pq_counter,
             gaze_signals=self.gaze_signals,
             config=config,
+            use_logger=self.log_calibration,
         )
 
-        gaze_calc = GazeCalc(
-            ipd_q=self.queues.ipd_q,
-            esp_cmd_q=self.queues.esp_cmd_q,
-            comm_router_q=self.queues.comm_router_q,
-            pq_counter=self.queues.pq_counter,
-            gyro_mag_q=self.queues.gyro_mag_q,
-            gaze_signals=self.gaze_signals,
-            config=config,
-        )
+        # gaze_calc = GazeCalc(
+        #     ipd_q=self.queues.ipd_q,
+        #     esp_cmd_q=self.queues.esp_cmd_q,
+        #     comm_router_q=self.queues.comm_router_q,
+        #     pq_counter=self.queues.pq_counter,
+        #     gyro_mag_q=self.queues.gyro_mag_q,
+        #     gaze_signals=self.gaze_signals,
+        #     config=config,
+        # )
 
-        gaze_preprocess = GazePreprocess(
-            tracker_data_q=self.queues.tracker_data_q,
-            ipd_q=self.queues.ipd_q,
-            comm_router_q=self.queues.comm_router_q,
-            pq_counter=self.queues.pq_counter,
-            gaze_signals=self.gaze_signals,
-            imu_send_to_gaze_signal=self.imu_signals.imu_send_to_gaze_s,
-            config=config,
-        )
+        # gaze_preprocess = GazeVectorExtractor(
+        #     tracker_data_q=self.queues.tracker_data_q,
+        #     ipd_q=self.queues.ipd_q,
+        #     comm_router_q=self.queues.comm_router_q,
+        #     pq_counter=self.queues.pq_counter,
+        #     gaze_signals=self.gaze_signals,
+        #     imu_send_to_gaze_signal=self.imu_signals.imu_send_to_gaze_s,
+        #     config=config,
+        # )
 
         gaze_control = GazeControl(
             gaze_signals=self.gaze_signals,
@@ -227,8 +228,6 @@ class Core:
             "TrackerControl": tracker_control,
             "FrameProvider": frame_provider,
             "GazeCalib": gaze_calib,
-            "GazeCalc": gaze_calc,
-            "GazePreprocess": gaze_preprocess,
             "GazeControl": gaze_control,
         }
 

@@ -2,17 +2,18 @@
 
 import itertools
 import queue
-from queue import Queue, PriorityQueue
+import time
+from queue import PriorityQueue, Queue
 from threading import Event
 from typing import Any, Optional
-import time
 
 import numpy as np
 
 from vr_core.base_service import BaseService
 from vr_core.config_service.config import Config
-from vr_core.ports.signals import GazeSignals
+from vr_core.eye_tracker import tracker_types as tt
 from vr_core.network.comm_contracts import MessageType
+from vr_core.ports.signals import GazeSignals
 from vr_core.utilities.logger_setup import setup_logger
 
 
@@ -21,10 +22,10 @@ class GazePreprocess(BaseService):
 
     def __init__(
         self,
-        tracker_data_q: Queue,
-        ipd_q: Queue,
-        comm_router_q: PriorityQueue,
-        pq_counter: itertools.count,
+        tracker_data_q: Queue[tt.TwoSideTrackerData],
+        ipd_q: Queue[float],
+        comm_router_q: PriorityQueue[Any],
+        pq_counter: itertools.count[int],
         gaze_signals: GazeSignals,
         imu_send_to_gaze_signal: Event,
         config: Config,
@@ -84,20 +85,20 @@ class GazePreprocess(BaseService):
             self._unqueue_eye_data()
 
 
-    def _on_stop(self):
+    def _on_stop(self) -> None:
         """Service stop logic."""
         self.online = False
         self._unsubscribe()
         #self.logger.info("Service stopping.")
 
 
-    def is_online(self):
+    def is_online(self) -> bool:
         return self.online
 
 
 # ---------- Internals ----------
 
-    def _unqueue_eye_data(self):
+    def _unqueue_eye_data(self) -> None:
         """
         Unqueue eye data from the tracker data queue.
         """
@@ -113,9 +114,13 @@ class GazePreprocess(BaseService):
             pass
 
 
-    def _get_relative_ipd(self, pupil_left, pupil_right):
+    def _get_relative_ipd(self, pupil_left: dict, pupil_right: dict) -> None:
         """
         Get relative ipd of the eye data.
+
+        Args:
+            pupil_left: Left eye pupil data.
+            pupil_right: Right eye pupil data.
         """
         # self.logger.info("pupil_left: %s", pupil_left)
         # self.logger.info("pupil_right: %s", pupil_right)
@@ -164,7 +169,7 @@ class GazePreprocess(BaseService):
             self.ipd_q.put(self.filtered_ipd)
 
 
-    def _filter_ipd(self, new_ipd: float):
+    def _filter_ipd(self, new_ipd: float) -> None:
         """Filter the IPD value using a simple moving average.
 
         Constant Alpha with range [0,1], where:
@@ -181,7 +186,7 @@ class GazePreprocess(BaseService):
             )
 
 
-    def _copy_config_to_locals(self):
+    def _copy_config_to_locals(self) -> None:
         """
         Copy configuration settings to local variables.
         """

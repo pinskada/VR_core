@@ -14,6 +14,7 @@ import cv2
 import numpy as np
 from numpy.typing import NDArray
 
+import vr_core.eye_tracker.tracker_types as tt
 from vr_core.base_service import BaseService
 from vr_core.config_service.config import Config
 from vr_core.network.comm_contracts import MessageType
@@ -56,12 +57,12 @@ class TrackerSync(BaseService):
         self,
         tracker_data_s: TrackerDataSignals,
         tracker_s: TrackerSignals,
-        comm_router_q: queue.PriorityQueue,
-        pq_counter: itertools.count,
-        tracker_data_q: queue.Queue,
-        tracker_health_q: queue.Queue,
-        tracker_response_l_q: mp.Queue,
-        tracker_response_r_q: mp.Queue,
+        comm_router_q: queue.PriorityQueue[Any],
+        pq_counter: itertools.count[int],
+        tracker_data_q: queue.Queue[tt.TwoSideTrackerData],
+        tracker_health_q: queue.Queue[Any],
+        tracker_response_l_q: mp.Queue[Any],
+        tracker_response_r_q: mp.Queue[Any],
         config: Config,
     ) -> None:
         super().__init__(name="TrackerSync")
@@ -154,7 +155,7 @@ class TrackerSync(BaseService):
 
     def _response_loop(
         self,
-        response_queue: mp.Queue,
+        response_queue: mp.Queue[Any],
         eye: Eye,
     ) -> None:
         """Loop to handle responses from EyeLoop processes."""
@@ -200,7 +201,7 @@ class TrackerSync(BaseService):
             self.logger.warning("Unexpected message format: %s", type(message))
 
 
-    def _extract_image_preview(self, message: dict) -> NDArray[np.uint8] | None:
+    def _extract_image_preview(self, message: dict[str, Any]) -> NDArray[np.uint8] | None:
         h = int(message.get("height", 0))
         w = int(message.get("width", 0))
         bit_map = message.get("bitmap")
@@ -227,7 +228,7 @@ class TrackerSync(BaseService):
 
     def _try_sync(
         self,
-        message: dict,
+        message: dict[str, Any],
         eye: Eye,
         message_type: MessageType,
     ) -> None:
@@ -262,8 +263,6 @@ class TrackerSync(BaseService):
             # Can't sync without frame_id; drop or log
             self.logger.warning("Dropping %s message for %s eye, with ID: "
                 "%s, without payload", message_type, eye, frame_id)
-            return
-        if message_type is MessageType.trackerData and data.get("pupil") is None:
             return
 
         # Select buffer based on payload type
@@ -301,21 +300,14 @@ class TrackerSync(BaseService):
                 if left is None or right is None:
                     return
 
-                if message_type==MessageType.trackerData:
-
-                    if not isinstance(left.data, dict) or not isinstance(right.data, dict):
-                        self.logger.warning("Data type error, skipping.")
-                        return
-
-                    if not left.data or not right.data:
-                        #self.logger.info("Empty pupil data, skipping.")
-                        return
-
-                # Both halves are present; forward the paired data
-                pair = (left.data, right.data)
-
                 match message_type:
                     case MessageType.trackerData:
+                        if (not isinstance(left.data, tt.OneSideTrackerData) or
+                            not isinstance(right.data, tt.OneSideTrackerData)):
+                            self.logger.error("Data type error, skipping.")
+                            return
+                        tracking_pair = tt.TwoSideTrackerData(left_eye_data=left.data, right_eye_data=right.data)
+
                         # Fan-out based on control signals
                         # self.logger.info("Left coordinates: %s", left.data)
                         self.print_count += 1
@@ -324,7 +316,7 @@ class TrackerSync(BaseService):
                             # self.logger.info("Right coordinates: %s", right.data)
                         if self.tracker_data_to_gaze_s.is_set():
                             # Send to gaze module
-                            self.tracker_data_q.put(pair)
+                            self.tracker_data_q.put(tracking_pair)
 
                         if self.tracker_data_to_tcp_s.is_set():
                             left_eye  = self._eye_to_unity_format(left.data)
@@ -341,9 +333,10 @@ class TrackerSync(BaseService):
                             #self.logger.info("Sending tracker data over TCP.")
 
                     case MessageType.trackerPreview:
+                        preview_pair = (left.data, right.data)
                         # Forward both images as a pair to CommRouter (it will PNG-encode)
                         self.comm_router_q.put((8, next(self.pq_counter),
-                            MessageType.trackerPreview, pair))
+                            MessageType.trackerPreview, preview_pair))
                         #self.logger.info("Sending preview images over TCP.")
 
                 # Cleanup consumed bucket
@@ -379,7 +372,7 @@ class TrackerSync(BaseService):
 
 
     @staticmethod
-    def _eye_to_unity_format(eye_dict: dict) -> dict[str, float]:
+    def _eye_to_unity_format(eye_data: tt.OneSideTrackerData) -> dict[str, float]:
         """Convert EyeLoop eye data.
 
         EyeLoop eye data:
@@ -387,8 +380,9 @@ class TrackerSync(BaseService):
         Unity's EyeData JSON:
         {center_x, center_y, radius_x, radius_y, is_valid}
         """
-        pupil = eye_dict.get("pupil")
-        if not pupil:
+        # TODO: Refactor this method to input OneSideTrackerData instead of dict
+
+        if eye_data is None or eye_data.pupil is None:
             return {
                 "center_x": 0.0,
                 "center_y": 0.0,
@@ -397,13 +391,14 @@ class TrackerSync(BaseService):
                 "is_valid": False,
             }
 
-        # pupil = ((cx, cy), rx, ry, _)
-        (cx, cy), rx, ry, *_ = pupil
+        cx, cy = eye_data.pupil.center
+        r = eye_data.pupil.radius
 
+        # We only have a single radius (circular pupil), so use it for both axes.
         return {
             "center_x": float(cx),
             "center_y": float(cy),
-            "radius_x": float(rx),
-            "radius_y": float(ry),
+            "radius_x": float(r),
+            "radius_y": float(r),
             "is_valid": True,
         }
