@@ -15,10 +15,10 @@ from vr_core.eye_tracker.frame_provider import FrameProvider
 from vr_core.eye_tracker.tracker_control import TrackerControl
 from vr_core.eye_tracker.tracker_process import TrackerProcess
 from vr_core.eye_tracker.tracker_sync import TrackerSync
-from vr_core.gaze.gaze_calc import GazeCalc
-from vr_core.gaze.gaze_calib import GazeCalib
-from vr_core.gaze.gaze_control import GazeControl
-from vr_core.gaze.gaze_preprocess import GazePreprocess
+from vr_core.gaze_v1.gaze_calc import GazeCalc
+from vr_core.gaze_v1.gaze_calib import GazeCalib
+from vr_core.gaze_v1.gaze_control import GazeControl
+from vr_core.gaze_v1.gaze_preprocess import GazePreprocess
 from vr_core.network.comm_router import CommRouter
 from vr_core.network.tcp_server import TCPServer
 from vr_core.ports import signals
@@ -55,8 +55,8 @@ class Core:
         self.config_mock_mode = True
         self.esp_mock_mode_s = True
         self.imu_mock_mode_s = True
-        self.camera_mock_mode = False
-        self.fr_pr_test_video = False
+        self.camera_mock_mode = True
+        self.fr_pr_test_video = True
         self.use_eyeloop_gui = True
 
         self.logger = setup_logger("Core")

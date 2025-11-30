@@ -1,20 +1,21 @@
 """Gaze calculation module."""
 
 import itertools
-from queue import Queue, PriorityQueue
 import queue
 import time
+from queue import PriorityQueue, Queue
 
-from vr_core.network.comm_contracts import MessageType
 from vr_core.base_service import BaseService
 from vr_core.config_service.config import Config
+from vr_core.gaze_v1.models import inverse_model
+from vr_core.network.comm_contracts import MessageType
 from vr_core.ports.signals import GazeSignals
 from vr_core.utilities.logger_setup import setup_logger
-from vr_core.gaze.models import inverse_model
 
 
 class GazeCalc(BaseService):
     """Gaze calculation module."""
+
     def __init__(
         self,
         ipd_q: Queue,
@@ -53,7 +54,6 @@ class GazeCalc(BaseService):
 
     def _on_start(self):
         """Handle service start."""
-
         self.online = True
         self.trust_tracker = True
         self._ready.set()
@@ -62,7 +62,6 @@ class GazeCalc(BaseService):
 
     def _run(self):
         """Main service loop."""
-
         while not self._stop.is_set():
             if self.gaze_calc_s.is_set():
                 self._dequeue_gyro()
@@ -72,7 +71,6 @@ class GazeCalc(BaseService):
 
     def _on_stop(self):
         """Handle service stop."""
-
         self.online = False
         #self.logger.info("Service stopped.")
 
@@ -85,7 +83,6 @@ class GazeCalc(BaseService):
 
     def _dequeue_gyro(self):
         """Dequeue gyroscope data."""
-
         try:
             imu_data = self.gyro_mag_q.get_nowait()
             if imu_data:
@@ -98,7 +95,6 @@ class GazeCalc(BaseService):
 
     def _dequeue_ipd(self):
         """Dequeue IPD data."""
-
         try:
             ipd = self.ipd_q.get_nowait()
             if ipd:
@@ -108,10 +104,8 @@ class GazeCalc(BaseService):
 
 
     def _process_eye_data(self, ipd: float):
+        """Process the eye data.
         """
-        Process the eye data.
-        """
-
         if not self.cfg.gaze.model_params:
             self.logger.error("Model parameters not set. Cannot process eye data.")
             return
@@ -131,11 +125,9 @@ class GazeCalc(BaseService):
 
 
     def _gyro_handler(self, input_gyro_data):
-        """
-        Update trust based on gyroscope rotation speed.
+        """Update trust based on gyroscope rotation speed.
         gyro_data: (x_rotation, y_rotation, z_rotation) in deg/s
         """
-
         now = time.time()
 
         x_rotation = input_gyro_data.get("x")

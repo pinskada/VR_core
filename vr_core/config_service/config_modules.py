@@ -107,6 +107,35 @@ class Gaze:
     model_params: Any = None
     corrected_model_params: Any = None
 
+@dataclass
+class Gaze2:
+    """Gaze configuration settings."""
+
+    vector_queue_timeout: float = 0.01  # Timeout for receiving IPD data (in seconds)
+    vector_min_samples: int = 10  # Minimum number of vector samples required for calibration
+
+    print_ipd_state: int = 50  # Flag to indicate if the system should print the IPD state
+    filter_alpha: float = 0.5  # Alpha value for the low-pass filter (0-1)
+    # Factor to determine the amount of data to discard from the start and end of the buffer
+    buffer_crop_factor: float = 0.1
+    # Threshold for standard deviation to determine if the sample is valid
+    std_threshold: float = 3.0
+    # Threshold for gyroscope data to determine if the system should trust the data
+    gyro_threshold: int = 5
+    gyro_thr_high: int = 15  # High threshold for gyro to untrust tracker
+    gyro_thr_low: int = 7    # Low threshold for gyro to trust tracker
+    settle_time_s: float = 0.2  # Time to wait after untrusting before trusting again (in seconds)
+
+    compensation_factor: float = 0.1
+    tracker_data_timeout: float = 0.05  # Timeout for receiving tracker data (in seconds)
+    diop_impairment: float = 0.0  # Diopter value for vision impairment compensation
+    max_diop_impairment: float = 8.0  # Maximum diopter impairment supported
+    # Maximum shift as a fraction of 'b' to avoid excessive compensation
+    max_shift_factor: float = 1
+    # Model parameters for the inverse model (to be set during calibration)
+    model_params: Any = None
+    corrected_model_params: Any = None
+
 
 @dataclass
 class TrackerCrop:
@@ -117,13 +146,13 @@ class TrackerCrop:
     # # Relative region (x1, x2, y1, y2) for the right eye
     # crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.5, 1.0), (0.0, 1.0))
 
-    crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.0, 0.4), (0.3, 0.7))
-    # Relative region (x1, x2, y1, y2) for the right eye
-    crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.6, 1), (0.3, 0.7))
-
-    # crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.2, 0.45), (0.6, 0.95))
+    # crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.0, 0.4), (0.3, 0.7))
     # # Relative region (x1, x2, y1, y2) for the right eye
-    # crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.5, 0.75), (0.6, 0.95))
+    # crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.6, 1), (0.3, 0.7))
+
+    crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.3, 0.5), (0.35, 0.6))
+    # Relative region (x1, x2, y1, y2) for the right eye
+    crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.5, 0.7), (0.35, 0.6))
 
 # 2300 x 2592 -> 1000x1200
 
@@ -144,12 +173,12 @@ class Eyeloop:
 
     left_threshold_pupil: int = 55  # Threshold for pupil detection in the left eye
     left_blur_size_pupil: int = 10  # Size of the blur applied to the image
-    left_min_radius_pupil: int = 20  # Minimum radius for pupil detection
+    left_min_radius_pupil: int = 5  # Minimum radius for pupil detection
     left_max_radius_pupil: int = 50  # Maximum radius for pupil detection
 
     right_threshold_pupil: int = 52  # Threshold for pupil detection in the right eye
     right_blur_size_pupil: int = 10  # Size of the blur applied to the image
-    right_min_radius_pupil: int = 20  # Minimum radius for pupil detection
+    right_min_radius_pupil: int = 5  # Minimum radius for pupil detection
     right_max_radius_pupil: int = 50  # Maximum radius for pupil detection
 
     left_threshold_cr: int = 140  # Threshold for cr detection in the left eye
@@ -276,6 +305,7 @@ class RootConfig:
     tracker: Tracker = field(default_factory=Tracker)
     tracker_crop: TrackerCrop = field(default_factory=TrackerCrop)
     gaze: Gaze = field(default_factory=Gaze)
+    gaze2: Gaze2 = field(default_factory=Gaze2)
     camera: Camera = field(default_factory=Camera)
     imu: IMU = field(default_factory=IMU)
     esp32: ESP32 = field(default_factory=ESP32)

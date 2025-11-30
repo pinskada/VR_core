@@ -1,23 +1,24 @@
 """In-memory shared config with get/set APIs."""
 
 import threading
-from contextlib import contextmanager
-from typing import Any, Callable, List, DefaultDict, Tuple, Iterator
 from collections import defaultdict
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from typing import Any
 
 from vr_core.base_service import BaseService
+from vr_core.config_service import config_modules
 from vr_core.config_service.config_modules import RootConfig
-import vr_core.config_service.config_modules as config_modules
 from vr_core.utilities.logger_setup import setup_logger
 
 
 class Config(BaseService):
-    """
-    Shared, in-memory config with just two APIs:
+    """Shared, in-memory config with just two APIs:
       - set("camera.exposure", 25)
       - get("imu.rate_hz") -> 200
     Thread-safe, updates happen in-place on dataclass instances.
     """
+
     def __init__(
         self,
         config_ready_s: threading.Event,
@@ -32,9 +33,9 @@ class Config(BaseService):
 
         self._lock = threading.RLock()
         self._root = RootConfig()
-        self._subs_by_key: DefaultDict[
+        self._subs_by_key: defaultdict[
             str,
-            List[Callable[[str, Any, Any], None]]
+            list[Callable[[str, Any, Any], None]],
         ] = defaultdict(list)
         #self.logger.info("Service initialized.")
 
@@ -58,7 +59,6 @@ class Config(BaseService):
 
     def _on_stop(self) -> None:
         """Stop the config service."""
-
         self.config_ready_s.clear()
         #self.logger.info("Service stopping.")
 
@@ -80,6 +80,11 @@ class Config(BaseService):
     def gaze(self) -> config_modules.Gaze:
         """Direct access to gaze config."""
         return self._root.gaze
+
+    @property
+    def gaze2(self) -> config_modules.Gaze2:
+        """Direct access to gaze2 config."""
+        return self._root.gaze2
     @property
     def camera(self) -> config_modules.Camera:
         """Direct access to camera config."""
@@ -120,15 +125,15 @@ class Config(BaseService):
     def set(
         self,
         path: str,
-        value: Any
+        value: Any,
     ) -> None:
         """Set a config value.
 
         Arguments:
             path: The config path to set (e.g., "camera.exposure").
             value: The new value to set.
-        """
 
+        """
         with self._lock:
             obj, attr = self._traverse(path)
             old = getattr(obj, attr)
@@ -172,10 +177,9 @@ class Config(BaseService):
     def subscribe(
         self,
         key: str,
-        callback: Callable[[str, Any, Any], None]
+        callback: Callable[[str, Any, Any], None],
     ) -> Callable[[], None]:
-        """
-        Subscribe to changes on a section ("camera") or a specific field ("camera.exposure").
+        """Subscribe to changes on a section ("camera") or a specific field ("camera.exposure").
         Callback signature: (path, old_value, new_value).
         Returns an unsubscribe function.
         """
@@ -196,7 +200,7 @@ class Config(BaseService):
         self,
         path: str,
         old_val: Any,
-        new_val: Any
+        new_val: Any,
     ) -> None:
         """Notify both section-level and exact-path subscribers."""
         section = path.split(".", 1)[0]
@@ -213,10 +217,9 @@ class Config(BaseService):
 
     def _traverse(
         self,
-        path: str
-    ) -> Tuple[Any, str]:
-        """
-        Returns (parent_object, attribute_name) for a dotted path like 'camera.exposure'.
+        path: str,
+    ) -> tuple[Any, str]:
+        """Returns (parent_object, attribute_name) for a dotted path like 'camera.exposure'.
         """
         parts = path.split(".")
 
@@ -232,7 +235,7 @@ class Config(BaseService):
         return node, parts[-1]
 
 
-    def _pair(self, v: Any) -> Tuple[float, float]:
+    def _pair(self, v: Any) -> tuple[float, float]:
         # Accept {"min": x, "max": y} or [x, y] / (x, y)
         if isinstance(v, dict):
             return (float(v["min"]), float(v["max"]))
@@ -241,7 +244,7 @@ class Config(BaseService):
         raise ValueError(f"Invalid pair format: {v!r}")
 
 
-    def _coerce_crop(self, v: Any) -> Tuple[Tuple[float, float], Tuple[float, float]]:
+    def _coerce_crop(self, v: Any) -> tuple[tuple[float, float], tuple[float, float]]:
         # Accept {"x": {...}, "y": {...}} or [[x1, x2], [y1, y2]]
         if isinstance(v, dict):
             return (self._pair(v["x"]), self._pair(v["y"]))

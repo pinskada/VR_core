@@ -17,7 +17,7 @@ from numpy.linalg import LinAlgError
 
 from vr_core.base_service import BaseService
 from vr_core.config_service.config import Config
-from vr_core.gaze.models import inverse_model
+from vr_core.gaze_v1.models import inverse_model
 from vr_core.ports.interfaces import IGazeService
 from vr_core.ports.signals import GazeSignals
 from vr_core.utilities.logger_setup import setup_logger
