@@ -2,6 +2,7 @@
 
 """Module for calibrating gaze angles."""
 
+from __future__ import annotations
 
 import csv
 import itertools

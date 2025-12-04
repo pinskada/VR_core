@@ -2,6 +2,8 @@
 
 """Handles the communication between the EyeLoop processes and the main process."""
 
+from __future__ import annotations
+
 import itertools
 import multiprocessing as mp
 import queue

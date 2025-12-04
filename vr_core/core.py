@@ -54,8 +54,8 @@ class Core:
         self.config_mock_mode = True
         self.esp_mock_mode_s = True
         self.imu_mock_mode_s = True
-        self.camera_mock_mode = True
-        self.fr_pr_test_video = True
+        self.camera_mock_mode = False
+        self.fr_pr_test_video = False
         self.use_eyeloop_gui = True
         self.log_calibration = False
 

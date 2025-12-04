@@ -1,5 +1,7 @@
 """Module for computing eye vectors from tracker data."""
 
+from __future__ import annotations
+
 import itertools
 import queue
 from queue import PriorityQueue, Queue
@@ -15,7 +17,7 @@ from vr_core.ports.signals import GazeSignals
 from vr_core.utilities.logger_setup import setup_logger
 
 
-class GazePreprocess(BaseService):
+class GazeVectorExtractor(BaseService):
     """Gaze control and preprocessing module for VR Core on Raspberry Pi."""
 
     def __init__(
