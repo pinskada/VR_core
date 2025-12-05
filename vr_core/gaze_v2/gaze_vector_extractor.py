@@ -1,26 +1,31 @@
+# ruff: noqa: ERA001
+
 """Module for computing eye vectors from tracker data."""
 
 from __future__ import annotations
 
-import itertools
 import queue
 from queue import PriorityQueue, Queue
-from threading import Event
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any
 
 import vr_core.gaze_v2.calibration_types as ct
 from vr_core.base_service import BaseService
-from vr_core.config_service.config import Config
-from vr_core.eye_tracker import tracker_types as tt
 from vr_core.network.comm_contracts import MessageType
-from vr_core.ports.signals import GazeSignals
 from vr_core.utilities.logger_setup import setup_logger
 
+if TYPE_CHECKING:
+    import itertools
+    from threading import Event
 
-class GazeVectorExtractor(BaseService):
+    from vr_core.config_service.config import Config
+    from vr_core.eye_tracker import tracker_types as tt
+    from vr_core.ports.signals import GazeSignals
+
+
+class GazePreprocess(BaseService):
     """Gaze control and preprocessing module for VR Core on Raspberry Pi."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         tracker_data_q: Queue[tt.TwoSideTrackerData],
         eye_vector_q: Queue[ct.EyeVectors],
@@ -30,7 +35,7 @@ class GazeVectorExtractor(BaseService):
         imu_send_to_gaze_signal: Event,
         config: Config,
         ) -> None:
-
+        """Initialize the GazePreprocess service."""
         super().__init__("GazePreprocess")
         self.logger = setup_logger("GazePreprocess")
 
@@ -47,7 +52,7 @@ class GazeVectorExtractor(BaseService):
 
         self.cfg = config
 
-        self.filtered_e_v: Optional[ct.EyeVectors] = None
+        self.filtered_e_v: ct.EyeVectors | None = None
 
         self.online = False # Flag to indicate if the system is online or offline
 
@@ -57,9 +62,7 @@ class GazeVectorExtractor(BaseService):
 # ---------- BaseService lifecycle ----------
 
     def _on_start(self) -> None:
-        """
-        Service start logic.
-        """
+        """Service start logic."""
         self.online = True
         self._ready.set()
 
@@ -67,9 +70,7 @@ class GazeVectorExtractor(BaseService):
 
 
     def _run(self) -> None:
-        """
-        Run the gaze control service.
-        """
+        """Run the gaze control service."""
         while not self._stop.is_set():
             self._unqueue_eye_data()
 
@@ -81,15 +82,14 @@ class GazeVectorExtractor(BaseService):
 
 
     def is_online(self) -> bool:
+        """Check if the service is online."""
         return self.online
 
 
 # ---------- Internals ----------
 
     def _unqueue_eye_data(self) -> None:
-        """
-        Unqueue eye data from the tracker data queue.
-        """
+        """Unqueue eye data from the tracker data queue."""
         try:
             eye_data = self.tracker_data_q.get(timeout=self.cfg.gaze2.tracker_data_timeout)
 
@@ -102,12 +102,11 @@ class GazeVectorExtractor(BaseService):
 
 
     def _process_tracker_data(self, eye_data: tt.TwoSideTrackerData) -> None:
-        """
-        Computes CRs centroids and eye vectors for both eyes.
+        """Compute CRs centroids and eye vectors for both eyes.
 
         Args:
-            pupil_left: Left eye pupil data.
-            pupil_right: Right eye pupil data.
+            eye_data: The tracker data containing eye information.
+
         """
         left_eye = eye_data.left_eye_data
         right_eye = eye_data.right_eye_data
@@ -119,7 +118,7 @@ class GazeVectorExtractor(BaseService):
             left_cr_centroid = self._compute_cr_centroid(left_eye.crs)
             right_cr_centroid = self._compute_cr_centroid(right_eye.crs)
         except ValueError as e:
-            self.logger.warning(f"CR centroid computation error: {e}, skipping eye vector calculation.")
+            self.logger.warning("CR centroid computation error: %s, skipping eye vector calculation.", e)
             return
 
         left_pupil_center = left_eye.pupil.center
@@ -143,7 +142,7 @@ class GazeVectorExtractor(BaseService):
             MessageType.gazeData, self.filtered_e_v))
 
         if self.gaze_calib_s.is_set() and self.gaze_calc_s.is_set():
-            self.logger.warning("Both gaze calibration and calculation signals are set, " \
+            self.logger.warning("Both gaze calibration and calculation signals are set, "
             "skipping IPD processing.")
             return
 
@@ -153,7 +152,8 @@ class GazeVectorExtractor(BaseService):
 
 
     def _compute_cr_centroid(
-        self, crs: list[tt.CrData]
+        self,
+        crs: list[tt.CrData],
     ) -> tuple[float, float]:
         """Compute the centroid of corneal reflections.
 
@@ -162,9 +162,11 @@ class GazeVectorExtractor(BaseService):
 
         Returns:
             Tuple of (x, y) coordinates of the centroid.
+
         """
         if not crs:
-            raise ValueError("No corneal reflections provided for centroid computation.")
+            error = "No corneal reflections available to compute centroid."
+            raise ValueError(error)
 
         x_coords = [cr.center[0] for cr in crs]
         y_coords = [cr.center[1] for cr in crs]
@@ -194,15 +196,15 @@ class GazeVectorExtractor(BaseService):
         elif calc_on and not calib_on:
             alpha = float(self.cfg.gaze2.filter_alpha_calc)
         elif calib_on and calc_on:
-            # This “shouldn’t” happen (and you guard against it higher up),
+            # This “shouldn't” happen (and you guard against it higher up),
             # but be defensive: log and prefer calibration alpha.
             self.logger.warning(
                 "Both gaze_calib_s and gaze_calc_s are set in _filter_vectors; "
-                "using calibration alpha."
+                "using calibration alpha.",
             )
             alpha = float(self.cfg.gaze2.filter_alpha_calib)
         else:
-            # Neither mode active – default to runtime alpha, or no filtering.
+            # Neither mode active - default to runtime alpha, or no filtering.
             alpha = float(self.cfg.gaze2.filter_alpha_calc)
 
         # Clamp alpha to a safe range

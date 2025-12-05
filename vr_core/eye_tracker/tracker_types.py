@@ -23,6 +23,7 @@ class PupilData:
 @dataclass
 class OneSideTrackerData:
     """Output data from one side of the eye tracker."""
+
     pupil: PupilData
     crs: list[CrData]
 
@@ -30,6 +31,7 @@ class OneSideTrackerData:
 @dataclass
 class TwoSideTrackerData:
     """Output data from both sides of the eye tracker."""
+
     left_eye_data: OneSideTrackerData
     right_eye_data: OneSideTrackerData
 
