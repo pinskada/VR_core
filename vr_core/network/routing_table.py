@@ -42,7 +42,7 @@ def handle_tracker_control(
     i_tracker_control: ITrackerControl
 ) -> None:
     """Handle tracker control messages."""
-    #logger.info("Handling tracker control: %s", msg)
+    logger.info("Handling tracker control: %s", msg)
     i_tracker_control.tracker_control(msg)
 
 

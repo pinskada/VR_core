@@ -50,8 +50,8 @@ class Core:
         self.frame_provider_timing: bool = False
         self.capture_timing: bool = False
 
-        self.tcp_mock_mode = True
-        self.config_mock_mode = True
+        self.tcp_mock_mode = False
+        self.config_mock_mode = False
         self.esp_mock_mode_s = True
         self.imu_mock_mode_s = True
         self.camera_mock_mode = False
@@ -176,7 +176,7 @@ class Core:
         )
 
         # gaze_calc = GazeCalc(
-        #     ipd_q=self.queues.ipd_q,
+        #     eye_vector_q=self.queues.eye_vector_q,
         #     esp_cmd_q=self.queues.esp_cmd_q,
         #     comm_router_q=self.queues.comm_router_q,
         #     pq_counter=self.queues.pq_counter,
@@ -185,15 +185,15 @@ class Core:
         #     config=config,
         # )
 
-        # gaze_preprocess = GazeVectorExtractor(
-        #     tracker_data_q=self.queues.tracker_data_q,
-        #     ipd_q=self.queues.ipd_q,
-        #     comm_router_q=self.queues.comm_router_q,
-        #     pq_counter=self.queues.pq_counter,
-        #     gaze_signals=self.gaze_signals,
-        #     imu_send_to_gaze_signal=self.imu_signals.imu_send_to_gaze_s,
-        #     config=config,
-        # )
+        gaze_v_e = GazeVectorExtractor(
+            tracker_data_q=self.queues.tracker_data_q,
+            eye_vector_q=self.queues.eye_vector_q,
+            comm_router_q=self.queues.comm_router_q,
+            pq_counter=self.queues.pq_counter,
+            gaze_signals=self.gaze_signals,
+            imu_send_to_gaze_signal=self.imu_signals.imu_send_to_gaze_s,
+            config=config,
+        )
 
         gaze_control = GazeControl(
             gaze_signals=self.gaze_signals,
@@ -227,6 +227,7 @@ class Core:
             "TrackerSync": tracker_sync,
             "TrackerControl": tracker_control,
             "FrameProvider": frame_provider,
+            "GazeVectorExtractor": gaze_v_e,
             "GazeCalib": gaze_calib,
             "GazeControl": gaze_control,
         }
@@ -329,8 +330,8 @@ class Core:
                     return
                 cycle_count += 1
                 time.sleep(0.5)
-                if cycle_count == 1:
-                    tracker_control.tracker_control({"mode": "online"})
+                # if cycle_count == 1:
+                #     tracker_control.tracker_control({"mode": "online"})
 
 
         except KeyboardInterrupt:

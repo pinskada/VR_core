@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from vr_core.ports.signals import GazeSignals
 
 
-class GazePreprocess(BaseService):
+class GazeVectorExtractor(BaseService):
     """Gaze control and preprocessing module for VR Core on Raspberry Pi."""
 
     def __init__(  # noqa: PLR0913
@@ -35,9 +35,9 @@ class GazePreprocess(BaseService):
         imu_send_to_gaze_signal: Event,
         config: Config,
         ) -> None:
-        """Initialize the GazePreprocess service."""
-        super().__init__("GazePreprocess")
-        self.logger = setup_logger("GazePreprocess")
+        """Initialize the GazeVectorExtractor service."""
+        super().__init__("GazeVectorExtractor")
+        self.logger = setup_logger("GazeVectorExtractor")
 
         self.tracker_data_q = tracker_data_q
         self.eye_vector_q = eye_vector_q
@@ -117,8 +117,8 @@ class GazePreprocess(BaseService):
         try:
             left_cr_centroid = self._compute_cr_centroid(left_eye.crs)
             right_cr_centroid = self._compute_cr_centroid(right_eye.crs)
-        except ValueError as e:
-            self.logger.warning("CR centroid computation error: %s, skipping eye vector calculation.", e)
+        except ValueError:
+            # self.logger.warning("CR centroid computation error: %s, skipping eye vector calculation.", e)
             return
 
         left_pupil_center = left_eye.pupil.center
@@ -135,6 +135,11 @@ class GazePreprocess(BaseService):
         eye_vectors = ct.EyeVectors(left_eye_vector, right_eye_vector)
 
         self._filter_vectors(eye_vectors)
+
+        self.logger.info("Left: x: %f; y: %f; Right: x: %f; y: %f",
+            eye_vectors.left_eye_vector.dx, eye_vectors.left_eye_vector.dy,
+            eye_vectors.right_eye_vector.dx, eye_vectors.right_eye_vector.dy
+        )
 
         if self.ipd_to_tcp_s.is_set():
             # Send the relative filtered IPD to the TCP module

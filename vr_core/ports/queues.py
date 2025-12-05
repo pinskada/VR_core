@@ -34,6 +34,7 @@ class CommQueues:
 
     # Queue for sharing IPD data across Gaze module
     ipd_q: queue.Queue = field(default_factory=queue.Queue)
+    eye_vector_q: queue.Queue = field(default_factory=queue.Queue)
 
 
     # Peripheral device queues
