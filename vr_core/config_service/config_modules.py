@@ -172,22 +172,22 @@ class Eyeloop:
     # right_max_radius_pupil: int = 50  # Maximum radius for pupil detection
 
 
-    left_threshold_pupil: int = 80  # Threshold for pupil detection in the left eye
-    left_blur_size_pupil: int = 25  # Size of the blur applied to the image
+    left_threshold_pupil: int = 70  # Threshold for pupil detection in the left eye
+    left_blur_size_pupil: int = 10  # Size of the blur applied to the image
     left_min_radius_pupil: int = 20  # Minimum radius for pupil detection
-    left_max_radius_pupil: int = 50  # Maximum radius for pupil detection
+    left_max_radius_pupil: int = 70  # Maximum radius for pupil detection
 
-    right_threshold_pupil: int = 80  # Threshold for pupil detection in the right eye
-    right_blur_size_pupil: int = 25  # Size of the blur applied to the image
+    right_threshold_pupil: int = 70  # Threshold for pupil detection in the right eye
+    right_blur_size_pupil: int = 10  # Size of the blur applied to the image
     right_min_radius_pupil: int = 20  # Minimum radius for pupil detection
-    right_max_radius_pupil: int = 50  # Maximum radius for pupil detection
+    right_max_radius_pupil: int = 70  # Maximum radius for pupil detection
 
-    left_threshold_cr: int = 180  # Threshold for cr detection in the left eye
+    left_threshold_cr: int = 160  # Threshold for cr detection in the left eye
     left_blur_size_cr: int = 1  # Size of the blur applied to the image
     left_min_radius_cr: int = 2  # Minimum radius for cr detection
     left_max_radius_cr: int = 10  # Maximum radius for cr detection
 
-    right_threshold_cr: int = 180 # Threshold for cr detection in the right eye
+    right_threshold_cr: int = 160 # Threshold for cr detection in the right eye
     right_blur_size_cr: int = 1  # Size of the blur applied to the image
     right_min_radius_cr: int = 2  # Minimum radius for cr detection
     right_max_radius_cr: int = 10  # Maximum radius for cr detection
