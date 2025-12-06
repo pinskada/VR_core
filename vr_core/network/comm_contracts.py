@@ -1,6 +1,9 @@
+# ruff: noqa: N815
+
 """Communication contracts RPI <-> Unity."""
 
 from enum import IntEnum
+
 
 # pylint: disable=invalid-name
 class MessageType(IntEnum):
@@ -25,6 +28,8 @@ class MessageType(IntEnum):
     configReady = 13
     trackerData = 14
     ipdPreview = 15
+    sceneMarker = 16
+    calibData = 17
 
 
 class MessageFormat(IntEnum):

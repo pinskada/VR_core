@@ -1,12 +1,20 @@
+# ruff: noqa: ERA001
+
 """Gaze control module."""
 
-from threading import Event
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 from vr_core.base_service import BaseService
-from vr_core.config_service.config import Config
 from vr_core.ports.interfaces import IGazeControl, IGazeService
-from vr_core.ports.signals import GazeSignals
 from vr_core.utilities.logger_setup import setup_logger
+
+if TYPE_CHECKING:
+    from threading import Event
+
+    from vr_core.config_service.config import Config
+    from vr_core.ports.signals import GazeSignals
 
 
 class GazeControl(BaseService, IGazeControl):
@@ -19,7 +27,7 @@ class GazeControl(BaseService, IGazeControl):
         i_gaze_calib: IGazeService,
         config: Config,
     ) -> None:
-
+        """Initialize the gaze control service."""
         super().__init__("GazePreprocess")
         self.logger = setup_logger("GazePreprocess")
 
@@ -53,12 +61,11 @@ class GazeControl(BaseService, IGazeControl):
 
     def _run(self) -> None:
         """Run the gaze control service."""
-
         while not self._stop.is_set():
             self._stop.wait(0.1)
 
 
-    def _on_stop(self):
+    def _on_stop(self) -> None:
         """Service stop logic."""
         self.imu_send_to_gaze_s.clear()
         self.gaze_calib_s.clear()
@@ -70,7 +77,7 @@ class GazeControl(BaseService, IGazeControl):
 
 # ---------- Public APIs ----------
 
-    def gaze_control(self, msg: dict) -> None:
+    def gaze_control(self, msg: dict[str, Any]) -> None:
         """Control the gaze module."""
         command = msg.get("command")
 
@@ -79,10 +86,6 @@ class GazeControl(BaseService, IGazeControl):
                 self._start_calibration()
             case "end_calibration":
                 self._end_calibration()
-            case "set_timestamp":
-                dist_point = msg.get("dist_point", {})
-                if isinstance(dist_point, dict):
-                    self.i_gaze_calib.set_timestamp(dist_point)
             case "start_gaze_calc":
                 self._start_gaze_calc()
             case "ipd_to_tcp_requested":
@@ -107,7 +110,7 @@ class GazeControl(BaseService, IGazeControl):
 
 
     def _start_gaze_calc(self) -> None:
-        """Starts computing and providing gaze estimate."""
+        """Start computing and providing gaze estimate."""
         if not self.calib_finalized_s.is_set():
             self.logger.warning("Calibration not finalized. Gaze calculation aborted.")
             return
@@ -118,12 +121,12 @@ class GazeControl(BaseService, IGazeControl):
 
 
     def _ipd_to_tcp_requested(self) -> None:
-        """Handles IPD to TCP request."""
+        """Handle IPD to TCP request."""
         self.logger.info("IPD to TCP request received.")
         self.ipd_to_tcp_s.set()
 
 
     def _ipd_to_tcp_aborted(self) -> None:
-        """Handles IPD to TCP abort."""
+        """Handle IPD to TCP abort."""
         self.logger.info("IPD to TCP abort request.")
         self.ipd_to_tcp_s.clear()

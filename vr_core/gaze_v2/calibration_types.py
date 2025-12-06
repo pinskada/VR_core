@@ -26,6 +26,7 @@ class EyeVectors:
 @dataclass
 class ReferenceParams:
     """Near-infinite reference vectors for both eyes."""
+
     left_ref: tuple[float, float]   # (dx0_L, dy0_L)
     right_ref: tuple[float, float]  # (dx0_R, dy0_R)
 
@@ -33,12 +34,14 @@ class ReferenceParams:
 @dataclass
 class AngleFitFunction:
     """Parameters for angle fitting function."""
+
     coeffs: list[float]  # highest degree first
 
 
 @dataclass
 class AngleParamsPerEye:
     """Angle conversion constants for one eye."""
+
     fx: AngleFitFunction  # horizontal pixel-to-angle mapping funtion
     fy: AngleFitFunction  # vertical pixel-to-angle mapping funtion
 
@@ -46,6 +49,7 @@ class AngleParamsPerEye:
 @dataclass
 class AngleParams:
     """Angle conversion constants for both eyes."""
+
     left: AngleParamsPerEye
     right: AngleParamsPerEye
 
@@ -53,6 +57,7 @@ class AngleParams:
 @dataclass
 class DistanceParams:
     """Parameters for distance adjustment function."""
+
     a: float  # scale
     b: float  # bias
 
@@ -60,6 +65,7 @@ class DistanceParams:
 @dataclass
 class CalibratedData:
     """Calibrated data containing reference, angle, and distance parameters."""
+
     reference: ReferenceParams
     angle: AngleParams
     distance: DistanceParams
@@ -119,6 +125,7 @@ class EyeVectorsWithTOA:
 @dataclass
 class CalibStats:
     """Statistics for each calibration pair."""
+
     n_samples: int                 # total samples after filtering/cropping
     std_left: tuple[float, float]  # (std_dx, std_dy)
     std_right: tuple[float, float] # (std_dx, std_dy)

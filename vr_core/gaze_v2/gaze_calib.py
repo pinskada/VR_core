@@ -1,11 +1,10 @@
-# ruff: noqa: ERA001
+# ruff: noqa: ERA001, TRY400
 
 """Module for calibrating gaze angles."""
 
 from __future__ import annotations
 
 import csv
-import itertools
 import json
 import os
 import queue
@@ -14,33 +13,37 @@ from dataclasses import asdict
 from datetime import datetime
 from queue import PriorityQueue, Queue
 from time import monotonic
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from numpy.linalg import LinAlgError
 
 import vr_core.gaze_v2.calibration_types as ct
 from vr_core.base_service import BaseService
-from vr_core.config_service.config import Config
 from vr_core.gaze_v2.calibrate_data import calibrate_data
 from vr_core.network.comm_contracts import MessageType
 from vr_core.ports.interfaces import IGazeService
 from vr_core.ports.signals import GazeSignals
 from vr_core.utilities.logger_setup import setup_logger
 
+if TYPE_CHECKING:
+    import itertools
+
+    from vr_core.config_service.config import Config
+
 # ---------- Calibration ----------
 
 class GazeCalib(BaseService, IGazeService, GazeSignals):
     """Calibration handler for gaze distance measurements."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         vectors_queue: Queue[ct.EyeVectors],
         comm_router_q: PriorityQueue[Any],
         pq_counter: itertools.count[int],
         gaze_signals: GazeSignals,
         config: Config,
-        use_logger: bool = False,
+        use_logger: bool = False,  # noqa: FBT001, FBT002
     ) -> None:
         """Initialize the GazeCalib service."""
         super().__init__("GazeCalib")
@@ -60,12 +63,12 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
 
         self.log_calibration = use_logger
         if self.log_calibration:
-            log_id = datetime.now().strftime("%H%M%S")
+            log_id = datetime.now().strftime("%H%M%S")  # noqa: DTZ005
             self.log_path = "calib_log/calib_" + log_id + ".csv"
-            os.makedirs(os.path.dirname(self.log_path), exist_ok=True)
+            os.makedirs(os.path.dirname(self.log_path), exist_ok=True)  # noqa: PTH103, PTH120
 
             self.log_results_path = "calib_log/results_" + log_id + ".json"
-            os.makedirs(os.path.dirname(self.log_results_path), exist_ok=True)
+            os.makedirs(os.path.dirname(self.log_results_path), exist_ok=True)  # noqa: PTH103, PTH120
 
         # --- Lists for calibration data ---
         self.tracker_markers: list[ct.EyeVectorsWithTOA] = []
@@ -176,60 +179,64 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
     def _parse_scene_marker(self, raw: dict[str, Any]) -> ct.SceneMarker | None:  # noqa: PLR0911
         """Parse raw dict from Unity into a SceneMarker.
 
-        Expected keys:
-            - "id":         int
-            - "state":      "start" | "stop"
-            - "type":       "ref" | "dist" | "ang"
-            - "position":   "dist": float
-                            "hor": float
-                            "ver": float
+        Expected format (from Unity/CalibrationLogic):
+
+            {
+            "id": int,
+            "state": "START" | "STOP",
+            "type": "REF" | "DIST" | "ANG",
+            "target_position": {
+                "distance": float,
+                "horizontal": float,
+                "vertical": float
+            }
+            }
         """
         try:
-            marker_id = raw.get("id")
-            if marker_id is None:
-                self.logger.error("Scene marker parsing failed: 'id' is missing.")
-                return None
+            # --- id ---
+            marker_id = raw["id"]
             marker_id = int(marker_id)
 
-            state_str = raw.get("state")
-            if state_str not in {"start", "stop"}:
-                self.logger.error("Scene marker parsing failed: invalid 'state': %r.", state_str)
+            # --- state ---
+            state_raw = raw["state"]
+            if not isinstance(state_raw, str):
+                self.logger.error("Scene marker parsing failed: 'state' must be a string, got %r", state_raw)
                 return None
-            state = ct.MarkerState.START if state_str == "start" else ct.MarkerState.STOP
-
-            type_str = raw.get("type")
-            match type_str:
-                case "ref":
-                    mtype = ct.MarkerType.REF
-                case "dist":
-                    mtype = ct.MarkerType.DIST
-                case "ang":
-                    mtype = ct.MarkerType.ANG
-                case _:
-                    self.logger.error("Scene marker parsing failed: invalid 'type': %r.", type_str)
-                    return None
-
-            position = raw.get("position")
-            if position is None or not isinstance(position, dict):
-                self.logger.error("Scene marker parsing failed: invalid 'position': %r.", position)
+            try:
+                state = ct.MarkerState[state_raw]  # "START"/"STOP" -> enum
+            except KeyError:
+                self.logger.error("Scene marker parsing failed: invalid state %r", state_raw)
                 return None
-            distance = position.get("dist")
-            horizontal = position.get("hor")
-            vertical = position.get("ver")
 
-            if distance is None or horizontal is None or vertical is None:
-                self.logger.error(
-                    "Scene marker parsing failed: incomplete 'position': %r.", position,
-                )
+            # --- type ---
+            type_raw = raw["type"]
+            if not isinstance(type_raw, str):
+                self.logger.error("Scene marker parsing failed: 'type' must be a string, got %r", type_raw)
                 return None
+            try:
+                mtype = ct.MarkerType[type_raw]  # "REF"/"DIST"/"ANG" -> enum
+            except KeyError:
+                self.logger.error("Scene marker parsing failed: invalid type %r", type_raw)
+                return None
+
+            # --- target_position ---
+            pos_raw = raw.get("target_position")
+            if not isinstance(pos_raw, dict):
+                self.logger.error("Scene marker parsing failed: invalid target_position %r", pos_raw)
+                return None
+
+            distance = float(pos_raw["distance"])
+            horizontal = float(pos_raw["horizontal"])
+            vertical = float(pos_raw["vertical"])
+
             pos = ct.TargetPosition(
                 distance=distance,
                 horizontal=horizontal,
                 vertical=vertical,
             )
 
-        except (TypeError, ValueError) as e:
-            self.logger.error("Scene marker parsing failed: %s", e)  # noqa: TRY400
+        except (KeyError, TypeError, ValueError) as e:
+            self.logger.error("Scene marker parsing failed: %s", e)
             return None
 
         return ct.SceneMarker(
@@ -238,6 +245,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
             type=mtype,
             target_position=pos,
         )
+
 
 
     def _dequeue_cmds(self) -> None:
@@ -281,7 +289,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
             self.tracker_markers.append(ct.EyeVectorsWithTOA(toa, vector_data))
 
 
-    def _validate_scene_markers(self) -> bool:  # noqa: C901, PLR0911, PLR0912
+    def _validate_scene_markers(self) -> bool:  # noqa: C901, PLR0911
         """Check and validate the scene markers.
 
         Ensures that markers:
@@ -291,6 +299,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
 
         Returns:
             bool: True if validation is successful, False otherwise.
+
         """
         if not self.calib_scene_markers:
             self.logger.error("No scene markers provided.")
@@ -395,10 +404,10 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
 
 
 
-    def _extract_marker_pairs(self) -> bool:
+    def _extract_marker_pairs(self) -> bool:  # noqa: C901
         """Create self.calibrators using calib_tracker_markers and calib_scene_markers.
 
-        1. Takes the time interval from each calib_scene_markers START–STOP pair and selects
+        1. Takes the time interval from each calib_scene_markers START-STOP pair and selects
            all calib_tracker_markers that fall within this interval.
         2. Using self._process_interval(), a CalibrationPair is created for each interval
            consisting of a target position and aggregated eye vectors.
@@ -543,6 +552,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
         Returns:
             CalibrationPair: Mean of the eye vectors, target position and stats if valid.
             None: If the data is invalid.
+
         """
         n_total = len(eye_vector_list)
         if n_total < self.cfg.gaze2.vector_min_samples:
@@ -614,7 +624,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
                 marker_id=marker_id,
                 marker_type=marker_type,
                 target_position=target_position,
-                arr=arr
+                arr=arr,
             )
 
         if arr.shape[0] < self.cfg.gaze2.vector_min_samples:
@@ -681,16 +691,16 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
         marker_id: int,
         marker_type: ct.MarkerType,
         target_position: ct.TargetPosition,
-        arr: np.ndarray[Any, np.dtype[np.float64]]
+        arr: np.ndarray[Any, np.dtype[np.float64]],
     ) -> None:
         """Append cropped interval samples to a CSV file.
 
         arr shape: (n_samples, 4) with columns [Lx, Ly, Rx, Ry].
         """
         # Create file with header if it doesn't exist yet
-        file_exists = os.path.exists(self.log_path,)
+        file_exists = os.path.exists(self.log_path)  # noqa: PTH110
 
-        with open(self.log_path, "a", newline="") as f:
+        with open(self.log_path, "a", newline="") as f:  # noqa: PTH123
             writer = csv.writer(f)
 
             if not file_exists:
@@ -705,7 +715,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
                         "sample_index",
                         "dx",
                         "dy",
-                    ]
+                    ],
                 )
 
             dist = target_position.distance
@@ -716,10 +726,10 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
                 lx, ly, rx, ry = row
 
                 writer.writerow(
-                    [marker_id, marker_type.name, dist, hor, ver, "L", idx, lx, ly]
+                    [marker_id, marker_type.name, dist, hor, ver, "L", idx, lx, ly],
                 )
                 writer.writerow(
-                    [marker_id, marker_type.name, dist, hor, ver, "R", idx, rx, ry]
+                    [marker_id, marker_type.name, dist, hor, ver, "R", idx, rx, ry],
                 )
 
 
@@ -755,7 +765,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
             self.comm_router_q.put((8, next(self.pq_counter), MessageType.gazeSceneControl, "calib_failed"))
             return
 
-        calibrator = ct.Calibrator(  # noqa: F841
+        calibrator = ct.Calibrator(
             ref_calibrator=self.reference_calibrator,
             dist_calibrators=self.distance_calibrator,
             angle_calibrators=self.angle_calibrator,
@@ -765,13 +775,13 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
         try:
             calibrated_data = calibrate_data(calibrator)
         except (ValueError, TypeError, LinAlgError, OverflowError) as e:
-            self.logger.warning(f"Calibration failed: {e}")
+            self.logger.warning("Calibration failed: %s", e)
             self.comm_router_q.put((8, next(self.pq_counter), MessageType.gazeSceneControl, "calib_failed"))
             if self.log_calibration:
                 self.save_calibrator_and_data_to_json(calibrator, None)
             return
 
-        self.comm_router_q.put((8, next(self.pq_counter), MessageType.gazeSceneControl, calibrated_data))
+        self.comm_router_q.put((8, next(self.pq_counter), MessageType.calibData, calibrated_data))
         if self.log_calibration:
             self.save_calibrator_and_data_to_json(calibrator, calibrated_data)
 
@@ -784,7 +794,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
         calibrator: ct.Calibrator,
         calibrated_data: ct.CalibratedData | None,
     ) -> None:
-        """Saves the calibrator and calibrated data to JSON.
+        """Save the calibrator and calibrated data to JSON.
 
         If calibration failed, only the calibrator is stored (calibrated_data=None).
         """
@@ -797,15 +807,15 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
 
         try:
             payload: dict[str, Any] = {
-                "timestamp": datetime.now().isoformat(timespec="seconds"),
+                "timestamp": datetime.now().isoformat(timespec="seconds"),  # noqa: DTZ005
                 "calibrator": asdict(calibrator),
                 "calibrated_data": asdict(calibrated_data) if calibrated_data is not None else None,
             }
 
             # Ensure directory exists (defensive; it's already created in __init__)
-            os.makedirs(os.path.dirname(self.log_results_path), exist_ok=True)
+            os.makedirs(os.path.dirname(self.log_results_path), exist_ok=True)  # noqa: PTH103, PTH120
 
-            with open(self.log_results_path, "w", encoding="utf-8") as f:
+            with open(self.log_results_path, "w", encoding="utf-8") as f:  # noqa: PTH123
                 json.dump(payload, f, indent=2)
 
             self.logger.info(
@@ -814,6 +824,6 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
                 "yes" if calibrated_data is not None else "no",
             )
 
-        except Exception:  # noqa: BLE001
+        except Exception:
             # Don't crash calibration just because logging failed
             self.logger.exception("Failed to save calibration results to JSON.")

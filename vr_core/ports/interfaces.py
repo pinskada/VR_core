@@ -8,11 +8,12 @@ from numpy.typing import NDArray
 
 from vr_core.network.comm_contracts import MessageType
 
+
 class INetworkService(ABC):
     """Network service interface."""
 
     @abstractmethod
-    def tcp_send(self, payload: Any, message_type: MessageType) -> None:
+    def tcp_send(self, payload: Any, message_type: MessageType) -> None:  # noqa: ANN401
         """Send data over TCP."""
 
 
@@ -20,7 +21,7 @@ class IGazeControl(ABC):
     """Gaze control interface."""
 
     @abstractmethod
-    def gaze_control(self, msg: dict) -> None:
+    def gaze_control(self, msg: dict[str, Any]) -> None:
         """Control the gaze module."""
 
 
@@ -36,21 +37,23 @@ class IGazeService(ABC):
         """Finalize the gaze calibration."""
 
     @abstractmethod
-    def set_timestamp(self, dist_point: dict) -> None:
+    def set_timestamp(self, dist_point: dict[str, Any]) -> None:
         """Set the current gaze distance."""
 
 
 class ITrackerControl(ABC):
     """Tracker service interface."""
+
     @abstractmethod
-    def tracker_control(self, msg) -> None:
+    def tracker_control(self, msg: dict[str, Any]) -> None:
         """Control the tracker module."""
 
 
 class ITrackerService(ABC):
     """Eye tracker service interface."""
+
     @abstractmethod
-    def start_tracker(self, test_mode: bool = False) -> None:
+    def start_tracker(self, test_mode: bool = False) -> None:  # noqa: FBT001, FBT002
         """Start the tracker."""
 
     @abstractmethod

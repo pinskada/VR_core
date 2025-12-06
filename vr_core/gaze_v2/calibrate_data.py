@@ -1,3 +1,5 @@
+# ruff: noqa: N806, ERA001
+
 """Calibrate data in a three step process."""
 
 import numpy as np
@@ -16,8 +18,8 @@ def calibrate_data(calibrator: ct.Calibrator) -> ct.CalibratedData:
             Reference target vectors for both eyes.
             Vertical and horizontal angles conversion constants for both eyes.
             Distance adjustment function constants.
-    """
 
+    """
     ref_params = calibrate_reference(calibrator.ref_calibrator)
     angle_params = calibrate_angle(calibrator.angle_calibrators, ref_params)
     dist_params = calibrate_distance(
@@ -29,7 +31,7 @@ def calibrate_data(calibrator: ct.Calibrator) -> ct.CalibratedData:
     return ct.CalibratedData(
         reference=ref_params,
         angle=angle_params,
-        distance=dist_params
+        distance=dist_params,
     )
 
 
@@ -38,10 +40,11 @@ def calibrate_reference(ref_calibrator: ct.CalibrationPair) -> ct.ReferenceParam
 
     Args:
         ref_calibrator: The reference calibrator object containing reference calibration data.
+
     Returns:
         Reference target vectors for both eyes.
-    """
 
+    """
     dx0_L = ref_calibrator.eye_vectors.left_eye_vector.dx
     dy0_L = ref_calibrator.eye_vectors.left_eye_vector.dy
     dx0_R = ref_calibrator.eye_vectors.right_eye_vector.dx
@@ -49,7 +52,7 @@ def calibrate_reference(ref_calibrator: ct.CalibrationPair) -> ct.ReferenceParam
 
     return ct.ReferenceParams(
         left_ref=(dx0_L, dy0_L),
-        right_ref=(dx0_R, dy0_R)
+        right_ref=(dx0_R, dy0_R),
     )
 
 
@@ -69,8 +72,8 @@ def calibrate_angle(
     Fits pixel-to-angle mappings for each eye and axis using angle calibration targets.
     The fitted functions map (dx - dx0) -> alpha_x and (dy - dy0) -> alpha_y, where
     (dx0, dy0) comes from the reference calibration.
-    """
 
+    """
     dx0_L, dy0_L = reference_params.left_ref
     dx0_R, dy0_R = reference_params.right_ref
 
@@ -163,6 +166,7 @@ def calibrate_distance(
 
     Returns:
         DistanceParams: Distance adjustment function constants.
+
     """
     dx0_L, _ = ref_params.left_ref
     dx0_R, _ = ref_params.right_ref
@@ -212,11 +216,11 @@ def calibrate_distance(
         d_vals.append(d)
         w_vals.append(w)
 
-    if len(z_vals) < 2:
-        raise ValueError(
-            f"Not enough valid distance calibration points: got {len(z_vals)}, "
-            "need at least 2."
-        )
+    min_distance_points = 2
+    if len(z_vals) < min_distance_points:
+        error = ("Not enough valid distance calibration points: got %s, "
+            "need at least 2.", len(z_vals))
+        raise ValueError(error)
 
     z_arr = np.asarray(z_vals, dtype=float)
     d_arr = np.asarray(d_vals, dtype=float)
@@ -243,16 +247,13 @@ def _fit_angle_poly(
 ) -> ct.AngleFitFunction:
     """Fit alpha ≈ poly(dx) for a single eye/axis."""
     if len(x_vals) < degree + 1:
-        raise ValueError(
-            f"Not enough points to fit {label}: have {len(x_vals)}, "
-            f"need at least {degree+1}."
-        )
+        error = ("Not enough points to fit %s: have %s, "
+            "need at least %s.", label, len(x_vals), degree + 1)
+        raise ValueError(error)
 
     if len(x_vals) != len(y_vals) or len(x_vals) != len(w_vals):
-        raise ValueError(
-            f"Length mismatch for {label}: "
-            f"x={len(x_vals)}, y={len(y_vals)}, w={len(w_vals)}."
-        )
+        error = ("Length mismatch for %s.", label, len(x_vals), len(y_vals))
+        raise ValueError(error)
 
     x = np.asarray(x_vals, dtype=float)
     y = np.asarray(y_vals, dtype=float)

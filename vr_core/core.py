@@ -17,7 +17,6 @@ from vr_core.eye_tracker.tracker_process import TrackerProcess
 from vr_core.eye_tracker.tracker_sync import TrackerSync
 from vr_core.gaze_v2.gaze_calib import GazeCalib
 from vr_core.gaze_v2.gaze_control import GazeControl
-from vr_core.gaze_v2.gaze_vector_extractor import GazeVectorExtractor
 from vr_core.network.comm_router import CommRouter
 from vr_core.network.tcp_server import TCPServer
 from vr_core.ports import signals
@@ -205,6 +204,7 @@ class Core:
         comm_router = CommRouter(
             i_tcp_server=tcp_server,
             i_gaze_control=gaze_control,
+            i_gaze_service=gaze_calib,
             i_tracker_control=tracker_control,
             com_router_queue_q=self.queues.comm_router_q,
             tcp_receive_q=self.queues.tcp_receive_q,
