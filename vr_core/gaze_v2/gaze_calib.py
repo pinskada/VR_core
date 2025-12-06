@@ -144,6 +144,8 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
         """
         self.gaze_calib_s.clear()
 
+        # self.logger.info(self.scene_markers)
+
         # Retrieve collected data safely
         with self._buf_lock:
             self.calib_tracker_markers, self.tracker_markers = self.tracker_markers, []
@@ -172,6 +174,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
 
         with self._buf_lock:
             self.scene_markers.append(marker_with_toa)
+            # self.logger.info(marker_with_toa)
 
 
 # ---------- Internals ----------
@@ -247,7 +250,6 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
         )
 
 
-
     def _dequeue_cmds(self) -> None:
         """Dequeue commands from the command queue."""
         try:
@@ -275,6 +277,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
         try:
             vector_data = self.vectors_queue.get(timeout=self.cfg.gaze2.vector_queue_timeout)
             self._append_vectors(vector_data)
+            self.logger.info("_deque_vectors_data: %s", vector_data)
         except queue.Empty:
             pass
 
@@ -287,6 +290,8 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
         toa = monotonic() - self.calib_start_t
         with self._buf_lock:
             self.tracker_markers.append(ct.EyeVectorsWithTOA(toa, vector_data))
+            self.logger.info("_append_data: %s", vector_data)
+
 
 
     def _validate_scene_markers(self) -> bool:  # noqa: C901, PLR0911
@@ -301,6 +306,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
             bool: True if validation is successful, False otherwise.
 
         """
+        # self.logger.info(self.calib_scene_markers)
         if not self.calib_scene_markers:
             self.logger.error("No scene markers provided.")
             return False
@@ -415,8 +421,12 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
            self.angle_calibrator by grouping CalibrationPairs by MarkerType of the
            original calib_scene_markers.
         """
-        if not self.calib_tracker_markers or not self.calib_scene_markers:
-            self.logger.error("Cannot extract pairs: empty samples or markers.")
+        if not self.calib_tracker_markers:
+            self.logger.error("Cannot extract pairs: empty tracker markers.")
+            return False
+
+        if not self.calib_scene_markers:
+            self.logger.error("Cannot extract pairs: empty scene markers.")
             return False
 
         # Ensure time order for tracker samples

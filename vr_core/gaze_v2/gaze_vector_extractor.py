@@ -136,10 +136,10 @@ class GazeVectorExtractor(BaseService):
 
         self._filter_vectors(eye_vectors)
 
-        self.logger.info("Left: x: %f; y: %f; Right: x: %f; y: %f",
-            eye_vectors.left_eye_vector.dx, eye_vectors.left_eye_vector.dy,
-            eye_vectors.right_eye_vector.dx, eye_vectors.right_eye_vector.dy
-        )
+        # self.logger.info("Left: x: %f; y: %f; Right: x: %f; y: %f",
+        #     eye_vectors.left_eye_vector.dx, eye_vectors.left_eye_vector.dy,
+        #     eye_vectors.right_eye_vector.dx, eye_vectors.right_eye_vector.dy
+        # )
 
         if self.ipd_to_tcp_s.is_set():
             # Send the relative filtered IPD to the TCP module
@@ -154,6 +154,8 @@ class GazeVectorExtractor(BaseService):
         if (self.gaze_calib_s.is_set() or self.gaze_calc_s.is_set()) and self.filtered_e_v is not None:
             # Send the IPD to either calibration or main processing module
             self.eye_vector_q.put(self.filtered_e_v)
+            self.logger.info("_vector_extractor: %s", self.filtered_e_v)
+
 
 
     def _compute_cr_centroid(

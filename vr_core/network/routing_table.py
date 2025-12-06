@@ -94,7 +94,7 @@ def handle_scene_marker(
     i_gaze_service: IGazeService,
 ) -> None:
     """Handle scene marker messages."""
-    logger.info("Handling scene marker: %s", msg)
+    # logger.info("Handling scene marker: %s", msg)
     i_gaze_service.set_timestamp(msg)
 
 

@@ -17,6 +17,7 @@ from vr_core.eye_tracker.tracker_process import TrackerProcess
 from vr_core.eye_tracker.tracker_sync import TrackerSync
 from vr_core.gaze_v2.gaze_calib import GazeCalib
 from vr_core.gaze_v2.gaze_control import GazeControl
+from vr_core.gaze_v2.gaze_vector_extractor import GazeVectorExtractor
 from vr_core.network.comm_router import CommRouter
 from vr_core.network.tcp_server import TCPServer
 from vr_core.ports import signals
@@ -166,7 +167,7 @@ class Core:
         )
 
         gaze_calib = GazeCalib(
-            vectors_queue=self.queues.ipd_q,
+            vectors_queue=self.queues.eye_vector_q,
             comm_router_q=self.queues.comm_router_q,
             pq_counter=self.queues.pq_counter,
             gaze_signals=self.gaze_signals,
@@ -330,8 +331,8 @@ class Core:
                     return
                 cycle_count += 1
                 time.sleep(0.5)
-                # if cycle_count == 1:
-                #     tracker_control.tracker_control({"mode": "online"})
+                if cycle_count == 1:
+                    tracker_control.tracker_control({"mode": "online"})
 
 
         except KeyboardInterrupt:

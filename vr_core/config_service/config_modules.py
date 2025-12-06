@@ -118,9 +118,9 @@ class Gaze2:
     filter_alpha_calib: float = 0.8  # Alpha value for the low-pass filter (0-1)
     filter_alpha_calc: float = 0.2  # Alpha value for the low-pass filter (0-1)
     # Factor to determine the amount of data to discard from the start and end of the buffer
-    buffer_crop_factor: float = 0.1
+    buffer_crop_factor: float = 0.15
     # Threshold for standard deviation to determine if the sample is valid
-    std_threshold: float = 3.0
+    std_threshold: float = 20.0
     # Threshold for gyroscope data to determine if the system should trust the data
     gyro_threshold: int = 5
     gyro_thr_high: int = 15  # High threshold for gyro to untrust tracker
@@ -143,17 +143,17 @@ class TrackerCrop:
     """Defines crop region for the tracker."""
 
     # Relative region (x1, x2, y1, y2) for the left eye
-    # crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.0, 0.5), (0.0, 1.0))
-    # # Relative region (x1, x2, y1, y2) for the right eye
-    # crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.5, 1.0), (0.0, 1.0))
+    crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.0, 0.35), (0.25, 0.6))
+    # Relative region (x1, x2, y1, y2) for the right eye
+    crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.65, 1.0), (0.25, 0.6))
 
     # crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.0, 0.4), (0.2, 0.7))
     # # Relative region (x1, x2, y1, y2) for the right eye
     # crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.6, 1), (0.2, 0.7))
 
-    crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.0, 0.4), (0.3, 0.6))
-    # Relative region (x1, x2, y1, y2) for the right eye
-    crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.6, 1.0), (0.3, 0.6))
+    # crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.0, 0.4), (0.3, 0.6))
+    # # Relative region (x1, x2, y1, y2) for the right eye
+    # crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.6, 1.0), (0.3, 0.6))
 
 # 2300 x 2592 -> 1000x1200
 
@@ -172,22 +172,22 @@ class Eyeloop:
     # right_max_radius_pupil: int = 50  # Maximum radius for pupil detection
 
 
-    left_threshold_pupil: int = 70  # Threshold for pupil detection in the left eye
+    left_threshold_pupil: int = 65  # Threshold for pupil detection in the left eye
     left_blur_size_pupil: int = 10  # Size of the blur applied to the image
     left_min_radius_pupil: int = 20  # Minimum radius for pupil detection
-    left_max_radius_pupil: int = 70  # Maximum radius for pupil detection
+    left_max_radius_pupil: int = 120  # Maximum radius for pupil detection
 
-    right_threshold_pupil: int = 70  # Threshold for pupil detection in the right eye
+    right_threshold_pupil: int = 65  # Threshold for pupil detection in the right eye
     right_blur_size_pupil: int = 10  # Size of the blur applied to the image
     right_min_radius_pupil: int = 20  # Minimum radius for pupil detection
-    right_max_radius_pupil: int = 70  # Maximum radius for pupil detection
+    right_max_radius_pupil: int = 120  # Maximum radius for pupil detection
 
-    left_threshold_cr: int = 160  # Threshold for cr detection in the left eye
+    left_threshold_cr: int = 140  # Threshold for cr detection in the left eye
     left_blur_size_cr: int = 1  # Size of the blur applied to the image
     left_min_radius_cr: int = 2  # Minimum radius for cr detection
     left_max_radius_cr: int = 10  # Maximum radius for cr detection
 
-    right_threshold_cr: int = 160 # Threshold for cr detection in the right eye
+    right_threshold_cr: int = 140 # Threshold for cr detection in the right eye
     right_blur_size_cr: int = 1  # Size of the blur applied to the image
     right_min_radius_cr: int = 2  # Minimum radius for cr detection
     right_max_radius_cr: int = 10  # Maximum radius for cr detection
@@ -212,21 +212,21 @@ class Eyeloop:
 class Camera:
     """Camera configuration settings."""
 
-    full_res_width: int = 1536
-    full_res_height: int = 864
+    # full_res_width: int = 1536
+    # full_res_height: int = 864
 
-    target_res_width: int = 1536
-    target_res_height: int = 864
+    # target_res_width: int = 1536
+    # target_res_height: int = 864
 
-    # full_res_width: int = 2304
-    # full_res_height: int = 1296
+    full_res_width: int = 2304
+    full_res_height: int = 1296
 
-    # target_res_width: int = 2304
-    # target_res_height: int = 1296
+    target_res_width: int = 2304
+    target_res_height: int = 1296
 
-    focus: int = 20 # Only used if autofocus is False
-    exposure: int = 10000  # In microseconds
-    gain: float = 2  # Brightness boost
+    focus: int = 28 # Only used if autofocus is False
+    exposure: int = 20000  # In microseconds
+    gain: float = 22  # Brightness boost
     af_mode: int = 0  # 0 = manual, 1 = auto
     buffer_count: int = 2  # Number of buffers for the camera
 
