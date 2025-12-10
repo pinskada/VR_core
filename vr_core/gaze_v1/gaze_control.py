@@ -20,8 +20,8 @@ class GazeControl(BaseService, IGazeControl):
         config: Config,
     ) -> None:
 
-        super().__init__("GazePreprocess")
-        self.logger = setup_logger("GazePreprocess")
+        super().__init__("GazeControl")
+        self.logger = setup_logger("GazeControl")
 
         self.calib_finalized_s = gaze_signals.calib_finalized_s
         self.gaze_calib_s = gaze_signals.gaze_calib_s

@@ -41,6 +41,7 @@ class Imu(BaseService):
 
         self.imu_send_over_tcp_s = imu_signals.imu_send_over_tcp_s
         self.imu_send_to_gaze_s = imu_signals.imu_send_to_gaze_s
+        self.hold_imu_during_calib_s = imu_signals.hold_imu_during_calib_s
 
         self.cfg = config
         self._unsubscribe = config.subscribe("IMU",
@@ -291,10 +292,13 @@ class Imu(BaseService):
 
                 #self.logger.info(data)
 
-                if self.imu_send_over_tcp_s.is_set():
+                if (
+                    self.imu_send_over_tcp_s.is_set() and
+                    not self.hold_imu_during_calib_s.is_set()
+                ):
                     self.send_counter += 1
                     if self.send_counter % 20 == 0:
-                        #self.logger.info(data)
+                        # sel f.logger.info(data)
                         self.send_counter = 0
                     # Send data via TCP
                     tcp_tuple = (
@@ -302,7 +306,7 @@ class Imu(BaseService):
                         MessageType.imuSensor,
                         data
                         )
-                    # self.comm_router_q.put(tcp_tuple)
+                    self.comm_router_q.put(tcp_tuple)
                 else:
                     self.send_counter += 1
                     if self.send_counter % 10 == 0:
@@ -311,7 +315,6 @@ class Imu(BaseService):
 
                 if self.imu_send_to_gaze_s.is_set():
                     self.gyro_mag_q.put(data)
-
 
                 break
 

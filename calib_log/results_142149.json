@@ -1,0 +1,465 @@
+{
+  "timestamp": "2025-12-10T14:22:56",
+  "calibrator": {
+    "ref_calibrator": {
+      "target_position": {
+        "distance": 40.0,
+        "horizontal": 0.0,
+        "vertical": 0.0
+      },
+      "eye_vectors": {
+        "left_eye_vector": {
+          "dx": 32.504367142051,
+          "dy": -42.64475936195362
+        },
+        "right_eye_vector": {
+          "dx": -57.756825988689926,
+          "dy": -55.85520390906025
+        }
+      },
+      "marker_id": 1,
+      "calib_stats": {
+        "n_samples": 42,
+        "std_left": [
+          1.1255470061622388,
+          2.1003887814544715
+        ],
+        "std_right": [
+          1.5923676406842602,
+          2.617835273951865
+        ]
+      }
+    },
+    "dist_calibrators": [
+      {
+        "target_position": {
+          "distance": 8.0,
+          "horizontal": 0.0,
+          "vertical": 0.0
+        },
+        "eye_vectors": {
+          "left_eye_vector": {
+            "dx": 31.92771537235177,
+            "dy": -44.174165489954234
+          },
+          "right_eye_vector": {
+            "dx": -57.67767387533515,
+            "dy": -56.94503444529138
+          }
+        },
+        "marker_id": 2,
+        "calib_stats": {
+          "n_samples": 41,
+          "std_left": [
+            1.3315815758427427,
+            1.674246167525293
+          ],
+          "std_right": [
+            1.8076900522158783,
+            1.8338865168070693
+          ]
+        }
+      },
+      {
+        "target_position": {
+          "distance": 4.0,
+          "horizontal": 0.0,
+          "vertical": 0.0
+        },
+        "eye_vectors": {
+          "left_eye_vector": {
+            "dx": 33.81939793834436,
+            "dy": -44.253402189234
+          },
+          "right_eye_vector": {
+            "dx": -60.274659281613,
+            "dy": -57.08320269013978
+          }
+        },
+        "marker_id": 3,
+        "calib_stats": {
+          "n_samples": 43,
+          "std_left": [
+            0.5735261476968385,
+            0.518405841248608
+          ],
+          "std_right": [
+            0.9625357233557812,
+            0.9133196750664204
+          ]
+        }
+      },
+      {
+        "target_position": {
+          "distance": 2.0,
+          "horizontal": 0.0,
+          "vertical": 0.0
+        },
+        "eye_vectors": {
+          "left_eye_vector": {
+            "dx": 36.340729324486304,
+            "dy": -43.80423846415942
+          },
+          "right_eye_vector": {
+            "dx": -61.795191925964104,
+            "dy": -56.00182250622335
+          }
+        },
+        "marker_id": 4,
+        "calib_stats": {
+          "n_samples": 41,
+          "std_left": [
+            0.930236987107051,
+            1.115177815821537
+          ],
+          "std_right": [
+            0.9644404000819683,
+            1.4816899573236002
+          ]
+        }
+      },
+      {
+        "target_position": {
+          "distance": 1.0,
+          "horizontal": 0.0,
+          "vertical": 0.0
+        },
+        "eye_vectors": {
+          "left_eye_vector": {
+            "dx": 41.54850117208796,
+            "dy": -44.2290816711956
+          },
+          "right_eye_vector": {
+            "dx": -63.36326535376156,
+            "dy": -54.13849951313684
+          }
+        },
+        "marker_id": 5,
+        "calib_stats": {
+          "n_samples": 42,
+          "std_left": [
+            1.5990371263518495,
+            1.1142304273582415
+          ],
+          "std_right": [
+            1.2775448542729477,
+            1.3878183812940597
+          ]
+        }
+      },
+      {
+        "target_position": {
+          "distance": 0.5,
+          "horizontal": 0.0,
+          "vertical": 0.0
+        },
+        "eye_vectors": {
+          "left_eye_vector": {
+            "dx": 54.01437878103698,
+            "dy": -40.114400679529425
+          },
+          "right_eye_vector": {
+            "dx": -72.04369520044655,
+            "dy": -49.76459722251316
+          }
+        },
+        "marker_id": 6,
+        "calib_stats": {
+          "n_samples": 43,
+          "std_left": [
+            2.0028301406539155,
+            0.7946951082625066
+          ],
+          "std_right": [
+            1.0635497278142083,
+            1.0514491245553497
+          ]
+        }
+      }
+    ],
+    "angle_calibrators": [
+      {
+        "target_position": {
+          "distance": 2.0,
+          "horizontal": -10.0,
+          "vertical": 0.0
+        },
+        "eye_vectors": {
+          "left_eye_vector": {
+            "dx": 77.78805897964648,
+            "dy": -41.40119607663022
+          },
+          "right_eye_vector": {
+            "dx": -22.086573321827057,
+            "dy": -51.125637157430255
+          }
+        },
+        "marker_id": 7,
+        "calib_stats": {
+          "n_samples": 41,
+          "std_left": [
+            8.28541524352329,
+            0.4771735811269077
+          ],
+          "std_right": [
+            13.991889360115582,
+            0.6387919857065072
+          ]
+        }
+      },
+      {
+        "target_position": {
+          "distance": 2.0,
+          "horizontal": -3.5,
+          "vertical": 0.0
+        },
+        "eye_vectors": {
+          "left_eye_vector": {
+            "dx": 49.98594718597021,
+            "dy": -41.17067509097856
+          },
+          "right_eye_vector": {
+            "dx": -47.209832007152954,
+            "dy": -52.37390220108634
+          }
+        },
+        "marker_id": 8,
+        "calib_stats": {
+          "n_samples": 44,
+          "std_left": [
+            2.400149931208147,
+            0.5982379757883021
+          ],
+          "std_right": [
+            2.0955714514979937,
+            0.6366031760664168
+          ]
+        }
+      },
+      {
+        "target_position": {
+          "distance": 2.0,
+          "horizontal": 3.5,
+          "vertical": 0.0
+        },
+        "eye_vectors": {
+          "left_eye_vector": {
+            "dx": 23.8604724038635,
+            "dy": -41.63084555405788
+          },
+          "right_eye_vector": {
+            "dx": -76.92790965835758,
+            "dy": -52.76670814686927
+          }
+        },
+        "marker_id": 9,
+        "calib_stats": {
+          "n_samples": 41,
+          "std_left": [
+            4.285801049967967,
+            0.8304015060114991
+          ],
+          "std_right": [
+            5.271359077377177,
+            1.0007172527790011
+          ]
+        }
+      },
+      {
+        "target_position": {
+          "distance": 2.0,
+          "horizontal": 10.0,
+          "vertical": 0.0
+        },
+        "eye_vectors": {
+          "left_eye_vector": {
+            "dx": -2.237812142693295,
+            "dy": -39.02986987176295
+          },
+          "right_eye_vector": {
+            "dx": -114.1211598377833,
+            "dy": -52.556673908772176
+          }
+        },
+        "marker_id": 10,
+        "calib_stats": {
+          "n_samples": 43,
+          "std_left": [
+            2.9035331248881695,
+            1.0478458397229733
+          ],
+          "std_right": [
+            4.029335517354067,
+            1.1029922288017957
+          ]
+        }
+      },
+      {
+        "target_position": {
+          "distance": 2.0,
+          "horizontal": 0.0,
+          "vertical": 10.0
+        },
+        "eye_vectors": {
+          "left_eye_vector": {
+            "dx": 41.30818829431561,
+            "dy": -83.07041989854046
+          },
+          "right_eye_vector": {
+            "dx": -81.07178822549866,
+            "dy": -79.4730119144197
+          }
+        },
+        "marker_id": 11,
+        "calib_stats": {
+          "n_samples": 43,
+          "std_left": [
+            2.224804291092845,
+            2.410268130684817
+          ],
+          "std_right": [
+            3.8109970886853097,
+            3.354972240922441
+          ]
+        }
+      },
+      {
+        "target_position": {
+          "distance": 2.0,
+          "horizontal": 0.0,
+          "vertical": 3.5
+        },
+        "eye_vectors": {
+          "left_eye_vector": {
+            "dx": 38.72803149038393,
+            "dy": -56.86043701224571
+          },
+          "right_eye_vector": {
+            "dx": -62.1625053492106,
+            "dy": -67.68097374185285
+          }
+        },
+        "marker_id": 12,
+        "calib_stats": {
+          "n_samples": 43,
+          "std_left": [
+            0.6117555635828441,
+            1.5253521120441926
+          ],
+          "std_right": [
+            1.8304254552587595,
+            1.9614008510362893
+          ]
+        }
+      },
+      {
+        "target_position": {
+          "distance": 2.0,
+          "horizontal": 0.0,
+          "vertical": -3.5
+        },
+        "eye_vectors": {
+          "left_eye_vector": {
+            "dx": 35.98420280028813,
+            "dy": -28.777996272179475
+          },
+          "right_eye_vector": {
+            "dx": -61.45363901652574,
+            "dy": -35.31825680948986
+          }
+        },
+        "marker_id": 13,
+        "calib_stats": {
+          "n_samples": 43,
+          "std_left": [
+            0.8783057818609139,
+            1.265167839317656
+          ],
+          "std_right": [
+            1.1326181048233999,
+            1.5138830065912017
+          ]
+        }
+      },
+      {
+        "target_position": {
+          "distance": 2.0,
+          "horizontal": 0.0,
+          "vertical": -10.0
+        },
+        "eye_vectors": {
+          "left_eye_vector": {
+            "dx": 38.21471991593927,
+            "dy": -5.946556623296848
+          },
+          "right_eye_vector": {
+            "dx": -63.29829795748815,
+            "dy": -12.511233668364914
+          }
+        },
+        "marker_id": 14,
+        "calib_stats": {
+          "n_samples": 43,
+          "std_left": [
+            0.4400934689545232,
+            3.9310112182296346
+          ],
+          "std_right": [
+            4.344638172307503,
+            8.998066736030225
+          ]
+        }
+      }
+    ]
+  },
+  "calibrated_data": {
+    "reference": {
+      "left_ref": [
+        32.504367142051,
+        -42.64475936195362
+      ],
+      "right_ref": [
+        -57.756825988689926,
+        -55.85520390906025
+      ]
+    },
+    "angle": {
+      "left": {
+        "fx": {
+          "coeffs": [
+            0.000125613350590281,
+            -0.255682641450914,
+            1.0042699243205166
+          ]
+        },
+        "fy": {
+          "coeffs": [
+            -0.0002691360902351359,
+            -0.2555940055945688,
+            0.021524435712489205
+          ]
+        }
+      },
+      "right": {
+        "fx": {
+          "coeffs": [
+            -0.000791081152215252,
+            -0.23796129244545458,
+            -0.8835268331565265
+          ]
+        },
+        "fy": {
+          "coeffs": [
+            0.002779100745344512,
+            -0.2732401969571862,
+            0.6450019667360185
+          ]
+        }
+      }
+    },
+    "distance": {
+      "a": -0.0010502795163736109,
+      "b": 3.562327288048411
+    }
+  }
+}

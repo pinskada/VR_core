@@ -38,7 +38,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
 
     def __init__(  # noqa: PLR0913
         self,
-        vectors_queue: Queue[ct.EyeVectors],
+        eye_vector_q: Queue[ct.EyeVectors],
         comm_router_q: PriorityQueue[Any],
         pq_counter: itertools.count[int],
         gaze_signals: GazeSignals,
@@ -49,7 +49,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
         super().__init__("GazeCalib")
         self.logger = setup_logger("GazeCalib")
 
-        self.vectors_queue = vectors_queue
+        self.eye_vector_q = eye_vector_q
         self.comm_router_q = comm_router_q
         self.pq_counter = pq_counter
 
@@ -63,7 +63,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
 
         self.log_calibration = use_logger
         if self.log_calibration:
-            log_id = datetime.now().strftime("%H%M%S")  # noqa: DTZ005
+            log_id = datetime.now().strftime("%H%M")  # noqa: DTZ005
             self.log_path = "calib_log/calib_" + log_id + ".csv"
             os.makedirs(os.path.dirname(self.log_path), exist_ok=True)  # noqa: PTH103, PTH120
 
@@ -275,24 +275,25 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
     def _dequeue_vectors_data(self) -> None:
         """Dequeue vectors data from the vectors queue."""
         try:
-            vector_data = self.vectors_queue.get(timeout=self.cfg.gaze2.vector_queue_timeout)
+            vector_data = self.eye_vector_q.get(timeout=self.cfg.gaze2.vector_queue_timeout)
+            # self.logger.info("_deque_vectors_data: %s", vector_data)
             self._append_vectors(vector_data)
-            self.logger.info("_deque_vectors_data: %s", vector_data)
         except queue.Empty:
             pass
 
 
     def _append_vectors(self, vector_data: ct.EyeVectors) -> None:
         """Append the tracker eye vectors to the tracker_markers list with a toa."""
+        # self.logger.info("Append 1.")
         if self.calib_start_t is None:
             self.logger.error("calib_start_t is not set.")
             return
         toa = monotonic() - self.calib_start_t
+        # self.logger.info("Append 2.")
         with self._buf_lock:
             self.tracker_markers.append(ct.EyeVectorsWithTOA(toa, vector_data))
-            self.logger.info("_append_data: %s", vector_data)
-
-
+            # self.logger.info("_append_data: %s", vector_data)
+        # self.logger.info("Append 3.")
 
     def _validate_scene_markers(self) -> bool:  # noqa: C901, PLR0911
         """Check and validate the scene markers.
@@ -399,7 +400,7 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
             m.scene_marker.id for m in validated if m.scene_marker.state == ct.MarkerState.START
         }
         self.logger.info(
-            "Validated %d intervals across %d distinct marker IDs.",
+            "Validated %d scene marker intervals across %d distinct marker IDs.",
             len(validated) // 2,
             len(distinct_ids),
         )
@@ -794,11 +795,11 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
         calibrated_data_dict = asdict(calibrated_data)
 
         self.comm_router_q.put((8, next(self.pq_counter), MessageType.calibData, calibrated_data_dict))
-        if self.log_calibration:
-            self.save_calibrator_and_data_to_json(calibrator, calibrated_data)
-
         # Signal to GazeControl that calibration is finalized
         self.calib_finalized_s.set()
+
+        if self.log_calibration:
+            self.save_calibrator_and_data_to_json(calibrator, calibrated_data)
 
 
     def save_calibrator_and_data_to_json(

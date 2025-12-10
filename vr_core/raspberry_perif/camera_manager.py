@@ -288,7 +288,7 @@ class CameraManager(BaseService, ICameraService):
                 "AnalogueGain": self.cfg.camera.gain,
                 "AfMode": self.cfg.camera.af_mode,
                 "LensPosition": float(self.cfg.camera.focus),
-                #"FrameDurationLimits": (10000, 10000),
+                "FrameDurationLimits": (20000, 20000),
             }
             self.picam2.set_controls(controls)
             self.logger.debug("Controls applied: %s", controls)

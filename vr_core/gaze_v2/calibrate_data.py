@@ -134,10 +134,10 @@ def calibrate_angle(
             right_wy.append(wR)
 
     # Fit polynomials for each eye & axis (degree can be tuned)
-    fx_left = _fit_angle_poly(left_dx, left_alpha_x, left_wx,  "left horizontal", degree=2)
-    fy_left = _fit_angle_poly(left_dy, left_alpha_y, left_wy,  "left vertical", degree=2)
-    fx_right = _fit_angle_poly(right_dx, right_alpha_x, right_wx, "right horizontal", degree=2)
-    fy_right = _fit_angle_poly(right_dy, right_alpha_y, right_wy, "right vertical", degree=2)
+    fx_left = _fit_angle_poly(left_dx, left_alpha_x, left_wx,  "left horizontal", degree=1)
+    fy_left = _fit_angle_poly(left_dy, left_alpha_y, left_wy,  "left vertical", degree=1)
+    fx_right = _fit_angle_poly(right_dx, right_alpha_x, right_wx, "right horizontal", degree=1)
+    fy_right = _fit_angle_poly(right_dy, right_alpha_y, right_wy, "right vertical", degree=1)
 
     left_params = ct.AngleParamsPerEye(fx=fx_left, fy=fy_left)
     right_params = ct.AngleParamsPerEye(fx=fx_right, fy=fy_right)

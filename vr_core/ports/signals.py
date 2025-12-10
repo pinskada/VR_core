@@ -78,6 +78,7 @@ class GazeSignals:
         self.ipd_to_tcp_s = Event()
         self.gaze_to_tcp_s = Event()
         self.calib_finalized_s = Event()
+        self.eyevectors_to_tcp_s = Event()
 
 
 class IMUSignals:
@@ -87,6 +88,7 @@ class IMUSignals:
         # Signal to indicate new IMU data is available
         self.imu_send_over_tcp_s = Event()
         self.imu_send_to_gaze_s = Event()
+        self.hold_imu_during_calib_s = Event()
 
 
 class TestModeSignals:

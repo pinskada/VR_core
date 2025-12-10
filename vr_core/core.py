@@ -46,14 +46,14 @@ class Core:
         self.argv = argv or []
 
         self.engine_timing: str = "None"
-        self.processor_timing: str = "None"
-        self.frame_provider_timing: bool = False
+        self.processor_timing: str = "Left"
+        self.frame_provider_timing: bool = True
         self.capture_timing: bool = False
 
         self.tcp_mock_mode = False
         self.config_mock_mode = False
         self.esp_mock_mode_s = True
-        self.imu_mock_mode_s = True
+        self.imu_mock_mode_s = False
         self.camera_mock_mode = False
         self.fr_pr_test_video = False
         self.use_eyeloop_gui = True
@@ -90,6 +90,7 @@ class Core:
             config=config,
             tcp_receive_q=self.queues.tcp_receive_q,
             tcp_client_connected_s=self.comm_router_signals.tcp_client_connected_s,
+            stop_requested_s=self._stop_requested,
             config_ready_s=self.config_signals.config_ready_s,
             mock_mode=self.tcp_mock_mode,
         )
@@ -167,23 +168,13 @@ class Core:
         )
 
         gaze_calib = GazeCalib(
-            vectors_queue=self.queues.eye_vector_q,
+            eye_vector_q=self.queues.eye_vector_q,
             comm_router_q=self.queues.comm_router_q,
             pq_counter=self.queues.pq_counter,
             gaze_signals=self.gaze_signals,
             config=config,
             use_logger=self.log_calibration,
         )
-
-        # gaze_calc = GazeCalc(
-        #     eye_vector_q=self.queues.eye_vector_q,
-        #     esp_cmd_q=self.queues.esp_cmd_q,
-        #     comm_router_q=self.queues.comm_router_q,
-        #     pq_counter=self.queues.pq_counter,
-        #     gyro_mag_q=self.queues.gyro_mag_q,
-        #     gaze_signals=self.gaze_signals,
-        #     config=config,
-        # )
 
         gaze_v_e = GazeVectorExtractor(
             tracker_data_q=self.queues.tracker_data_q,
@@ -197,7 +188,7 @@ class Core:
 
         gaze_control = GazeControl(
             gaze_signals=self.gaze_signals,
-            imu_send_to_gaze_signal=self.imu_signals.imu_send_to_gaze_s,
+            imu_signals=self.imu_signals,
             i_gaze_calib=gaze_calib,
             config=config,
         )

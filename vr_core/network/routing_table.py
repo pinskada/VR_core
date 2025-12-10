@@ -40,7 +40,7 @@ def handle_gaze_control(
     i_gaze_control: IGazeControl,
 ) -> None:
     """Handle gaze control messages."""
-    logger.info("Handling gaze control: %s", msg)
+    # logger.info("Handling gaze control: %s", msg)
     i_gaze_control.gaze_control(msg)
 
 
@@ -97,6 +97,13 @@ def handle_scene_marker(
     # logger.info("Handling scene marker: %s", msg)
     i_gaze_service.set_timestamp(msg)
 
+def handle_gaze_data(
+    msg: Any
+) -> None:
+    """Handle gaze data."""
+    logger.info("Gaze distance: %s", msg)
+
+
 
 # --- Routing table factory ---
 def build_routing_table(  # noqa: PLR0913
@@ -115,6 +122,7 @@ def build_routing_table(  # noqa: PLR0913
         MessageType.trackerControl: lambda msg: handle_tracker_control(msg, i_tracker_control),
         MessageType.espConfig: lambda msg: handle_esp_config(msg, esp_cmd_q),
         MessageType.tcpConfig: lambda msg: handle_general_config(msg, config, config_ready_s),
-        MessageType.configReady: lambda msg: (handle_config_ready(msg, config_ready_s)),
+        MessageType.configReady: lambda msg: handle_config_ready(msg, config_ready_s),
         MessageType.sceneMarker: lambda msg: handle_scene_marker(msg, i_gaze_service),
+        MessageType.gazeData: lambda msg: handle_gaze_data(msg),
     }

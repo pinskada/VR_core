@@ -46,7 +46,7 @@ class GazeVectorExtractor(BaseService):
 
         self.gaze_calib_s = gaze_signals.gaze_calib_s
         self.gaze_calc_s = gaze_signals.gaze_calc_s
-        self.ipd_to_tcp_s = gaze_signals.ipd_to_tcp_s
+        self.eyevectors_to_tcp_s = gaze_signals.eyevectors_to_tcp_s
 
         self.imu_send_to_gaze_signal = imu_send_to_gaze_signal
 
@@ -106,7 +106,6 @@ class GazeVectorExtractor(BaseService):
 
         Args:
             eye_data: The tracker data containing eye information.
-
         """
         left_eye = eye_data.left_eye_data
         right_eye = eye_data.right_eye_data
@@ -124,37 +123,30 @@ class GazeVectorExtractor(BaseService):
         left_pupil_center = left_eye.pupil.center
         right_pupil_center = right_eye.pupil.center
 
-        left_eye_vector_x = left_pupil_center[0] - left_cr_centroid[0]
-        left_eye_vector_y = left_pupil_center[1] - left_cr_centroid[1]
+        left_eye_vector_x = left_cr_centroid[0] - left_pupil_center[0]
+        left_eye_vector_y = left_cr_centroid[1] - left_pupil_center[1]
         left_eye_vector = ct.EyeVector(left_eye_vector_x, left_eye_vector_y)
 
-        right_eye_vector_x = right_pupil_center[0] - right_cr_centroid[0]
-        right_eye_vector_y = right_pupil_center[1] - right_cr_centroid[1]
+        right_eye_vector_x = right_cr_centroid[0] - right_pupil_center[0]
+        right_eye_vector_y = right_cr_centroid[1] - right_pupil_center[1]
         right_eye_vector = ct.EyeVector(right_eye_vector_x, right_eye_vector_y)
 
         eye_vectors = ct.EyeVectors(left_eye_vector, right_eye_vector)
 
         self._filter_vectors(eye_vectors)
 
-        # self.logger.info("Left: x: %f; y: %f; Right: x: %f; y: %f",
-        #     eye_vectors.left_eye_vector.dx, eye_vectors.left_eye_vector.dy,
-        #     eye_vectors.right_eye_vector.dx, eye_vectors.right_eye_vector.dy
-        # )
-
-        if self.ipd_to_tcp_s.is_set():
+        if self.eyevectors_to_tcp_s.is_set():
             # Send the relative filtered IPD to the TCP module
             self.comm_router_q.put((6, next(self.pq_counter),
             MessageType.gazeData, self.filtered_e_v))
-
-        if self.gaze_calib_s.is_set() and self.gaze_calc_s.is_set():
-            self.logger.warning("Both gaze calibration and calculation signals are set, "
-            "skipping IPD processing.")
-            return
-
-        if (self.gaze_calib_s.is_set() or self.gaze_calc_s.is_set()) and self.filtered_e_v is not None:
-            # Send the IPD to either calibration or main processing module
-            self.eye_vector_q.put(self.filtered_e_v)
-            self.logger.info("_vector_extractor: %s", self.filtered_e_v)
+        # self.logger.info("Attempting to send eye_vectors.")
+        if self.gaze_calib_s.is_set():
+            # self.logger.info("Gaze_calib_s is set.")
+            if self.filtered_e_v is not None:
+                # self.logger.info("filtered_e_v is not None.")
+                # Send the IPD to either calibration or main processing module
+                self.eye_vector_q.put(self.filtered_e_v)
+                # self.logger.info("_vector_extractor: %s", self.filtered_e_v)
 
 
 

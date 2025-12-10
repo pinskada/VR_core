@@ -11,10 +11,9 @@ from vr_core.ports.interfaces import IGazeControl, IGazeService
 from vr_core.utilities.logger_setup import setup_logger
 
 if TYPE_CHECKING:
-    from threading import Event
 
     from vr_core.config_service.config import Config
-    from vr_core.ports.signals import GazeSignals
+    from vr_core.ports.signals import GazeSignals, IMUSignals
 
 
 class GazeControl(BaseService, IGazeControl):
@@ -23,20 +22,21 @@ class GazeControl(BaseService, IGazeControl):
     def __init__(
         self,
         gaze_signals: GazeSignals,
-        imu_send_to_gaze_signal: Event,
+        imu_signals: IMUSignals,
         i_gaze_calib: IGazeService,
         config: Config,
     ) -> None:
         """Initialize the gaze control service."""
-        super().__init__("GazePreprocess")
-        self.logger = setup_logger("GazePreprocess")
+        super().__init__("GazeControl")
+        self.logger = setup_logger("GazeControl")
 
         self.calib_finalized_s = gaze_signals.calib_finalized_s
         self.gaze_calib_s = gaze_signals.gaze_calib_s
         self.gaze_calc_s = gaze_signals.gaze_calc_s
-        self.ipd_to_tcp_s = gaze_signals.ipd_to_tcp_s
+        self.eyevectors_to_tcp_s = gaze_signals.eyevectors_to_tcp_s
 
-        self.imu_send_to_gaze_s = imu_send_to_gaze_signal
+        self.imu_send_to_gaze_s = imu_signals.imu_send_to_gaze_s
+        self.hold_imu_during_calib_s = imu_signals.hold_imu_during_calib_s
 
         self.i_gaze_calib = i_gaze_calib
 
@@ -52,7 +52,7 @@ class GazeControl(BaseService, IGazeControl):
         self.imu_send_to_gaze_s.clear()
         self.gaze_calib_s.clear()
         self.gaze_calc_s.clear()
-        self.ipd_to_tcp_s.clear()
+        self.eyevectors_to_tcp_s.clear()
 
         self._ready.set()
 
@@ -70,7 +70,7 @@ class GazeControl(BaseService, IGazeControl):
         self.imu_send_to_gaze_s.clear()
         self.gaze_calib_s.clear()
         self.gaze_calc_s.clear()
-        self.ipd_to_tcp_s.clear()
+        self.eyevectors_to_tcp_s.clear()
 
         #self.logger.info("Service stopping.")
 
@@ -88,18 +88,14 @@ class GazeControl(BaseService, IGazeControl):
                 self._end_calibration()
             case "start_gaze_calc":
                 self._start_gaze_calc()
-            case "ipd_to_tcp_requested":
-                self._ipd_to_tcp_requested()
-            case "ipd_to_tcp_aborted":
-                self._ipd_to_tcp_aborted()
-
 
 # ---------- Internals ----------
 
     def _start_calibration(self) -> None:
         """Start the calibration process."""
         self.logger.info("Starting calibration process.")
-        self.gaze_calc_s.clear()
+        self.eyevectors_to_tcp_s.clear()
+        self.hold_imu_during_calib_s.set()
         self.gaze_calib_s.set()
         self.i_gaze_calib.start_of_calibration()
 
@@ -107,8 +103,9 @@ class GazeControl(BaseService, IGazeControl):
     def _end_calibration(self) -> None:
         """End the calibration process."""
         self.logger.info("Ending calibration process.")
+        self.eyevectors_to_tcp_s.clear()
+        self.hold_imu_during_calib_s.clear()
         self.gaze_calib_s.clear()
-        self.gaze_calc_s.clear()
         self.i_gaze_calib.end_of_calibration()
 
 
@@ -119,18 +116,6 @@ class GazeControl(BaseService, IGazeControl):
             return
 
         self.logger.info("Starting gaze calculation.")
-        self.gaze_calc_s.set()
         self.gaze_calib_s.clear()
+        self.eyevectors_to_tcp_s.set()
         self.imu_send_to_gaze_s.set()
-
-
-    def _ipd_to_tcp_requested(self) -> None:
-        """Handle IPD to TCP request."""
-        self.logger.info("IPD to TCP request received.")
-        self.ipd_to_tcp_s.set()
-
-
-    def _ipd_to_tcp_aborted(self) -> None:
-        """Handle IPD to TCP abort."""
-        self.logger.info("IPD to TCP abort request.")
-        self.ipd_to_tcp_s.clear()

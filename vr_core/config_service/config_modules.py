@@ -112,7 +112,7 @@ class Gaze2:
     """Gaze configuration settings."""
 
     vector_queue_timeout: float = 0.01  # Timeout for receiving IPD data (in seconds)
-    vector_min_samples: int = 10  # Minimum number of vector samples required for calibration
+    vector_min_samples: int = 5  # Minimum number of vector samples required for calibration
 
     print_ipd_state: int = 50  # Flag to indicate if the system should print the IPD state
     filter_alpha_calib: float = 0.8  # Alpha value for the low-pass filter (0-1)
@@ -143,9 +143,9 @@ class TrackerCrop:
     """Defines crop region for the tracker."""
 
     # Relative region (x1, x2, y1, y2) for the left eye
-    crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.0, 0.35), (0.25, 0.6))
+    crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.0, 0.35), (0.3, 0.7))
     # Relative region (x1, x2, y1, y2) for the right eye
-    crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.65, 1.0), (0.25, 0.6))
+    crop_right: tuple[tuple[float, float], tuple[float, float]] = ((0.65, 1.0), (0.3, 0.7))
 
     # crop_left: tuple[tuple[float, float], tuple[float, float]] = ((0.0, 0.4), (0.2, 0.7))
     # # Relative region (x1, x2, y1, y2) for the right eye
@@ -172,23 +172,23 @@ class Eyeloop:
     # right_max_radius_pupil: int = 50  # Maximum radius for pupil detection
 
 
-    left_threshold_pupil: int = 65  # Threshold for pupil detection in the left eye
+    left_threshold_pupil: int = 100  # Threshold for pupil detection in the left eye
     left_blur_size_pupil: int = 10  # Size of the blur applied to the image
     left_min_radius_pupil: int = 20  # Minimum radius for pupil detection
-    left_max_radius_pupil: int = 120  # Maximum radius for pupil detection
+    left_max_radius_pupil: int = 70  # Maximum radius for pupil detection
 
-    right_threshold_pupil: int = 65  # Threshold for pupil detection in the right eye
+    right_threshold_pupil: int = 100  # Threshold for pupil detection in the right eye
     right_blur_size_pupil: int = 10  # Size of the blur applied to the image
     right_min_radius_pupil: int = 20  # Minimum radius for pupil detection
-    right_max_radius_pupil: int = 120  # Maximum radius for pupil detection
+    right_max_radius_pupil: int = 70  # Maximum radius for pupil detection
 
-    left_threshold_cr: int = 140  # Threshold for cr detection in the left eye
-    left_blur_size_cr: int = 1  # Size of the blur applied to the image
+    left_threshold_cr: int = 170  # Threshold for cr detection in the left eye
+    left_blur_size_cr: int = 2  # Size of the blur applied to the image
     left_min_radius_cr: int = 2  # Minimum radius for cr detection
     left_max_radius_cr: int = 10  # Maximum radius for cr detection
 
-    right_threshold_cr: int = 140 # Threshold for cr detection in the right eye
-    right_blur_size_cr: int = 1  # Size of the blur applied to the image
+    right_threshold_cr: int = 170 # Threshold for cr detection in the right eye
+    right_blur_size_cr: int = 2  # Size of the blur applied to the image
     right_min_radius_cr: int = 2  # Minimum radius for cr detection
     right_max_radius_cr: int = 10  # Maximum radius for cr detection
 
@@ -226,7 +226,7 @@ class Camera:
 
     focus: int = 28 # Only used if autofocus is False
     exposure: int = 20000  # In microseconds
-    gain: float = 22  # Brightness boost
+    gain: float = 40  # Brightness boost
     af_mode: int = 0  # 0 = manual, 1 = auto
     buffer_count: int = 2  # Number of buffers for the camera
 

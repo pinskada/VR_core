@@ -21,6 +21,7 @@ class TCPServer(BaseService, INetworkService):
         config: Config,
         tcp_receive_q: queue.Queue,
         tcp_client_connected_s: threading.Event,
+        stop_requested_s: threading.Event,
         config_ready_s: threading.Event,
         mock_mode: bool = False,
     ) -> None:
@@ -32,6 +33,7 @@ class TCPServer(BaseService, INetworkService):
         self.tcp_receive_q = tcp_receive_q
 
         self.tcp_client_connected_s = tcp_client_connected_s
+        self.stop_requested_s = stop_requested_s
         self.config_ready_s = config_ready_s
 
         self.mock_mode = mock_mode
@@ -167,12 +169,12 @@ class TCPServer(BaseService, INetworkService):
 
                 return True
 
-            except socket.timeout as e:
+            except socket.timeout:
                 if infinite_timeout:
                     continue
                 elif time.time() - start >= deadline:
                     self.logger.warning("Accept timeout before client connected")
-                    raise RuntimeError("Accept timeout before client connected") from e
+                    self.stop_requested_s.set()
                 continue
             except OSError as e:
                 # Bind/listen failed or socket got closed during shutdown
