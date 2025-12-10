@@ -57,7 +57,7 @@ class Core:
         self.camera_mock_mode = False
         self.fr_pr_test_video = False
         self.use_eyeloop_gui = True
-        self.log_calibration = False
+        self.log_calibration = True
 
         self.logger = setup_logger("Core")
 

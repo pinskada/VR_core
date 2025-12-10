@@ -791,7 +791,9 @@ class GazeCalib(BaseService, IGazeService, GazeSignals):
                 self.save_calibrator_and_data_to_json(calibrator, None)
             return
 
-        self.comm_router_q.put((8, next(self.pq_counter), MessageType.calibData, calibrated_data))
+        calibrated_data_dict = asdict(calibrated_data)
+
+        self.comm_router_q.put((8, next(self.pq_counter), MessageType.calibData, calibrated_data_dict))
         if self.log_calibration:
             self.save_calibrator_and_data_to_json(calibrator, calibrated_data)
 
