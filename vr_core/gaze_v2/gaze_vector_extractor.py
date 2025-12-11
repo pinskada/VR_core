@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from dataclasses import asdict
 import queue
 from queue import PriorityQueue, Queue
 from typing import TYPE_CHECKING, Any
@@ -135,10 +136,15 @@ class GazeVectorExtractor(BaseService):
 
         self._filter_vectors(eye_vectors)
 
+        if self.filtered_e_v is None:
+            return
+
         if self.eyevectors_to_tcp_s.is_set():
             # Send the relative filtered IPD to the TCP module
+            e_v_dict = asdict(self.filtered_e_v)
+            self.logger.info(e_v_dict)
             self.comm_router_q.put((6, next(self.pq_counter),
-            MessageType.gazeData, self.filtered_e_v))
+            MessageType.eyeVectors, e_v_dict))
         # self.logger.info("Attempting to send eye_vectors.")
         if self.gaze_calib_s.is_set():
             # self.logger.info("Gaze_calib_s is set.")

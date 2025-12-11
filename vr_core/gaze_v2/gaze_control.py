@@ -111,9 +111,9 @@ class GazeControl(BaseService, IGazeControl):
 
     def _start_gaze_calc(self) -> None:
         """Start computing and providing gaze estimate."""
-        if not self.calib_finalized_s.is_set():
-            self.logger.warning("Calibration not finalized. Gaze calculation aborted.")
-            return
+        # if not self.calib_finalized_s.is_set():
+        #     self.logger.warning("Calibration not finalized. Gaze calculation aborted.")
+        #     return
 
         self.logger.info("Starting gaze calculation.")
         self.gaze_calib_s.clear()

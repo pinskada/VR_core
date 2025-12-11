@@ -30,7 +30,7 @@ class MessageType(IntEnum):
     ipdPreview = 15
     sceneMarker = 16
     calibData = 17
-
+    eyeVectors = 18
 
 class MessageFormat(IntEnum):
     """Message formats for communication between RPI and Unity.
