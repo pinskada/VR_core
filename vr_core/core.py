@@ -326,11 +326,11 @@ class Core:
                 if cycle_count == 1:
                     tracker_control.tracker_control({"mode": "online"})
 
-                if cycle_count == 6:
-                    ms.load_calib_json(
-                        comm_router_q=self.queues.comm_router_q,
-                        pq_counter=self.queues.pq_counter,
-                    )
+                # if cycle_count == 6:
+                #     ms.load_calib_json(
+                #         comm_router_q=self.queues.comm_router_q,
+                #         pq_counter=self.queues.pq_counter,
+                #     )
 
 
         except KeyboardInterrupt:

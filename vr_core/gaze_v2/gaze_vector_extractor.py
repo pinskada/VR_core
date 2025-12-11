@@ -142,7 +142,7 @@ class GazeVectorExtractor(BaseService):
         if self.eyevectors_to_tcp_s.is_set():
             # Send the relative filtered IPD to the TCP module
             e_v_dict = asdict(self.filtered_e_v)
-            self.logger.info(e_v_dict)
+            # self.logger.info(e_v_dict)
             self.comm_router_q.put((6, next(self.pq_counter),
             MessageType.eyeVectors, e_v_dict))
         # self.logger.info("Attempting to send eye_vectors.")
@@ -153,7 +153,6 @@ class GazeVectorExtractor(BaseService):
                 # Send the IPD to either calibration or main processing module
                 self.eye_vector_q.put(self.filtered_e_v)
                 # self.logger.info("_vector_extractor: %s", self.filtered_e_v)
-
 
 
     def _compute_cr_centroid(

@@ -4,6 +4,7 @@ from queue import PriorityQueue
 from typing import Any
 import json
 import itertools
+from dataclasses import asdict
 
 from vr_core.network.comm_contracts import MessageType
 
@@ -27,6 +28,7 @@ def load_calib_json(
     with open(json_path, "r") as f:
         data = json.load(f)
 
-    calibrated_data_dict = data["calibrator"]
+    calibrated_data_dict = data["calibrated_data"]
+    print(calibrated_data_dict)
 
     comm_router_q.put((8, next(pq_counter), MessageType.calibData, calibrated_data_dict))
