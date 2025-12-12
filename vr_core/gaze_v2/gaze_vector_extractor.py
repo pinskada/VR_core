@@ -4,8 +4,8 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict
 import queue
+from dataclasses import asdict
 from queue import PriorityQueue, Queue
 from typing import TYPE_CHECKING, Any
 
@@ -107,6 +107,7 @@ class GazeVectorExtractor(BaseService):
 
         Args:
             eye_data: The tracker data containing eye information.
+
         """
         left_eye = eye_data.left_eye_data
         right_eye = eye_data.right_eye_data
@@ -117,8 +118,8 @@ class GazeVectorExtractor(BaseService):
         try:
             left_cr_centroid = self._compute_cr_centroid(left_eye.crs)
             right_cr_centroid = self._compute_cr_centroid(right_eye.crs)
-        except ValueError:
-            # self.logger.warning("CR centroid computation error: %s, skipping eye vector calculation.", e)
+        except ValueError as e:
+            self.logger.warning("CR centroid computation error: %s, skipping eye vector calculation.", e)
             return
 
         left_pupil_center = left_eye.pupil.center
@@ -142,17 +143,13 @@ class GazeVectorExtractor(BaseService):
         if self.eyevectors_to_tcp_s.is_set():
             # Send the relative filtered IPD to the TCP module
             e_v_dict = asdict(self.filtered_e_v)
-            # self.logger.info(e_v_dict)
             self.comm_router_q.put((6, next(self.pq_counter),
             MessageType.eyeVectors, e_v_dict))
-        # self.logger.info("Attempting to send eye_vectors.")
-        if self.gaze_calib_s.is_set():
-            # self.logger.info("Gaze_calib_s is set.")
-            if self.filtered_e_v is not None:
-                # self.logger.info("filtered_e_v is not None.")
-                # Send the IPD to either calibration or main processing module
-                self.eye_vector_q.put(self.filtered_e_v)
-                # self.logger.info("_vector_extractor: %s", self.filtered_e_v)
+
+        if self.gaze_calib_s.is_set() and self.filtered_e_v is not None:
+            # Send the IPD to either calibration or main processing module
+            self.eye_vector_q.put(self.filtered_e_v)
+            # self.logger.info("_vector_extractor: %s", self.filtered_e_v)
 
 
     def _compute_cr_centroid(
@@ -200,8 +197,6 @@ class GazeVectorExtractor(BaseService):
         elif calc_on and not calib_on:
             alpha = float(self.cfg.gaze2.filter_alpha_calc)
         elif calib_on and calc_on:
-            # This “shouldn't” happen (and you guard against it higher up),
-            # but be defensive: log and prefer calibration alpha.
             self.logger.warning(
                 "Both gaze_calib_s and gaze_calc_s are set in _filter_vectors; "
                 "using calibration alpha.",

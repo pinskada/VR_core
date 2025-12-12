@@ -26,7 +26,6 @@ from vr_core.raspberry_perif.camera_manager import CameraManager
 from vr_core.raspberry_perif.esp32 import Esp32
 from vr_core.raspberry_perif.imu import Imu
 from vr_core.utilities.logger_setup import setup_logger
-import vr_core.mock_modules.load_calib_json as ms
 
 
 def _ensure_session_id() -> str:
@@ -122,6 +121,7 @@ class Core:
             comm_router_q=self.queues.comm_router_q,
             pq_counter=self.queues.pq_counter,
             tracker_data_q=self.queues.tracker_data_q,
+            tracker_data_draw_q=self.queues.tracker_data_draw_q,
             tracker_health_q=self.queues.tracker_health_q,
             tracker_response_l_q=self.queues.tracker_resp_l_q,
             tracker_response_r_q=self.queues.tracker_resp_r_q,
@@ -200,6 +200,7 @@ class Core:
             i_gaze_service=gaze_calib,
             i_tracker_control=tracker_control,
             com_router_queue_q=self.queues.comm_router_q,
+            tracker_data_draw_q=self.queues.tracker_data_draw_q,
             tcp_receive_q=self.queues.tcp_receive_q,
             esp_cmd_q=self.queues.esp_cmd_q,
             imu_signals=self.imu_signals,

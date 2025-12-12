@@ -1,27 +1,31 @@
-# ruff: noqa: ERA001
+# ruff: noqa: ERA001, ANN401
 
 """Handles the communication between the EyeLoop processes and the main process."""
 
 from __future__ import annotations
 
-import itertools
-import multiprocessing as mp
 import queue
 import threading
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import cv2
 import numpy as np
-from numpy.typing import NDArray
 
 import vr_core.eye_tracker.tracker_types as tt
 from vr_core.base_service import BaseService
-from vr_core.config_service.config import Config
 from vr_core.network.comm_contracts import MessageType
-from vr_core.ports.signals import TrackerDataSignals, TrackerSignals
 from vr_core.utilities.logger_setup import setup_logger
+
+if TYPE_CHECKING:
+    import itertools
+    import multiprocessing as mp
+
+    from numpy.typing import NDArray
+
+    from vr_core.config_service.config import Config
+    from vr_core.ports.signals import CommRouterSignals, TrackerDataSignals, TrackerSignals
 
 
 class Eye(Enum):
@@ -46,27 +50,31 @@ class _SyncBucket:
     right: _HalfFrame | None = None
 
     def complete(self) -> bool:
-        """Returns True if both left and right halves are present."""
+        """Return True if both left and right halves are present."""
         return self.left is not None and self.right is not None
 
 
 class TrackerSync(BaseService):
-    """Receives messages from EyeLoop processes and routes them to the appropriate queues.
+    """Receive messages from EyeLoop processes and routes them to the appropriate queues.
+
     Synchronizes frames between left and right EyeLoop processes.
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         tracker_data_s: TrackerDataSignals,
         tracker_s: TrackerSignals,
         comm_router_q: queue.PriorityQueue[Any],
+        comm_router_signals: CommRouterSignals,
         pq_counter: itertools.count[int],
         tracker_data_q: queue.Queue[tt.TwoSideTrackerData],
+        tracker_data_draw_q: queue.Queue[Any],
         tracker_health_q: queue.Queue[Any],
         tracker_response_l_q: mp.Queue[Any],
         tracker_response_r_q: mp.Queue[Any],
         config: Config,
     ) -> None:
+        """Initialize the TrackerSync service."""
         super().__init__(name="TrackerSync")
 
         self.logger = setup_logger("TrackerSync")
@@ -78,10 +86,14 @@ class TrackerSync(BaseService):
         self.first_frame_processed_l_s = tracker_s.first_frame_processed_l_s
         self.first_frame_processed_r_s = tracker_s.first_frame_processed_r_s
 
+        self.tcp_shm_send_s = comm_router_signals.tcp_shm_send_s
+        self.tracker_data_processed_s = comm_router_signals.tracker_data_processed_s
+
         # Queues for outputting data
         self.comm_router_q = comm_router_q
         self.pq_counter = pq_counter
         self.tracker_data_q = tracker_data_q
+        self.tracker_data_draw_q = tracker_data_draw_q
 
         # Queue for forwarding tracker health messages to TrackerProcess
         self.tracker_health_q = tracker_health_q
@@ -115,7 +127,7 @@ class TrackerSync(BaseService):
 # ---------- BaseService lifecycle ----------
 
     def _on_start(self) -> None:
-        """Initializes the QueueHandler service."""
+        """Initialize the QueueHandler service."""
         self._t_left = threading.Thread(
             target=self._response_loop,
             name="eye-left-rx",
@@ -137,13 +149,13 @@ class TrackerSync(BaseService):
 
 
     def _run(self) -> None:
-        """Main loop for the QueueHandler service."""
+        """Run the main loop for the QueueHandler service."""
         while not self._stop.is_set():
             self._stop.wait(0.1)
 
 
     def _on_stop(self) -> None:
-        """Cleans up the QueueHandler service."""
+        """Clean up the QueueHandler service."""
         #self.logger.info("Service stopping.")
 
         self.online = False
@@ -182,8 +194,7 @@ class TrackerSync(BaseService):
         message: Any,
         eye: Eye,
     ) -> None:
-        """Dispatches a message to the appropriate queue based on its content.
-        """
+        """Dispatche a message to the appropriate queue based on its content."""
         if isinstance(message, dict):
             payload_type = message.get("type")
 
@@ -228,20 +239,20 @@ class TrackerSync(BaseService):
 
 
 
-    def _try_sync(
+    def _try_sync(  # noqa: C901, PLR0912, PLR0915
         self,
         message: dict[str, Any],
         eye: Eye,
         message_type: MessageType,
     ) -> None:
-        """Attempts to synchronize frames from left and right EyeLoop processes."""
+        """Attempt to synchronize frames from left and right EyeLoop processes."""
         frame_id = message.get("frame_id")
 
 
         if message_type == MessageType.trackerPreview:
             data = self._extract_image_preview(message)
             if data is not None:
-                cv2.imwrite("/tmp/preview_sync.png", data)
+                cv2.imwrite("/tmp/preview_sync.png", data)  # noqa: S108
         else:
             data = message.get("data")
         #self.logger.info("Received message from %s eye with ID: %s, of type: %s", eye, frame_id, str(message_type))
@@ -279,7 +290,8 @@ class TrackerSync(BaseService):
         else:
             # if your enum could grow, be explicit so type-checkers know we return here
             self.logger.error("Unexpected message_type: %s", message_type)
-            raise ValueError(f"[ERROR] TrackerSync: Unexpected message_type: {message_type}")
+            error = f"[ERROR] TrackerSync: Unexpected message_type: {message_type}"
+            raise ValueError(error)
 
         # Prevent concurrent access to the buffer
         with lock:
@@ -320,19 +332,9 @@ class TrackerSync(BaseService):
                             # Send to gaze module
                             self.tracker_data_q.put(tracking_pair)
 
-                        if self.tracker_data_to_tcp_s.is_set():
-                            left_eye  = self._eye_to_unity_format(left.data)
-                            right_eye = self._eye_to_unity_format(right.data)
-
-                            tracker_payload = {
-                                "left_eye": left_eye,
-                                "right_eye": right_eye,
-                            }
-
-                            # Send to comm router for logging/telemetry
-                            self.comm_router_q.put((5, next(self.pq_counter),
-                                MessageType.trackerData, tracker_payload))
-                            #self.logger.info("Sending tracker data over TCP.")
+                        if self.tcp_shm_send_s.is_set() and self.tracker_data_processed_s.is_set():
+                            self.tracker_data_draw_q.put(tracking_pair)
+                            self.tracker_data_processed_s.clear()
 
                     case MessageType.trackerPreview:
                         preview_pair = (left.data, right.data)
@@ -382,8 +384,6 @@ class TrackerSync(BaseService):
         Unity's EyeData JSON:
         {center_x, center_y, radius_x, radius_y, is_valid}
         """
-        # TODO: Refactor this method to input OneSideTrackerData instead of dict
-
         if eye_data is None or eye_data.pupil is None:
             return {
                 "center_x": 0.0,

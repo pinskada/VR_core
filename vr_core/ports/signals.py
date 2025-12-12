@@ -1,7 +1,8 @@
 """Siignals definitions."""
 
-from threading import Event
 import multiprocessing as mp
+from threading import Event
+
 
 class ConfigSignals:
     """Configuration service signals."""
@@ -24,6 +25,8 @@ class CommRouterSignals:
         self.router_shm_is_closed_s = Event()
 
         self.tcp_client_connected_s = Event()
+
+        self.tracker_data_processed_s = Event()
 
 
 class TrackerDataSignals:

@@ -18,12 +18,14 @@ import numpy as np
 from vr_core.base_service import BaseService
 from vr_core.network import image_encoder, routing_table
 from vr_core.network.comm_contracts import MessageType
+from vr_core.utilities import eye_data_drawer
 from vr_core.utilities.logger_setup import setup_logger
 
 if TYPE_CHECKING:
     from collections.abc import Callable
     from multiprocessing.synchronize import Event as MpEvent
 
+    import vr_core.eye_tracker.tracker_types as tt
     from vr_core.config_service.config import Config
     from vr_core.ports.interfaces import IGazeControl, IGazeService, INetworkService, ITrackerControl
     from vr_core.ports.signals import CommRouterSignals, ConfigSignals, IMUSignals, TrackerSignals
@@ -39,6 +41,7 @@ class CommRouter(BaseService):
         i_tracker_control: ITrackerControl,
         i_gaze_service: IGazeService,
         com_router_queue_q: PriorityQueue[Any],
+        tracker_data_draw_q: queue.Queue[Any],
         tcp_receive_q: queue.Queue[Any],
         esp_cmd_q: queue.Queue[Any],
         imu_signals: IMUSignals,
@@ -60,6 +63,7 @@ class CommRouter(BaseService):
 
         # Initialize queues
         self.com_router_queue_q = com_router_queue_q
+        self.tracker_data_draw_q = tracker_data_draw_q
         self.tcp_receive_q = tcp_receive_q
         self.esp_cmd_q = esp_cmd_q
 
@@ -70,6 +74,7 @@ class CommRouter(BaseService):
         self.router_sync_frames_s: Event = comm_router_signals.router_sync_frames_s
         self.router_shm_is_closed_s: Event = comm_router_signals.router_shm_is_closed_s
         self.tcp_client_connected_s: Event = comm_router_signals.tcp_client_connected_s
+        self.tracker_data_processed_s: Event = comm_router_signals.tracker_data_processed_s
 
         self.shm_active_s: MpEvent = tracker_signals.shm_active_s
         self.eye_ready_l_s: MpEvent = tracker_signals.eye_ready_l_s
@@ -89,6 +94,7 @@ class CommRouter(BaseService):
         self._t_recv: threading.Thread
         self._t_send: threading.Thread
         self._t_shm: threading.Thread
+        self._t_unqueue_draw: threading.Thread
 
         # Shared memory handles
         self.shm_left: SharedMemory | None = None
@@ -96,6 +102,8 @@ class CommRouter(BaseService):
 
         self.memory_shape_l: tuple[int, int]
         self.memory_shape_r: tuple[int, int]
+
+        self.tracker_data: tt.TwoSideTrackerData | None = None
 
         # SHM and online state
         self.online = False
@@ -138,12 +146,18 @@ class CommRouter(BaseService):
             name="CommRouter-shm",
             daemon=True,
         )
+        self._t_unqueue_draw = threading.Thread(
+            target=self._unqueue_tracker_data_for_drawing,
+            name="CommRouter-unqueue-draw",
+            daemon=True,
+        )
 
         self.router_shm_is_closed_s.set()
 
         self._t_recv.start()
         self._t_send.start()
         self._t_shm.start()
+        self._t_unqueue_draw.start()
 
         self._ready.set()
 
@@ -168,7 +182,8 @@ class CommRouter(BaseService):
         for t in (
             getattr(self, "_t_recv", None), \
             getattr(self, "_t_send", None), \
-            getattr(self, "_t_shm", None),
+            getattr(self, "_t_shm", None), \
+            getattr(self, "_t_unqueue_draw", None) \
         ):
 
             if t:
@@ -271,6 +286,7 @@ class CommRouter(BaseService):
                 if self.tcp_client_connected_s.is_set():
                     self._tcp_send_shm_handler()
 
+                self.tracker_data_processed_s.set()
                 # If in camera preview mode, signal both eyes are ready
                 if self.router_sync_frames_s.is_set():
                     self.eye_ready_l_s.set()
@@ -279,6 +295,16 @@ class CommRouter(BaseService):
 
             except Exception as e:  # pylint: disable=broad-except  # noqa: BLE001
                 self.logger.error("SHM send handler error: %s", e)
+
+
+    def _unqueue_tracker_data_for_drawing(self) -> None:
+        """Dequeue tracker data for drawing."""
+        while not self._stop.is_set():
+            try:
+                self.tracker_data = self.tracker_data_draw_q.get(timeout=0.01)
+            except queue.Empty:  # noqa: PERF203
+                self.tracker_data = None
+
 
     # ---------------- Handlers ----------------
 
@@ -339,14 +365,30 @@ class CommRouter(BaseService):
             self.logger.error("SHM not connected properly.")
             return
 
-        left_image: np.ndarray = np.ndarray(
+        left_image: np.ndarray[Any, np.dtype[np.uint8]] = np.ndarray(
             shape=self.memory_shape_l,
             dtype=np.uint8,
             buffer=self.shm_left.buf).copy()
-        right_image: np.ndarray = np.ndarray(
+        right_image: np.ndarray[Any, np.dtype[np.uint8]] = np.ndarray(
             shape=self.memory_shape_r,
             dtype=np.uint8,
             buffer=self.shm_right.buf).copy()
+
+        if self.tracker_data:
+            left_radius = self.cfg.eyeloop.left_mask_radius_cr
+            right_radius = self.cfg.eyeloop.right_mask_radius_cr
+            left_tracker_data = self.tracker_data.left_eye_data
+            right_tracker_data = self.tracker_data.right_eye_data
+            left_image = eye_data_drawer.draw(
+                source_rgb=left_image,
+                tracker_data=left_tracker_data,
+                radius=left_radius,
+            )
+            right_image = eye_data_drawer.draw(
+                source_rgb=right_image,
+                tracker_data=right_tracker_data,
+                radius=right_radius,
+            )
 
         try:
             # Encode using image_encoder

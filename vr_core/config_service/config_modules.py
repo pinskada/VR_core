@@ -1,4 +1,4 @@
-# ruff: noqa: ERA001
+# ruff: noqa: ERA001  # noqa: INP001
 
 """Config module dataclasses."""
 
@@ -10,7 +10,7 @@ from typing import Any
 class TCP:
     """Network configuration settings."""
 
-    host: str = "0.0.0.0" # Listen on all interfaces
+    host: str = "0.0.0.0" # Listen on all interfaces  # noqa: S104
     port: int = 65432     # Port for the TCP server
 
     static_ip_prefix: str = "192.168.2." # Static IP prefix for the device
@@ -186,11 +186,13 @@ class Eyeloop:
     left_blur_size_cr: int = 2  # Size of the blur applied to the image
     left_min_radius_cr: int = 2  # Minimum radius for cr detection
     left_max_radius_cr: int = 10  # Maximum radius for cr detection
+    left_mask_radius_cr: int = 135  # Radius of the mask applied during cr detection
 
     right_threshold_cr: int = 170 # Threshold for cr detection in the right eye
     right_blur_size_cr: int = 2  # Size of the blur applied to the image
     right_min_radius_cr: int = 2  # Minimum radius for cr detection
     right_max_radius_cr: int = 10  # Maximum radius for cr detection
+    right_mask_radius_cr: int = 135  # Radius of the mask applied during cr detection
 
     left_min_circularity_pupil: float = 0.5  # Minimum circularity for pupil detection
     left_max_circularity_pupil: float = 1.5  # Maximum circularity for pupil detection

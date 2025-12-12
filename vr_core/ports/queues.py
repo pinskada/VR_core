@@ -1,16 +1,17 @@
 """Centralized place to create/share queues/interfaces between services."""
 
-from dataclasses import dataclass, field
-from queue import PriorityQueue
+import itertools
 import multiprocessing as mp
 import queue
-import itertools
+from dataclasses import dataclass, field
+from queue import PriorityQueue
+
 
 @dataclass
 class CommQueues:
-    """
-    Centralized place to create/share queues/interfaces between services.
-    DI note: pass *only what you need* to each service; don’t share this whole object.
+    """Centralized place to create/share queues/interfaces between services.
+
+    DI note: pass *only what you need* to each service; don't share this whole object.
     """
 
     # Networking queues
@@ -30,7 +31,7 @@ class CommQueues:
 
     # Queue from sending computed tracker data from tracker module to gaze module
     tracker_data_q: queue.Queue = field(default_factory=queue.Queue)
-
+    tracker_data_draw_q: queue.Queue = field(default_factory=queue.Queue)
 
     # Queue for sharing IPD data across Gaze module
     ipd_q: queue.Queue = field(default_factory=queue.Queue)

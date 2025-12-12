@@ -55,8 +55,8 @@ class FrameProvider(BaseService):
         comm_router_s: CommRouterSignals,
         eye_tracker_s: EyeTrackerSignals,
         tracker_s: TrackerSignals,
-        tracker_cmd_l_q: mp.Queue,
-        tracker_cmd_r_q: mp.Queue,
+        tracker_cmd_l_q: mp.Queue[Any],
+        tracker_cmd_r_q: mp.Queue[Any],
         config: Config,
         *,
         use_test_video: bool = False,
@@ -668,7 +668,11 @@ class FrameProvider(BaseService):
             self.cfg.set("tracker_crop.crop_right", ((0.5, 1), (0, 1)))
 
 
-    def _crop(self, frame: NDArray[np.uint8], region: tuple) -> NDArray[np.uint8]:
+    def _crop(
+        self,
+        frame: NDArray[np.uint8],
+        region: tuple[tuple[float, float], tuple[float, float]],
+    ) -> NDArray[np.uint8]:
         """Crops a region from the given frame based on relative coordinates."""
         (x_rel_start, x_rel_end), (y_rel_start, y_rel_end) = region
 
