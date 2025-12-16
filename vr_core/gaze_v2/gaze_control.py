@@ -95,7 +95,7 @@ class GazeControl(BaseService, IGazeControl):
         """Start the calibration process."""
         self.logger.info("Starting calibration process.")
         self.eyevectors_to_tcp_s.clear()
-        self.hold_imu_during_calib_s.set()
+        # self.hold_imu_during_calib_s.set()
         self.gaze_calib_s.set()
         self.i_gaze_calib.start_of_calibration()
 
@@ -104,7 +104,7 @@ class GazeControl(BaseService, IGazeControl):
         """End the calibration process."""
         self.logger.info("Ending calibration process.")
         self.eyevectors_to_tcp_s.clear()
-        self.hold_imu_during_calib_s.clear()
+        # self.hold_imu_during_calib_s.clear()
         self.gaze_calib_s.clear()
         self.i_gaze_calib.end_of_calibration()
 

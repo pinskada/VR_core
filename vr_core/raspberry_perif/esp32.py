@@ -156,15 +156,17 @@ class Esp32(BaseService):
             return
 
 
-    def _send_gaze_distance(self, distance_mm: float):
+    def _send_gaze_distance(self, distance_m: float):
         """Send the gaze distance to the ESP32."""
+
+        distance_mm = distance_m * 1000
 
         # Parse the message to send
         message = f'f"{distance_mm:.2f}\n'
 
         # Fake the message for mock mode
         if self.esp_mock_mode_s:
-            self.logger.info("Would send gaze distance: %s", message.strip())
+            # self.logger.info("Would send gaze distance: %s", message.strip())
             return
 
         try:

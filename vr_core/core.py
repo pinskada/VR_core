@@ -47,7 +47,7 @@ class Core:
 
         self.engine_timing: str = "None"
         self.processor_timing: str = "None"
-        self.frame_provider_timing: bool = True
+        self.frame_provider_timing: bool = False
         self.capture_timing: bool = False
 
         self.tcp_mock_mode = False
@@ -56,7 +56,7 @@ class Core:
         self.imu_mock_mode_s = False
         self.camera_mock_mode = False
         self.fr_pr_test_video = False
-        self.use_eyeloop_gui = False
+        self.use_eyeloop_gui = True
         self.log_calibration = True
 
         self.logger = setup_logger("Core")

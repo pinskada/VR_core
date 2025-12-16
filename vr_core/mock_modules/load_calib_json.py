@@ -20,7 +20,7 @@ def load_calib_json(
     # Path to your original csv file
     folder = "/home/VRberry/Public/VR_core/calib_log/"
     file_name = "results_"
-    file_id = "2328"
+    file_id = "2134"
 
     json_path = f"{folder}{file_name}{file_id}.json"
 
@@ -29,6 +29,6 @@ def load_calib_json(
         data = json.load(f)
 
     calibrated_data_dict = data["calibrated_data"]
-    print(calibrated_data_dict)
+    # print(calibrated_data_dict)
 
     comm_router_q.put((8, next(pq_counter), MessageType.calibData, calibrated_data_dict))

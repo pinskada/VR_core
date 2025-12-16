@@ -75,7 +75,7 @@ def handle_general_config(
     for path, value in msg.items():
         config.set(path, value)
 
-        if not config_ready_s.is_set():
+        if config_ready_s.is_set():
             logger.info("Set %s = %s", path, value)
 
 
