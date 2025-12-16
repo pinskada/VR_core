@@ -288,9 +288,9 @@ class CommRouter(BaseService):
 
                 self.tracker_data_processed_s.set()
                 # If in camera preview mode, signal both eyes are ready
-                if self.router_sync_frames_s.is_set():
-                    self.eye_ready_l_s.set()
-                    self.eye_ready_r_s.set()
+                # if self.router_sync_frames_s.is_set():
+                #     self.eye_ready_l_s.set()
+                #     self.eye_ready_r_s.set()
                     #self.logger.info("eye_ready_l_s and eye_ready_r_s set.")
 
             except Exception as e:  # pylint: disable=broad-except  # noqa: BLE001
@@ -374,11 +374,13 @@ class CommRouter(BaseService):
             dtype=np.uint8,
             buffer=self.shm_right.buf).copy()
 
+
         if self.tracker_data:
             left_radius = self.cfg.eyeloop.left_mask_radius_cr
             right_radius = self.cfg.eyeloop.right_mask_radius_cr
             left_tracker_data = self.tracker_data.left_eye_data
             right_tracker_data = self.tracker_data.right_eye_data
+
             left_image = eye_data_drawer.draw(
                 source_rgb=left_image,
                 tracker_data=left_tracker_data,
@@ -401,6 +403,7 @@ class CommRouter(BaseService):
         except Exception as e:  # pylint: disable=broad-except  # noqa: BLE001
             self.logger.error("Encode failed: %s for jpeg", e)
             return
+        # self.logger.info("Point 3: %s", time.time())
 
         # Send using i_tcp_server.tcp_send()
         self.i_tcp_server.tcp_send(encoded_payload, MessageType.eyePreview)

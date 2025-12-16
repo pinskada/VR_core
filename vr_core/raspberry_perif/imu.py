@@ -306,7 +306,7 @@ class Imu(BaseService):
                         MessageType.imuSensor,
                         data
                         )
-                    self.comm_router_q.put(tcp_tuple)
+                    # self.comm_router_q.put(tcp_tuple)
                 else:
                     self.send_counter += 1
                     if self.send_counter % 10 == 0:

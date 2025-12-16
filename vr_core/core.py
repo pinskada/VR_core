@@ -26,7 +26,7 @@ from vr_core.raspberry_perif.camera_manager import CameraManager
 from vr_core.raspberry_perif.esp32 import Esp32
 from vr_core.raspberry_perif.imu import Imu
 from vr_core.utilities.logger_setup import setup_logger
-
+import vr_core.mock_modules.load_calib_json as ms
 
 def _ensure_session_id() -> str:
     sid = os.environ.get("VR_SESSION_ID")
@@ -47,16 +47,16 @@ class Core:
 
         self.engine_timing: str = "None"
         self.processor_timing: str = "None"
-        self.frame_provider_timing: bool = False
+        self.frame_provider_timing: bool = True
         self.capture_timing: bool = False
 
         self.tcp_mock_mode = False
         self.config_mock_mode = False
-        self.esp_mock_mode_s = True
+        self.esp_mock_mode_s = False
         self.imu_mock_mode_s = False
         self.camera_mock_mode = False
         self.fr_pr_test_video = False
-        self.use_eyeloop_gui = True
+        self.use_eyeloop_gui = False
         self.log_calibration = True
 
         self.logger = setup_logger("Core")
@@ -119,6 +119,7 @@ class Core:
             tracker_data_s=self.tracker_data_signals,
             tracker_s=self.tracker_signals,
             comm_router_q=self.queues.comm_router_q,
+            comm_router_signals=self.comm_router_signals,
             pq_counter=self.queues.pq_counter,
             tracker_data_q=self.queues.tracker_data_q,
             tracker_data_draw_q=self.queues.tracker_data_draw_q,
@@ -327,11 +328,11 @@ class Core:
                 if cycle_count == 1:
                     tracker_control.tracker_control({"mode": "online"})
 
-                # if cycle_count == 6:
-                #     ms.load_calib_json(
-                #         comm_router_q=self.queues.comm_router_q,
-                #         pq_counter=self.queues.pq_counter,
-                #     )
+                if cycle_count == 6:
+                    ms.load_calib_json(
+                        comm_router_q=self.queues.comm_router_q,
+                        pq_counter=self.queues.pq_counter,
+                    )
 
 
         except KeyboardInterrupt:

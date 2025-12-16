@@ -130,7 +130,7 @@ class Esp32(BaseService):
                     return True
                 else:
                     self.logger.warning("Handshake failed. Expected:"
-                        " %s, Received: %s.",
+                        " %s, Received: %s",
                         self.cfg.esp32.handshake_response, response
                     )
             except (OSError, UnicodeDecodeError) as e:

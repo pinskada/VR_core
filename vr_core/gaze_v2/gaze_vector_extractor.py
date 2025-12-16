@@ -94,7 +94,7 @@ class GazeVectorExtractor(BaseService):
         try:
             eye_data = self.tracker_data_q.get(timeout=self.cfg.gaze2.tracker_data_timeout)
 
-            if eye_data is not None:
+            if eye_data:
                 # self.logger.info("Preprocessing data.")
                 self._process_tracker_data(eye_data)
 
@@ -107,12 +107,11 @@ class GazeVectorExtractor(BaseService):
 
         Args:
             eye_data: The tracker data containing eye information.
-
         """
         left_eye = eye_data.left_eye_data
         right_eye = eye_data.right_eye_data
 
-        if left_eye.pupil is None or right_eye.pupil is None:
+        if not left_eye.pupil or not right_eye.pupil:
             return
 
         try:

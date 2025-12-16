@@ -121,10 +121,13 @@ class TrackerControl(BaseService, ITrackerControl):
                 self._camera_preview_mode(send_preview=False)
             case "camera_preview":
                 self._camera_preview_mode(send_preview=True)
+                self._tracker_preview_mode(preview_type="none")
             case "cr_preview":
                 self._tracker_preview_mode(preview_type="cr")
+                self._camera_preview_mode(send_preview=False)
             case "pupil_preview":
                 self._tracker_preview_mode(preview_type="pupil")
+                self._camera_preview_mode(send_preview=False)
             case _:
                 self.logger.error("Unknown tracker control command: %s", cmd_type)
 
@@ -151,7 +154,6 @@ class TrackerControl(BaseService, ITrackerControl):
         """Set the tracker module to camera preview mode."""
         self.logger.info("Setting tracker camera preview mode to %s.", send_preview)
 
-        self._stop_all_actions()
         if send_preview:
             self.tcp_shm_send_s.set()
         else:

@@ -98,11 +98,12 @@ def handle_scene_marker(
     i_gaze_service.set_timestamp(msg)
 
 def handle_gaze_data(
-    msg: Any
+    msg: Any,
+    esp_cmd_q: Queue[Any],
 ) -> None:
     """Handle gaze data."""
-    logger.info("Gaze distance: %s", msg)
-
+    # logger.info("Gaze distance: %s", msg)
+    esp_cmd_q.put(msg)
 
 
 # --- Routing table factory ---
@@ -124,5 +125,5 @@ def build_routing_table(  # noqa: PLR0913
         MessageType.tcpConfig: lambda msg: handle_general_config(msg, config, config_ready_s),
         MessageType.configReady: lambda msg: handle_config_ready(msg, config_ready_s),
         MessageType.sceneMarker: lambda msg: handle_scene_marker(msg, i_gaze_service),
-        MessageType.gazeData: lambda msg: handle_gaze_data(msg),
+        MessageType.gazeData: lambda msg: handle_gaze_data(msg, esp_cmd_q),
     }

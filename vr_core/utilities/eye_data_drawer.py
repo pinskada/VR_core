@@ -2,6 +2,7 @@
 """Module for drawing eye data on images."""
 
 import numpy as np
+import cv2
 
 import vr_core.eye_tracker.tracker_types as tt
 from vr_core.eye_tracker.eyeloop_module.eyeloop.constants.minimum_gui_constants import *  # noqa: F403
@@ -19,6 +20,8 @@ def draw(
     """Draw pupil and CR marks on the source image."""
     pupil_data = tracker_data.pupil
     cr_data_list = tracker_data.crs
+
+    source_rgb = cv2.cvtColor(source_rgb, cv2.COLOR_GRAY2BGR)
 
     try:
         cv2.ellipse(
@@ -39,7 +42,7 @@ def draw(
 
     try:
         for cr in cr_data_list:
-            color = pink if cr.is_filled else green
+            color = bluish if cr.is_filled else green
             place_cross(source_rgb, cr.center, color, 2, 12)
     except Exception as e:
         logger.error("CR mark error: %s", e)
@@ -61,6 +64,8 @@ def draw(
     except Exception as e:
         logger.error("Pupil-CR line error: %s", e)
 
+    return source_rgb
+
 
 def place_cross(
         source: np.ndarray,
@@ -79,5 +84,6 @@ def place_cross(
                 to_int(center[1]-thickness):to_int(center[1]+thickness),
                 to_int(center[0] - size):to_int(center[0] + size-1),
             ] = color
-        except Exception:
-            logger.error("Cross placement error at center: %s", center)
+        except Exception as e:
+            logger.error("Cross placement error at center: %s, with source shape: %s, thickness: %s and size: %s", center, source.shape, thickness, size)
+            logger.error("Error: %s", e)

@@ -32,23 +32,25 @@ def run_esp32_test(queue: Queue, esp_mock_mode_s=False) -> Esp32:
 
     return esp
 
-test_queue: Queue = Queue()
 
-esp = run_esp32_test(queue=test_queue, esp_mock_mode_s=False)
+test_case = 0
 
-# for i in range(0, 10000, 500):
-#     test_queue.put(float(i))
-#     time.sleep(0.2)
+if test_case == 0:
+    test_queue: Queue = Queue()
 
-# print("Test ended.")
+    esp = run_esp32_test(queue=test_queue, esp_mock_mode_s=False)
 
-esp.stop()
+    for i in range(0, 10000, 5):
+        test_queue.put(float(i))
+        time.sleep(0.5)
 
-# ser = serial.Serial('/dev/ttyAMA0', 115200, timeout=0.5)
-# ser.reset_input_buffer()
-# ser.reset_output_buffer()
-# time.sleep(0.1)
-# ser.write(b'PING\n')
-# time.sleep(0.1)
-# print("got:", ser.readline())
-# ser.close()
+    esp.stop()
+
+elif test_case == 1:
+    ser = serial.Serial('/dev/ttyAMA2', 115200, timeout=1)
+    ser.reset_input_buffer()
+    ser.write(b'PING\n')
+    ser.flush()
+    time.sleep(0.1)
+    print("read:", ser.read(64))
+    ser.close()

@@ -116,7 +116,7 @@ class Gaze2:
 
     print_ipd_state: int = 50  # Flag to indicate if the system should print the IPD state
     filter_alpha_calib: float = 0.8  # Alpha value for the low-pass filter (0-1)
-    filter_alpha_calc: float = 0.2  # Alpha value for the low-pass filter (0-1)
+    filter_alpha_calc: float = 0.9  # Alpha value for the low-pass filter (0-1)
     # Factor to determine the amount of data to discard from the start and end of the buffer
     buffer_crop_factor: float = 0.15
     # Threshold for standard deviation to determine if the sample is valid
@@ -277,7 +277,7 @@ class ESP32:
     """ESP32 configuration settings."""
 
     # Serial port for ESP32 (e.g., /dev/serial0 on Raspberry Pi)
-    port: str = "/dev/ttyAMA0" # "/dev/serial0"
+    port: str = "/dev/ttyAMA2" # "/dev/serial0"
     baudrate: int = 115200  # Baud rate for the serial connection
     timeout: float = 5  # Timeout for the serial connection (in seconds)
 

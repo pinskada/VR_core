@@ -2,6 +2,8 @@
 
 """Frame Provider Module."""
 
+from __future__ import annotations
+
 import multiprocessing as mp
 import time
 from enum import Enum
@@ -279,7 +281,7 @@ class FrameProvider(BaseService):
 # ---------- Internals ----------
 
     def _provide_frame(self, left_frame: NDArray[np.uint8], right_frame: NDArray[np.uint8]) -> None:
-        """Capture, crop, and write frames to shared memory."""
+        """Write frames to shared memory."""
         if self.shm_left is None or self.shm_right is None:
             self.logger.error("Shared memory not allocated.")
             self.online = False
