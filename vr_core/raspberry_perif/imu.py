@@ -1,12 +1,14 @@
+# ruff: noqa: ERA001, ANN401
+
 """Gyroscope module for VR Core on Raspberry Pi."""
 
 import itertools
-import os
 import math
-import time
-from queue import Queue, PriorityQueue
-from typing import Any
+import os
 import platform
+import time
+from queue import PriorityQueue, Queue
+from typing import Any
 
 try:
     import smbus2
@@ -15,13 +17,14 @@ except ImportError:  # ImportError on dev machines without smbus2
 
 from vr_core.base_service import BaseService
 from vr_core.config_service.config import Config
+from vr_core.network.comm_contracts import MessageType
 from vr_core.ports.signals import IMUSignals
 from vr_core.utilities.logger_setup import setup_logger
-from vr_core.network.comm_contracts import MessageType
 
 
 class Imu(BaseService):
     """Gyroscope module for VR Core on Raspberry Pi."""
+
     def __init__(
         self,
         comm_router_q: PriorityQueue,
@@ -45,7 +48,7 @@ class Imu(BaseService):
 
         self.cfg = config
         self._unsubscribe = config.subscribe("IMU",
-            self._on_config_changed
+            self._on_config_changed,
         )
 
         self.bus: Any = None
@@ -69,7 +72,6 @@ class Imu(BaseService):
 
     def _on_start(self) -> None:
         """Initialize the gyroscope sensor."""
-
         self.imu_send_over_tcp_s.set()
 
         if platform.system() != "Linux":
@@ -98,7 +100,6 @@ class Imu(BaseService):
 
     def _on_stop(self) -> None:
         """Stop the gyroscope thread."""
-
         self.online = False
         #self.logger.info("Service stopped.")
 
@@ -107,18 +108,15 @@ class Imu(BaseService):
 
     def _ensure_i2c_enabled(self) -> bool:
         """Check if I2C is enabled on the Raspberry Pi."""
-
         if not os.path.exists("/dev/i2c-1"):
             self.logger.error("I2C interface not found.")
             self.logger.info("Run 'sudo raspi-config' > Interface Options > I2C > Enable")
             return False
-        else:
-            return True
+        return True
 
 
     def _init_imu(self) -> None:
         """Initialize the IMU sensor."""
-
         if smbus2 is None:
             self.logger.error("smbus2 not installed. Run 'pip install smbus2' or enable mock mode.")
             raise RuntimeError("smbus2 not installed")
@@ -171,7 +169,6 @@ class Imu(BaseService):
 
     def _calibrate_gyro(self) -> None:
         """Calibrate the gyroscope sensor."""
-
         calib_buffer_x: list[float] = []
         calib_buffer_y: list[float] = []
         calib_buffer_z: list[float] = []
@@ -189,52 +186,50 @@ class Imu(BaseService):
 
     def _read_gyro(self) -> dict[str, float]:
         """Read gyroscope data."""
-
         # Create synthetic data if in mock mode
         if self.mock_mode:
             self.mock_angle += 0.1
             return {
-                'x': round(25.0 * math.sin(self.mock_angle), 2),
-                'y': round(15.0 * math.sin(self.mock_angle / 2), 2),
-                'z': round(10.0 * math.cos(self.mock_angle), 2),
+                "x": round(25.0 * math.sin(self.mock_angle), 2),
+                "y": round(15.0 * math.sin(self.mock_angle / 2), 2),
+                "z": round(10.0 * math.cos(self.mock_angle), 2),
             }
 
         # Read the gyroscope data from the I2C bus
-        def read_word(reg):
+        def read_word(reg) -> int:
             low = self.bus.read_byte_data(self.cfg.imu.addr_gyr_acc, reg)
             high = self.bus.read_byte_data(self.cfg.imu.addr_gyr_acc, reg+1)
             val = (high << 8) + low
             return val if val < 32768 else val - 65536
 
         return {
-            'x': read_word(self.cfg.imu.gyro_reg_out_x) * self.cfg.imu.scale_factor,
-            'y': read_word(self.cfg.imu.gyro_reg_out_y) * self.cfg.imu.scale_factor,
-            'z': read_word(self.cfg.imu.gyro_reg_out_z) * self.cfg.imu.scale_factor,
+            "x": read_word(self.cfg.imu.gyro_reg_out_x) * self.cfg.imu.scale_factor,
+            "y": read_word(self.cfg.imu.gyro_reg_out_y) * self.cfg.imu.scale_factor,
+            "z": read_word(self.cfg.imu.gyro_reg_out_z) * self.cfg.imu.scale_factor,
         }
 
 
     def _read_accel(self) -> dict[str, float]:
         """Read accelerometer data."""
-
         # Create synthetic data if in mock mode
         if self.mock_mode:
             self.mock_angle += 0.1
             return {
-                'x': round(25.0 * math.sin(self.mock_angle), 2),
-                'y': round(15.0 * math.sin(self.mock_angle / 2), 2),
-                'z': round(10.0 * math.cos(self.mock_angle), 2),
+                "x": round(25.0 * math.sin(self.mock_angle), 2),
+                "y": round(15.0 * math.sin(self.mock_angle / 2), 2),
+                "z": round(10.0 * math.cos(self.mock_angle), 2),
             }
 
-        def read_word(reg):
+        def read_word(reg) -> int:
             low = self.bus.read_byte_data(self.cfg.imu.addr_gyr_acc, reg)
             high = self.bus.read_byte_data(self.cfg.imu.addr_gyr_acc, reg+1)
             val = (high << 8) + low
             return val if val < 32768 else val - 65536
 
         return {
-            'x': read_word(self.cfg.imu.acc_reg_out_x),  # OUTX_L_XL
-            'y': read_word(self.cfg.imu.acc_reg_out_y),  # OUTY_L_XL
-            'z': read_word(self.cfg.imu.acc_reg_out_z),  # OUTZ_L_XL
+            "x": read_word(self.cfg.imu.acc_reg_out_x),  # OUTX_L_XL
+            "y": read_word(self.cfg.imu.acc_reg_out_y),  # OUTY_L_XL
+            "z": read_word(self.cfg.imu.acc_reg_out_z),  # OUTZ_L_XL
         }
 
 
@@ -244,27 +239,26 @@ class Imu(BaseService):
         if self.mock_mode:
             self.mock_angle += 0.1
             return {
-                'x': round(25.0 * math.sin(self.mock_angle), 2),
-                'y': round(15.0 * math.sin(self.mock_angle / 2), 2),
-                'z': round(10.0 * math.cos(self.mock_angle), 2),
+                "x": round(25.0 * math.sin(self.mock_angle), 2),
+                "y": round(15.0 * math.sin(self.mock_angle / 2), 2),
+                "z": round(10.0 * math.cos(self.mock_angle), 2),
             }
 
-        def read_word(reg):
+        def read_word(reg) -> int:
             low = self.bus.read_byte_data(self.cfg.imu.addr_mag, reg)
             high = self.bus.read_byte_data(self.cfg.imu.addr_mag, reg+1)
             val = (high << 8) + low
             return val if val < 32768 else val - 65536
 
         return {
-            'x': read_word(self.cfg.imu.mag_reg_out_x),
-            'y': read_word(self.cfg.imu.mag_reg_out_y),
-            'z': read_word(self.cfg.imu.mag_reg_out_z),
+            "x": read_word(self.cfg.imu.mag_reg_out_x),
+            "y": read_word(self.cfg.imu.mag_reg_out_y),
+            "z": read_word(self.cfg.imu.mag_reg_out_z),
         }
 
 
-    def _process_imu(self):
+    def _process_imu(self) -> None:
         """Continuously read IMU data and send it over TCP and/or to gaze module."""
-
         retry_attempt = 0
 
         #self.logger.info("Processing IMU data.")
@@ -279,15 +273,15 @@ class Imu(BaseService):
 
                 # Apply calibration offsets
                 if not self.mock_mode:
-                    gyro_data['x'] -= self.x_offset
-                    gyro_data['y'] -= self.y_offset
-                    gyro_data['z'] -= self.z_offset
+                    gyro_data["x"] -= self.x_offset
+                    gyro_data["y"] -= self.y_offset
+                    gyro_data["z"] -= self.z_offset
 
                 data = {
                     "gyro": gyro_data,
                     "accel": accel_data,
                     "mag": mag_data,
-                    "timestamp": timestamp
+                    "timestamp": timestamp,
                 }
 
                 #self.logger.info(data)
@@ -304,7 +298,7 @@ class Imu(BaseService):
                     tcp_tuple = (
                         1, next(self.pq_counter),
                         MessageType.imuSensor,
-                        data
+                        data,
                         )
                     self.comm_router_q.put(tcp_tuple)
                 else:
@@ -318,15 +312,16 @@ class Imu(BaseService):
 
                 break
 
-            except (OSError, IOError, ConnectionError, ValueError, AttributeError) as e:
+            except (OSError, ConnectionError, ValueError, AttributeError) as e:
                 # Catch expected I/O / networking / value / attribute errors explicitly
                 retry_attempt += 1
                 self.logger.warning("Failed sending message: %s", e)
 
                 if retry_attempt >= self.cfg.imu.retry_attempts:
                     self.online = False
-                    self.logger.error("Max retry attempts reached. Skipping this IMU read.")
-                    raise RuntimeError("Max retry attempts reached for IMU processing.") from e
+                    error = "Max retry attempts reached. Skipping this IMU read."
+                    self.logger.error(error)  # noqa: TRY400
+                    raise RuntimeError(error) from e
 
     #  pylint: disable=unused-argument
     def _on_config_changed(self, path: str, old_val: Any, new_val: Any) -> None:
