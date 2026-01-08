@@ -179,6 +179,10 @@ class Imu(BaseService):
             calib_buffer_y.append(gyro_data["y"])
             calib_buffer_z.append(gyro_data["z"])
 
+        calib_buffer_x = calib_buffer_x[200:]
+        calib_buffer_y = calib_buffer_y[200:]
+        calib_buffer_z = calib_buffer_z[200:]
+
         self.x_offset = sum(calib_buffer_x) / len(calib_buffer_x)
         self.y_offset = sum(calib_buffer_y) / len(calib_buffer_y)
         self.z_offset = sum(calib_buffer_z) / len(calib_buffer_z)
@@ -292,7 +296,7 @@ class Imu(BaseService):
                 ):
                     self.send_counter += 1
                     if self.send_counter % 20 == 0:
-                        # sel f.logger.info(data)
+                        self.logger.info(data)
                         self.send_counter = 0
                     # Send data via TCP
                     tcp_tuple = (

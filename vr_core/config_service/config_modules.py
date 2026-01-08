@@ -246,7 +246,7 @@ class IMU:
     update_rate: float = 0.01  # in seconds (100 Hz)
     retry_attempts: int = 10  # Number of attempts to read data from the gyroscope
 
-    calib_buffer_size: int = 300
+    calib_buffer_size: int = 500
     scale_factor: float = 0.07
 
     bus_num: int = 1  # I2C bus number (1 for Raspberry Pi 3 and later)
