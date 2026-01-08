@@ -9,6 +9,7 @@ import time
 from datetime import datetime
 from threading import Event
 
+import vr_core.mock_modules.load_calib_json as ms
 from vr_core.base_service import BaseService
 from vr_core.config_service.config import Config
 from vr_core.eye_tracker.frame_provider import FrameProvider
@@ -26,7 +27,7 @@ from vr_core.raspberry_perif.camera_manager import CameraManager
 from vr_core.raspberry_perif.esp32 import Esp32
 from vr_core.raspberry_perif.imu import Imu
 from vr_core.utilities.logger_setup import setup_logger
-import vr_core.mock_modules.load_calib_json as ms
+
 
 def _ensure_session_id() -> str:
     sid = os.environ.get("VR_SESSION_ID")
@@ -318,21 +319,29 @@ class Core:
         """Idle loop for the supervisor. Add supervision/restarts here later if needed."""
         #self.logger.info("Waiting for services to stop...")
         cycle_count = 0
+
+        was_disconnected = True
+
         try:
+            tracker_control = self.services.get("TrackerControl")
+            if not isinstance(tracker_control, TrackerControl):
+                return
+
             while not self._stop_requested.is_set():
-                tracker_control = self.services.get("TrackerControl")
-                if not isinstance(tracker_control, TrackerControl):
-                    return
+
                 cycle_count += 1
-                time.sleep(0.5)
+                time.sleep(0.2)
                 if cycle_count == 1:
                     tracker_control.tracker_control({"mode": "online"})
 
-                if cycle_count == 6:
+                if self.comm_router_signals.tcp_client_connected_s.is_set() and was_disconnected:
                     ms.load_calib_json(
                         comm_router_q=self.queues.comm_router_q,
                         pq_counter=self.queues.pq_counter,
                     )
+                    was_disconnected = False
+                elif not self.comm_router_signals.tcp_client_connected_s.is_set():
+                    was_disconnected = True
 
 
         except KeyboardInterrupt:

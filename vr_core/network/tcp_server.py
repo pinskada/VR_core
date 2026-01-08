@@ -1,20 +1,21 @@
+# ruff: noqa: TRY400,PLR0913,ERA001,TRY300,PLR2004,C901,PLR0911
+
 """Cross-platform TCP server for Unity."""
 
-import socket
 import queue
-import time
+import socket
 import threading
+import time
 
 from vr_core.base_service import BaseService
-from vr_core.ports.interfaces import INetworkService
 from vr_core.config_service.config import Config
 from vr_core.network.comm_contracts import MessageType
+from vr_core.ports.interfaces import INetworkService
 from vr_core.utilities.logger_setup import setup_logger
 
+
 class TCPServer(BaseService, INetworkService):
-    """
-    Cross-platform TCP server for Unity client.
-    """
+    """Cross-platform TCP server for Unity client."""
 
     def __init__(
         self,
@@ -23,8 +24,10 @@ class TCPServer(BaseService, INetworkService):
         tcp_client_connected_s: threading.Event,
         stop_requested_s: threading.Event,
         config_ready_s: threading.Event,
+        *,
         mock_mode: bool = False,
     ) -> None:
+        """Initialize the TCP server service."""
         super().__init__(name="TCPServer")
 
         self.logger = setup_logger("TCPServer")
@@ -92,7 +95,7 @@ class TCPServer(BaseService, INetworkService):
 
         # Close sockets to unblock accept/recv
         if self.client_conn:
-            try:
+            try:  # noqa: SIM105
                 self.client_conn.shutdown(socket.SHUT_RDWR)
             except OSError:
                 pass
@@ -101,7 +104,7 @@ class TCPServer(BaseService, INetworkService):
         self.client_addr = None
 
         if self.server_socket:
-            try:
+            try:  # noqa: SIM105
                 self.server_socket.shutdown(socket.SHUT_RDWR)
             except OSError:
                 pass
@@ -109,12 +112,12 @@ class TCPServer(BaseService, INetworkService):
 
 
     def is_online(self) -> bool:
-        """Check connection and lifecycle state"""
+        """Check connection and lifecycle state."""
         return self.online and self._thread.is_alive() and self._ready.is_set() and not self._fatal
 
 
     def _verify_static_ip(self) -> bool:
-        """Optional check: does our local IP match the expected static prefix?"""
+        """Check the RPI for static IP."""
         expected_prefix=self.cfg.tcp.static_ip_prefix
         test_sock = None
         try:
@@ -169,24 +172,24 @@ class TCPServer(BaseService, INetworkService):
 
                 return True
 
-            except socket.timeout:
+            except TimeoutError:  # noqa: PERF203
                 if infinite_timeout:
                     continue
-                elif time.time() - start >= deadline:
+                if time.time() - start >= deadline:
                     self.logger.warning("Accept timeout before client connected")
                     self.stop_requested_s.set()
                 continue
             except OSError as e:
                 # Bind/listen failed or socket got closed during shutdown
                 self.logger.error("Accept failed: %s", e)
-                raise RuntimeError(f"TCPServer: accept failed: {e}") from e
+                msg = f"TCPServer: accept failed: {e}"
+                raise RuntimeError(msg) from e
 
         return False
 
 
     def _receive(self) -> None:
         """Receive data from the client connection."""
-
         if not self.client_conn:
             return
         try:
@@ -198,7 +201,7 @@ class TCPServer(BaseService, INetworkService):
                 return
             self._buf.extend(chunk)
             self._decode_message()  # parse whatever we have
-        except socket.timeout:
+        except TimeoutError:
             # No data this cycle — not an error. Let _run() continue.
             return
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError) as e:
@@ -258,9 +261,6 @@ class TCPServer(BaseService, INetworkService):
         message_type: MessageType,
     ) -> None:
         """Encode a payload and send it."""
-
-        #self.logger.info("Message type: %s", message_type)
-
         if self.mock_mode:
             self.logger.info("Sending data (mock mode) of type %s", message_type)
             return
@@ -273,7 +273,8 @@ class TCPServer(BaseService, INetworkService):
         try:
             msg_type = MessageType(message_type)
         except ValueError:
-            self.logger.error("Unknown MessageType %r", message_type)
+            error=("Unknown MessageType %r", message_type)
+            self.logger.error(error)
             return
 
         if not isinstance(payload, (bytes, bytearray, memoryview)):
@@ -298,7 +299,7 @@ class TCPServer(BaseService, INetworkService):
                     if self.client_conn:
                         self.client_conn.sendall(packet)
                         return
-                except OSError as e:
+                except OSError as e:  # noqa: PERF203
                     self.logger.warning("Send error (%d/%d): %s", attempt+1, max_attempts, e)
                     if attempt+1 >= max_attempts:
                         self.logger.error("Max resend attempts reached; giving up.")
@@ -310,7 +311,7 @@ class TCPServer(BaseService, INetworkService):
     def _encode_message(
         self,
         payload: bytes,
-        message_type: MessageType
+        message_type: MessageType,
     ) -> bytes:
         """Encode a message with header for sending.
 
@@ -318,13 +319,13 @@ class TCPServer(BaseService, INetworkService):
             [MessageType][PayloadSize][Payload]
                 1 byte      3 bytes   variable
         """
-
         length = len(payload)
         if length > self.cfg.tcp.max_packet_size:
             self.logger.error(
                 "Payload too large: %d > %d",
                 length, self.cfg.tcp.max_packet_size)
-            raise ValueError("Payload too large.")
+            msg = "Payload too large."
+            raise ValueError(msg)
 
-        header = bytes([int(message_type)]) + length.to_bytes(3, 'big')
+        header = bytes([int(message_type)]) + length.to_bytes(3, "big")
         return header + payload
