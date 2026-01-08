@@ -57,7 +57,7 @@ class Core:
         self.imu_mock_mode_s = False
         self.camera_mock_mode = False
         self.fr_pr_test_video = False
-        self.use_eyeloop_gui = True
+        self.use_eyeloop_gui = False
         self.log_calibration = True
 
         self.logger = setup_logger("Core")
@@ -249,8 +249,8 @@ class Core:
 
             if name in {"TCPServer", "ConfigService"}:  # noqa: SIM108
                 # TCP server needs longer timeout since client may take time to connect
-                timeout = 120
-                #timeout = float("inf")
+                # timeout = 120
+                timeout = float("inf")
             else:
                 timeout = 5
 

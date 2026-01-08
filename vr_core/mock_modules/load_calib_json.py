@@ -4,9 +4,12 @@ from queue import PriorityQueue
 from typing import Any
 import json
 import itertools
-from dataclasses import asdict
 
 from vr_core.network.comm_contracts import MessageType
+from vr_core.utilities.logger_setup import setup_logger
+
+logger = setup_logger("EyeDataDrawer")
+
 
 def load_calib_json(
     comm_router_q: PriorityQueue[Any],
@@ -31,4 +34,5 @@ def load_calib_json(
     calibrated_data_dict = data["calibrated_data"]
     # print(calibrated_data_dict)
 
+    logger.info("Sending calibration data.")
     comm_router_q.put((8, next(pq_counter), MessageType.calibData, calibrated_data_dict))
